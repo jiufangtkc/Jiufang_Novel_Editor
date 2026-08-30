@@ -1,0 +1,22 @@
+{
+  "window_width": 1200,
+  "window_height": 800,
+  "window_x": 7,
+  "window_y": 580,
+  "is_maximized": true,
+  "splitter_sizes": [
+    286,
+    572,
+    572
+  ],
+  "last_left_width": 240,
+  "last_right_width": 480,
+  "scale_factor": 1.0,
+  "autosave_interval_minutes": 10,
+  "autosave_max_files": 100,
+  "last_exit_normal": true,
+  "session_active": false,
+  "last_project_path": "",
+  "stat_count_half_alnum_and_sym": true,
+  "stat_count_full_space": true
+}

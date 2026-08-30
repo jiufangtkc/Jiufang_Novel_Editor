@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "rules": {
+    "redundant_phrase": true,
+    "high_density_particle": true,
+    "passive_voice": true,
+    "duplicate_words": true
+  },
+  "particle_density_threshold": 3,
+  "whitelist": [],
+  "custom_redundant_words": []
+}

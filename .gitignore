@@ -1,0 +1,43 @@
+# Python 快取與編譯檔
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 虛擬環境
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# 專案打包產物
+build/
+dist/
+*.exe
+Output/
+
+# 使用者小說與創作資料庫（避免個人資料提交至儲存庫）
+story/
+Temp_doc/
+Export/
+
+# 本地暫存與除錯紀錄
+test_output.txt
+python_path.txt
+python_path_utf8.txt
+*.log
+
+# IDE 與編輯器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 作業系統產物
+Thumbs.db
+Desktop.ini
+.DS_Store
