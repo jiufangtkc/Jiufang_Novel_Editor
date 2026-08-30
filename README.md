@@ -67,7 +67,7 @@
 
 ```bash
 # 複製專案
-git clone https://github.com/<YOUR_USERNAME>/Jiufang_Novel_Editor.git
+git clone https://github.com/jiufangtkc/Jiufang_Novel_Editor.git
 cd Jiufang_Novel_Editor
 
 # 建立並啟動虛擬環境 (推薦)
