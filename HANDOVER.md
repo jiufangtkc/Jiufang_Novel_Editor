@@ -91,13 +91,15 @@
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
 - **本次完成事項**：
-  1. **軟體圖示更新與多格式生成**：
-     - 將使用者提供之九宮格 + 貓爪 + 書本新版圖示完成高精準度圓角去背處理（抗鋸齒遮罩移除棋盤格殘影）。
-     - 生成 1024x1024 高解析度與 512x512 標準透明背景 PNG (`resources/icons/app_icon_1024.png`, `resources/icons/app_icon.png`)。
-     - 生成完整 Windows 多層解析度 ICO 檔案 (`resources/icons/app_icon.ico`，包含 16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256)。
-     - 整合至視窗圖示 (`main.py`) 與 PyInstaller 打包腳本 (`Jiufang_Novel_Editor.spec`, `build.bat`)。
+  1. **Git 版本控制初始化與配置**：
+     - 建立標準 `.gitignore`，妥善排除 `__pycache__`、`.venv`、打包產物 (`dist/`, `build/`)、使用者個人小說資料庫 (`story/`)、暫存檔 (`Temp_doc/`) 與匯出產物 (`Export/`)。
+     - 將 `requirements.txt` 轉為標準 UTF-8 編碼。
+     - 清理 `app_settings.json` 中的本機絕對路徑，確保設定檔通用乾淨。
+     - 建立繁體中文專屬專案說明文件 `README.md`（包含功能特色、技術棧架構、安裝運行教學、測試與打包流程）。
+     - 完成本機 Git 初始化 (`main` 分支) 並完成首次標準 Commit。
   2. **測試驗證**：85/85 個單元測試全數通過。
-- **當前任務狀態**：**新版軟體圖示已轉換並全域套用完畢。**
+- **當前任務狀態**：**專案已完成 Git 初始化並具備上傳至 GitHub 的完整結構。**
 - **下一個 Agent 的任務指引**：
-  專案目前架構穩固、測試完整且軟體圖示已全面更新。後續如有新增功能需求，請依循既有 MVC 分層架構與 10B 模型防卡死守則（見 `workspace_rules.md`）進行小步推進。
+  若需推送到遠端 GitHub 儲存庫，依據使用者提供的 GitHub Repository URL 加入 `git remote add origin <URL>` 並執行 `git push -u origin main`。
+
 
