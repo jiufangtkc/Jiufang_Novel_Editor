@@ -123,8 +123,10 @@ class MenuBuilder:
         # 7. 設定選單
         window.settings_menu = menubar.addMenu("設定(&S)")
         window.action_autosave_settings = QAction("暫存與自動存檔設定(&A)...", window)
+        window.action_storage_path_settings = QAction("存檔路徑設定(&P)...", window)
         window.action_word_count_settings = QAction("字數統計設定(&W)...", window)
         window.settings_menu.addAction(window.action_autosave_settings)
+        window.settings_menu.addAction(window.action_storage_path_settings)
         window.settings_menu.addAction(window.action_word_count_settings)
         window.settings_menu.addAction(window.action_ai_settings)
         window.settings_menu.addSeparator()

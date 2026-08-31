@@ -11,8 +11,10 @@ from PyQt6.QtCore import Qt
 from models.models import JneProject, ProjectInfo, ChapterNode, CardNode, WritingLogEntry, MARK_COLOR_MAP
 from services.database import DatabaseService
 from services.app_settings_service import AppSettingsService
+from services.storage_migration_service import StorageMigrationService
 from views.dialogs.new_book_dialog import NewBookDialog
 from views.dialogs.autosave_settings_dialog import AutosaveSettingsDialog
+from views.dialogs.storage_path_dialog import StoragePathDialog
 from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
 from utils.file_utils import get_temp_db_sort_key
@@ -118,7 +120,7 @@ class ProjectController:
 
     def auto_load_latest_temp(self) -> bool:
         """軟體啟動時自動檢查 Temp_doc 與存檔目錄，並優先載入最新暫存檔。"""
-        temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+        temp_dir = self.mc.get_temp_dir()
 
         # 1. 優先檢查 Temp_doc 下的 .db 暫存檔
         if os.path.exists(temp_dir):
@@ -157,7 +159,7 @@ class ProjectController:
                         print(f"嘗試載入舊版 JSON 暫存檔 {json_file} 失敗: {e}", file=sys.stderr)
 
         # 3. 若 Temp_doc 無可用暫存檔，檢查 story/ 正式存檔目錄作為保底
-        story_dir = os.path.join(self.mc.app_dir, "story")
+        story_dir = self.mc.get_story_dir()
         if os.path.exists(story_dir):
             story_files = []
             for root, _, files in os.walk(story_dir):
@@ -529,7 +531,7 @@ class ProjectController:
             AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
 
             # 立即執行一次清理上限檢查
-            temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+            temp_dir = self.mc.get_temp_dir()
             self.clean_files_limit(temp_dir, limit=max_files)
 
             QMessageBox.information(
@@ -538,9 +540,73 @@ class ProjectController:
                 f"暫存與自動存檔設定已更新！\n\n• 自動存檔間隔：{interval} 分鐘\n• 最多保留暫存檔：{max_files} 個"
             )
 
+    def open_storage_path_dialog(self):
+        """開啟存檔路徑設定對話框，支援雲端同步目錄設定與歷史稿件/暫存檔遷移。"""
+        current_path = self.mc.get_storage_path()
+        dialog = StoragePathDialog(self.view, current_path=current_path)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_path = dialog.get_selected_storage_path()
+            if not selected_path:
+                return
+
+            new_path_abs = os.path.abspath(selected_path)
+            old_path_abs = os.path.abspath(current_path)
+
+            if new_path_abs.lower() == old_path_abs.lower():
+                QMessageBox.information(self.view, "提示", "存檔路徑未變更。")
+                return
+
+            # 檢查目錄寫入權限
+            if not StorageMigrationService.is_valid_writable_dir(new_path_abs):
+                QMessageBox.critical(self.view, "路徑錯誤", f"無法存取或寫入所選目錄：\n{new_path_abs}\n請確認您擁有該目錄的寫入權限。")
+                return
+
+            # 詢問是否進行檔案遷移
+            reply = QMessageBox.question(
+                self.view,
+                "確認變更存檔路徑",
+                f"即將將存檔路徑變更為：\n{new_path_abs}\n\n是否將原路徑中的現有稿件與暫存檔一併遷移至新路徑？\n\n（建議選擇『是』以保持資料完整與同步）",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Yes
+            )
+
+            if reply == QMessageBox.StandardButton.Cancel:
+                return
+
+            story_copied = 0
+            temp_copied = 0
+            if reply == QMessageBox.StandardButton.Yes:
+                migration = StorageMigrationService.migrate_storage_data(old_path_abs, new_path_abs)
+                story_copied = migration.get("story_files_copied", 0)
+                temp_copied = migration.get("temp_files_copied", 0)
+            else:
+                StorageMigrationService.ensure_storage_directories(new_path_abs)
+
+            # 更新設定並寫入 app_settings.json
+            self.mc.app_settings["storage_path"] = new_path_abs
+            AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
+
+            # 若當前專案正好位於舊路徑下，自動修正為新路徑
+            if self.current_project_path and self.current_project_path.lower().startswith(old_path_abs.lower()):
+                rel = os.path.relpath(self.current_project_path, old_path_abs)
+                new_project_path = os.path.join(new_path_abs, rel)
+                if os.path.exists(new_project_path):
+                    self.current_project_path = new_project_path
+                    self.mc.app_settings["last_project_path"] = new_project_path
+                    AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
+
+            msg = f"存檔路徑已成功變更至：\n{new_path_abs}\n\n"
+            msg += f"• 已自動建立 Story 與 Temp_doc 資料夾\n"
+            if reply == QMessageBox.StandardButton.Yes:
+                msg += f"• 稿件檔案遷移：{story_copied} 個\n"
+                msg += f"• 暫存檔案遷移：{temp_copied} 個\n"
+            msg += "後續所有稿件儲存與自動暫存將自動寫入新路徑。"
+
+            QMessageBox.information(self.view, "存檔路徑設定成功", msg)
+
     def load_project_file_prompt(self) -> bool:
-        """彈出選擇檔案視窗讓使用者選擇要開啟的專案存檔 (.db)，預設開啟 story 目錄。"""
-        story_dir = os.path.join(self.mc.app_dir, "story")
+        """彈出選擇檔案視窗讓使用者選擇要開啟的專案存檔 (.db)，預設開啟 Story 目錄。"""
+        story_dir = self.mc.get_story_dir()
         os.makedirs(story_dir, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
             self.view, "讀取專案存檔", story_dir,
@@ -560,8 +626,8 @@ class ProjectController:
             return False
 
     def load_latest_story_project(self, notify_if_empty: bool = True) -> bool:
-        """自動搜尋 story 目錄下所有書目，取存檔日期時間最新的那一筆載入。"""
-        story_dir = os.path.join(self.mc.app_dir, "story")
+        """自動搜尋 Story 目錄下所有書目，取存檔日期時間最新的那一筆載入。"""
+        story_dir = self.mc.get_story_dir()
         os.makedirs(story_dir, exist_ok=True)
 
         story_files = []
@@ -577,7 +643,7 @@ class ProjectController:
                 QMessageBox.information(
                     self.view,
                     "提示",
-                    "在 story 目錄中尚未找到任何專案存檔 (.db)。\n請先開啟新的寫作專案或手動讀取存檔。"
+                    "在 Story 目錄中尚未找到任何專案存檔 (.db)。\n請先開啟新的寫作專案或手動讀取存檔。"
                 )
             return False
 
@@ -600,7 +666,7 @@ class ProjectController:
 
     def load_temp_file_prompt(self) -> bool:
         """彈出選擇檔案視窗讓使用者選擇要開啟的暫存檔，預設開啟 Temp_doc 目錄。"""
-        temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+        temp_dir = self.mc.get_temp_dir()
         os.makedirs(temp_dir, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
             self.view, "讀取暫存檔", temp_dir,
@@ -632,7 +698,7 @@ class ProjectController:
         """暫存使用 SQLite .db 格式"""
         self.mc.flush_active_writing_session()
         try:
-            temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+            temp_dir = self.mc.get_temp_dir()
             os.makedirs(temp_dir, exist_ok=True)
 
             project = self._build_jne_project()
@@ -650,7 +716,7 @@ class ProjectController:
         """正式存檔為 SQLite .db 格式"""
         self.mc.flush_active_writing_session()
         try:
-            story_dir = os.path.join(self.mc.app_dir, "story")
+            story_dir = self.mc.get_story_dir()
             os.makedirs(story_dir, exist_ok=True)
 
             book_title = self.mc.project_info.title.strip() if self.mc.project_info.title else ""
@@ -679,8 +745,10 @@ class ProjectController:
     def save_project_as(self):
         """另存新檔：採用 SQLite .db 格式"""
         self.mc.flush_active_writing_session()
+        story_dir = self.mc.get_story_dir()
+        os.makedirs(story_dir, exist_ok=True)
         file_path, _ = QFileDialog.getSaveFileName(
-            self.view, "另存新檔", "",
+            self.view, "另存新檔", story_dir,
             "SQLite 資料庫 (*.db)"
         )
         if not file_path:
@@ -698,8 +766,8 @@ class ProjectController:
             QMessageBox.critical(self.view, "錯誤", f"另存時發生錯誤: {e}")
 
     def load_project(self):
-        """讀取專案：採用 SQLite .db 格式，預設開啟 story 目錄"""
-        story_dir = os.path.join(self.mc.app_dir, "story")
+        """讀取專案：採用 SQLite .db 格式，預設開啟 Story 目錄"""
+        story_dir = self.mc.get_story_dir()
         os.makedirs(story_dir, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
             self.view, "讀取專案", story_dir,
@@ -727,7 +795,7 @@ class ProjectController:
             return self.current_project_path
 
         # 檢查 Temp_doc 最新暫存檔
-        temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+        temp_dir = self.mc.get_temp_dir()
         if os.path.exists(temp_dir):
             db_files = [os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.lower().endswith(".db")]
             db_files = [f for f in db_files if os.path.isfile(f) and os.path.getsize(f) > 0]

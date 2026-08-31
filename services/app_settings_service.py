@@ -18,6 +18,8 @@ DEFAULT_WINDOW_SETTINGS = {
     # 暫存與自動存檔設定
     "autosave_interval_minutes": 10,
     "autosave_max_files": 100,
+    # 存檔路徑設定（空字串代表預設 AppData 目錄）
+    "storage_path": "",
     # 專案路徑與 Session 狀態
     "last_exit_normal": True,
     "session_active": False,
@@ -33,15 +35,48 @@ SETTINGS_FILENAME = "app_settings.json"
 
 
 class AppSettingsService:
-    """負責管理全域視窗尺寸、介面佈局比例與 UI 縮放的持久化。"""
+    """負責管理全域視窗尺寸、介面佈局比例、UI 縮放與存檔路徑的持久化。"""
+
+    @staticmethod
+    def get_default_storage_path() -> str:
+        """取得系統預設的應用程式資料與存檔目錄 (AppData/Local/Jiufang_Novel_Editor)。"""
+        local_app_data = os.environ.get('LOCALAPPDATA')
+        if not local_app_data:
+            local_app_data = os.path.join(os.path.expanduser('~'), 'AppData', 'Local')
+        return os.path.join(local_app_data, 'Jiufang_Novel_Editor')
+
+    @classmethod
+    def get_current_storage_path(cls, settings: Optional[Dict[str, Any]] = None, app_dir: Optional[str] = None) -> str:
+        """解析當前生效的儲存根目錄路徑。若未指定或為空則回傳預設路徑。"""
+        if settings and settings.get("storage_path"):
+            path = settings["storage_path"].strip()
+            if path:
+                return os.path.abspath(path)
+        if app_dir:
+            return os.path.abspath(app_dir)
+        return os.path.abspath(cls.get_default_storage_path())
+
+    @classmethod
+    def get_story_dir(cls, storage_path: str) -> str:
+        """取得指定儲存目錄下的 Story 稿件資料夾路徑（相容舊有小寫 story 目錄）。"""
+        if os.path.exists(storage_path) and os.path.isdir(storage_path):
+            try:
+                entries = os.listdir(storage_path)
+                if "story" in entries and "Story" not in entries:
+                    return os.path.join(storage_path, "story")
+            except Exception:
+                pass
+        return os.path.join(storage_path, "Story")
+
+    @classmethod
+    def get_temp_dir(cls, storage_path: str) -> str:
+        """取得指定儲存目錄下的 Temp_doc 暫存資料夾路徑。"""
+        return os.path.join(storage_path, "Temp_doc")
 
     @staticmethod
     def get_settings_file_path(app_dir: Optional[str] = None) -> str:
         if not app_dir:
-            local_app_data = os.environ.get('LOCALAPPDATA')
-            if not local_app_data:
-                local_app_data = os.path.join(os.path.expanduser('~'), 'AppData', 'Local')
-            app_dir = os.path.join(local_app_data, 'Jiufang_Novel_Editor')
+            app_dir = AppSettingsService.get_default_storage_path()
             
         if not os.path.exists(app_dir):
             os.makedirs(app_dir)

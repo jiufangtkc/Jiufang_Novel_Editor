@@ -66,7 +66,7 @@ class BackupController:
         if not backup_path:
             return
 
-        target_dir = os.path.join(self.mc.app_dir, "story")
+        target_dir = self.mc.get_story_dir()
         try:
             restored_db_path = BackupService.restore_backup(backup_path, target_dir)
             project = DatabaseService.load_project(restored_db_path)

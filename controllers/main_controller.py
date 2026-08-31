@@ -98,19 +98,22 @@ class MainController:
 
         self.should_exit: bool = False
 
-        # 自動防護目錄建立
+        # 自動防護目錄與全域設定初始化
         local_app_data = os.environ.get('LOCALAPPDATA')
         if not local_app_data:
             local_app_data = os.path.join(os.path.expanduser('~'), 'AppData', 'Local')
         app_dir = os.path.join(local_app_data, 'Jiufang_Novel_Editor')
         self.app_dir = app_dir
-        os.makedirs(os.path.join(app_dir, "Temp_doc"), exist_ok=True)
-        os.makedirs(os.path.join(app_dir, "story"), exist_ok=True)
 
         # 載入並套用前一次關閉編輯器時的介面大小與設定
         is_first_launch = AppSettingsService.is_first_launch(self.app_dir)
         self.app_settings = AppSettingsService.load_settings(self.app_dir)
         AppSettingsService.apply_to_window(self.view, self.app_settings)
+
+        # 確保當前生效之存檔目錄 (Story / Temp_doc) 初始化
+        curr_storage_path = self.get_storage_path()
+        from services.storage_migration_service import StorageMigrationService
+        StorageMigrationService.ensure_storage_directories(curr_storage_path)
 
         # 第一次乾淨開啟時，預設介面在 100%，並詢問使用者的偏好介面大小
         if is_first_launch:
@@ -134,7 +137,7 @@ class MainController:
 
         # Crash 判定與啟動選擇
         was_crash = bool(self.app_settings.get("session_active", False) or not self.app_settings.get("last_exit_normal", True))
-        temp_dir = os.path.join(self.app_dir, "Temp_doc")
+        temp_dir = self.get_temp_dir()
         has_temp = os.path.exists(temp_dir) and any(
             f.lower().endswith(".db") and os.path.isfile(os.path.join(temp_dir, f)) and os.path.getsize(os.path.join(temp_dir, f)) > 0
             for f in os.listdir(temp_dir)
@@ -301,6 +304,8 @@ class MainController:
         # 設定 (Settings)
         if hasattr(self.view, "action_autosave_settings"):
             self.view.action_autosave_settings.triggered.connect(self.project.open_autosave_settings_dialog)
+        if hasattr(self.view, "action_storage_path_settings"):
+            self.view.action_storage_path_settings.triggered.connect(self.project.open_storage_path_dialog)
         if hasattr(self.view, "action_word_count_settings"):
             self.view.action_word_count_settings.triggered.connect(self.stats.open_word_count_settings_dialog)
 
@@ -435,4 +440,22 @@ class MainController:
 
     def open_autosave_settings_dialog(self):
         self.project.open_autosave_settings_dialog()
+
+    def open_storage_path_dialog(self):
+        self.project.open_storage_path_dialog()
+
+    def get_storage_path(self) -> str:
+        """取得當前生效之專案存檔根目錄路徑。"""
+        return AppSettingsService.get_current_storage_path(
+            settings=getattr(self, "app_settings", None),
+            app_dir=getattr(self, "app_dir", None)
+        )
+
+    def get_story_dir(self) -> str:
+        """取得當前生效之 Story 稿件目錄路徑。"""
+        return AppSettingsService.get_story_dir(self.get_storage_path())
+
+    def get_temp_dir(self) -> str:
+        """取得當前生效之 Temp_doc 暫存檔目錄路徑。"""
+        return AppSettingsService.get_temp_dir(self.get_storage_path())
 
