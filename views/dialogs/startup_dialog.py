@@ -5,23 +5,24 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 from utils.font_manager import FontManager
-
-
 from utils.theme_manager import set_window_dark_mode
 import sys
+
 
 class StartupDialog(QDialog):
     """程式啟動引導對話框。
     
     提供作者在軟體啟動時選擇：
     1. 開啟新的寫作專案
-    2. 讀取專案存檔
+    2. 讀取上次寫的專案（自動尋找最新存檔）
+    3. 讀取專案存檔（預設開啟 story 目錄）
+    4. 讀取暫存檔（預設開啟 Temp_doc 目錄）
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("九方小說編輯器 — 歡迎")
-        self.setFixedSize(480, 320)
+        self.setFixedSize(500, 470)
         self.setModal(True)
         self.setStyleSheet("""
             QDialog {
@@ -30,18 +31,54 @@ class StartupDialog(QDialog):
         """)
         if sys.platform == "win32":
             set_window_dark_mode(int(self.winId()))
-        self.selected_action = "new"  # 'new' 或 'open'
+        self.selected_action = "new"  # 'new', 'open_latest', 'open', 'open_temp'
 
         self.init_ui()
 
+    def _create_card_button(self, icon_title: str, description: str) -> QPushButton:
+        """輔助建立一致風格的選項卡片按鈕。"""
+        btn = QPushButton()
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedHeight(68)
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2b2b2b;
+                border: 1px solid #3c3f41;
+                border-radius: 8px;
+                text-align: left;
+                padding-left: 18px;
+            }
+            QPushButton:hover {
+                background-color: #35383a;
+                border: 1px solid #2b78e4;
+            }
+            QPushButton:pressed {
+                background-color: #232526;
+            }
+        """)
+        card_layout = QVBoxLayout(btn)
+        card_layout.setContentsMargins(12, 8, 12, 8)
+        card_layout.setSpacing(2)
+
+        lbl_title = QLabel(icon_title)
+        lbl_title.setFont(FontManager.get_font(size=12, weight=QFont.Weight.Bold))
+        lbl_title.setStyleSheet("color: #ffffff;")
+        
+        lbl_desc = QLabel(description)
+        lbl_desc.setStyleSheet("color: #888888; font-size: 11px;")
+
+        card_layout.addWidget(lbl_title)
+        card_layout.addWidget(lbl_desc)
+        return btn
+
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        layout.setSpacing(20)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(14)
 
         # 頂部歡迎標題
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(6)
+        header_layout.setSpacing(4)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lbl_title = QLabel("九方小說編輯器")
@@ -59,73 +96,39 @@ class StartupDialog(QDialog):
 
         # 選項卡片區
         cards_layout = QVBoxLayout()
-        cards_layout.setSpacing(14)
+        cards_layout.setSpacing(10)
 
         # 按鈕 1：開啟新的寫作專案
-        self.btn_new_project = QPushButton()
-        self.btn_new_project.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_new_project.setFixedHeight(72)
-        self.btn_new_project.setStyleSheet("""
-            QPushButton {
-                background-color: #2b2b2b;
-                border: 1px solid #3c3f41;
-                border-radius: 8px;
-                text-align: left;
-                padding-left: 20px;
-            }
-            QPushButton:hover {
-                background-color: #35383a;
-                border: 1px solid #2b78e4;
-            }
-            QPushButton:pressed {
-                background-color: #232526;
-            }
-        """)
-        new_layout = QVBoxLayout(self.btn_new_project)
-        new_layout.setContentsMargins(12, 10, 12, 10)
-        new_layout.setSpacing(2)
-        lbl_new_title = QLabel("✍️  開啟新的寫作專案")
-        lbl_new_title.setFont(FontManager.get_font(size=12, weight=QFont.Weight.Bold))
-        lbl_new_title.setStyleSheet("color: #ffffff;")
-        lbl_new_desc = QLabel("建立全新專案，預設包含標準卷、章、幕結構")
-        lbl_new_desc.setStyleSheet("color: #888888; font-size: 11px;")
-        new_layout.addWidget(lbl_new_title)
-        new_layout.addWidget(lbl_new_desc)
+        self.btn_new_project = self._create_card_button(
+            "✍️  開啟新的寫作專案",
+            "建立全新專案，預設包含標準卷、章、幕結構"
+        )
         self.btn_new_project.clicked.connect(self._on_new_clicked)
         cards_layout.addWidget(self.btn_new_project)
 
-        # 按鈕 2：讀取專案存檔
-        self.btn_open_project = QPushButton()
-        self.btn_open_project.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_open_project.setFixedHeight(72)
-        self.btn_open_project.setStyleSheet("""
-            QPushButton {
-                background-color: #2b2b2b;
-                border: 1px solid #3c3f41;
-                border-radius: 8px;
-                text-align: left;
-                padding-left: 20px;
-            }
-            QPushButton:hover {
-                background-color: #35383a;
-                border: 1px solid #2b78e4;
-            }
-            QPushButton:pressed {
-                background-color: #232526;
-            }
-        """)
-        open_layout = QVBoxLayout(self.btn_open_project)
-        open_layout.setContentsMargins(12, 10, 12, 10)
-        open_layout.setSpacing(2)
-        lbl_open_title = QLabel("📂  讀取專案存檔")
-        lbl_open_title.setFont(FontManager.get_font(size=12, weight=QFont.Weight.Bold))
-        lbl_open_title.setStyleSheet("color: #ffffff;")
-        lbl_open_desc = QLabel("開啟既有的小說資料庫專案 (.db) 繼續創作")
-        lbl_open_desc.setStyleSheet("color: #888888; font-size: 11px;")
-        open_layout.addWidget(lbl_open_title)
-        open_layout.addWidget(lbl_open_desc)
+        # 按鈕 2：讀取上次寫的專案
+        self.btn_open_latest = self._create_card_button(
+            "📖  讀取上次寫的專案",
+            "自動搜尋 story 目錄中最新存檔的專案並開啟"
+        )
+        self.btn_open_latest.clicked.connect(self._on_open_latest_clicked)
+        cards_layout.addWidget(self.btn_open_latest)
+
+        # 按鈕 3：讀取專案存檔
+        self.btn_open_project = self._create_card_button(
+            "📂  讀取專案存檔",
+            "從 story 目錄選擇既有專案存檔 (.db) 繼續創作"
+        )
         self.btn_open_project.clicked.connect(self._on_open_clicked)
         cards_layout.addWidget(self.btn_open_project)
+
+        # 按鈕 4：讀取暫存檔
+        self.btn_open_temp = self._create_card_button(
+            "💾  讀取暫存檔",
+            "從 Temp_doc 目錄選擇歷史自動暫存檔 (.db)"
+        )
+        self.btn_open_temp.clicked.connect(self._on_open_temp_clicked)
+        cards_layout.addWidget(self.btn_open_temp)
 
         layout.addLayout(cards_layout)
 
@@ -133,6 +136,14 @@ class StartupDialog(QDialog):
         self.selected_action = "new"
         self.accept()
 
+    def _on_open_latest_clicked(self):
+        self.selected_action = "open_latest"
+        self.accept()
+
     def _on_open_clicked(self):
         self.selected_action = "open"
+        self.accept()
+
+    def _on_open_temp_clicked(self):
+        self.selected_action = "open_temp"
         self.accept()

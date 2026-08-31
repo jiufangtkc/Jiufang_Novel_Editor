@@ -57,15 +57,23 @@ class TestAutosaveAndStartup(unittest.TestCase):
         dialog.close()
 
     def test_startup_dialog_actions(self):
-        """測試 StartupDialog 點擊開啟新專案與讀取專案存檔選項。"""
+        """測試 StartupDialog 點擊各選項卡片按鈕之 action 設定。"""
         dialog = StartupDialog(self.view)
         # 測試選擇 new
         dialog._on_new_clicked()
         self.assertEqual(dialog.selected_action, "new")
 
+        # 測試選擇 open_latest
+        dialog._on_open_latest_clicked()
+        self.assertEqual(dialog.selected_action, "open_latest")
+
         # 測試選擇 open
         dialog._on_open_clicked()
         self.assertEqual(dialog.selected_action, "open")
+
+        # 測試選擇 open_temp
+        dialog._on_open_temp_clicked()
+        self.assertEqual(dialog.selected_action, "open_temp")
         dialog.close()
 
     def test_autosave_timer_and_file_limit_cleanup(self):
@@ -148,6 +156,51 @@ class TestAutosaveAndStartup(unittest.TestCase):
             test_mc = MainController(test_view, interactive_startup=True)
             self.assertTrue(test_mc.should_exit)
             test_view.close()
+
+    def test_load_latest_story_project(self):
+        """測試 load_latest_story_project 能正確從多個書目與存檔中挑選最新的一筆載入。"""
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as temp_app_dir:
+            orig_app_dir = self.mc.app_dir
+            self.mc.app_dir = temp_app_dir
+            try:
+                story_dir = os.path.join(temp_app_dir, "story")
+                book1_dir = os.path.join(story_dir, "Book1")
+                book2_dir = os.path.join(story_dir, "Book2")
+                os.makedirs(book1_dir, exist_ok=True)
+                os.makedirs(book2_dir, exist_ok=True)
+
+                # 建立舊專案 (Book1, 20260825)
+                p1 = JneProject(project_info=ProjectInfo(title="舊書第一部", logline="大綱1"))
+                f1 = os.path.join(book1_dir, "Book1_20260825_100000.db")
+                DatabaseService.save_project(p1, f1)
+
+                # 建立新專案 (Book2, 20260830)
+                p2 = JneProject(project_info=ProjectInfo(title="新書第二部", logline="大綱2"))
+                f2 = os.path.join(book2_dir, "Book2_20260830_120000.db")
+                DatabaseService.save_project(p2, f2)
+
+                # 執行讀取最新
+                res = self.mc.project.load_latest_story_project(notify_if_empty=False)
+                self.assertTrue(res)
+                self.assertEqual(self.mc.project_info.title, "新書第二部")
+                self.assertEqual(self.mc.project.current_project_path, f2)
+            finally:
+                self.mc.app_dir = orig_app_dir
+
+    def test_load_project_file_prompt_default_story_dir(self):
+        """測試 load_project_file_prompt 與 load_temp_file_prompt 的預設路徑。"""
+        from unittest.mock import patch
+        with patch("controllers.project_controller.QFileDialog.getOpenFileName") as mock_open:
+            mock_open.return_value = ("", "")
+            self.mc.project.load_project_file_prompt()
+            # 檢查傳入 QFileDialog 的第 3 個參數為 story 目錄
+            story_dir = os.path.join(self.mc.app_dir, "story")
+            self.assertEqual(mock_open.call_args[0][2], story_dir)
+
+            self.mc.project.load_temp_file_prompt()
+            temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+            self.assertEqual(mock_open.call_args[0][2], temp_dir)
 
 
 if __name__ == "__main__":

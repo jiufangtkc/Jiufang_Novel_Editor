@@ -516,11 +516,12 @@ class ProjectController:
             )
 
     def load_project_file_prompt(self) -> bool:
-        """彈出選擇檔案視窗讓使用者選擇要開啟的專案存檔 (.db)。"""
+        """彈出選擇檔案視窗讓使用者選擇要開啟的專案存檔 (.db)，預設開啟 story 目錄。"""
         story_dir = os.path.join(self.mc.app_dir, "story")
+        os.makedirs(story_dir, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
-            self.view, "讀取專案存檔", story_dir if os.path.exists(story_dir) else "",
-            "SQLite 資料庫 (*.db)"
+            self.view, "讀取專案存檔", story_dir,
+            "SQLite 資料庫 (*.db);;所有檔案 (*.*)"
         )
         if not file_path:
             return False
@@ -533,6 +534,75 @@ class ProjectController:
             return True
         except Exception as e:
             QMessageBox.critical(self.view, "錯誤", f"讀取專案存檔失敗: {e}")
+            return False
+
+    def load_latest_story_project(self, notify_if_empty: bool = True) -> bool:
+        """自動搜尋 story 目錄下所有書目，取存檔日期時間最新的那一筆載入。"""
+        story_dir = os.path.join(self.mc.app_dir, "story")
+        os.makedirs(story_dir, exist_ok=True)
+
+        story_files = []
+        for root, _, files in os.walk(story_dir):
+            for f in files:
+                if f.lower().endswith(".db"):
+                    full_p = os.path.join(root, f)
+                    if os.path.isfile(full_p) and os.path.getsize(full_p) > 0:
+                        story_files.append(full_p)
+
+        if not story_files:
+            if notify_if_empty:
+                QMessageBox.information(
+                    self.view,
+                    "提示",
+                    "在 story 目錄中尚未找到任何專案存檔 (.db)。\n請先開啟新的寫作專案或手動讀取存檔。"
+                )
+            return False
+
+        story_files.sort(key=get_temp_db_sort_key, reverse=True)
+        for latest_file in story_files:
+            try:
+                project = DatabaseService.load_project(latest_file)
+                if project:
+                    self.load_project_data(project)
+                    self.current_project_path = latest_file
+                    self.mc.app_settings["last_project_path"] = latest_file
+                    AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
+                    return True
+            except Exception as e:
+                print(f"嘗試載入專案存檔 {latest_file} 失敗: {e}", file=sys.stderr)
+
+        if notify_if_empty:
+            QMessageBox.critical(self.view, "錯誤", "嘗試載入最新的專案存檔失敗。")
+        return False
+
+    def load_temp_file_prompt(self) -> bool:
+        """彈出選擇檔案視窗讓使用者選擇要開啟的暫存檔，預設開啟 Temp_doc 目錄。"""
+        temp_dir = os.path.join(self.mc.app_dir, "Temp_doc")
+        os.makedirs(temp_dir, exist_ok=True)
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.view, "讀取暫存檔", temp_dir,
+            "SQLite 資料庫 (*.db);;JSON 檔案 (*.json);;所有檔案 (*.*)"
+        )
+        if not file_path:
+            return False
+        try:
+            if file_path.lower().endswith(".json"):
+                from services.storage import StorageService
+                project = StorageService.load_data(file_path)
+            else:
+                project = DatabaseService.load_project(file_path)
+
+            if project:
+                self.load_project_data(project)
+                self.current_project_path = file_path
+                self.mc.app_settings["last_project_path"] = file_path
+                AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
+                return True
+            else:
+                QMessageBox.warning(self.view, "提示", "選取的暫存檔為空或格式無法辨識。")
+                return False
+        except Exception as e:
+            QMessageBox.critical(self.view, "錯誤", f"讀取暫存檔失敗: {e}")
             return False
 
     def save_temp_doc(self):
@@ -605,10 +675,12 @@ class ProjectController:
             QMessageBox.critical(self.view, "錯誤", f"另存時發生錯誤: {e}")
 
     def load_project(self):
-        """讀取專案：採用 SQLite .db 格式"""
+        """讀取專案：採用 SQLite .db 格式，預設開啟 story 目錄"""
+        story_dir = os.path.join(self.mc.app_dir, "story")
+        os.makedirs(story_dir, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
-            self.view, "讀取專案", "",
-            "SQLite 資料庫 (*.db)"
+            self.view, "讀取專案", story_dir,
+            "SQLite 資料庫 (*.db);;所有檔案 (*.*)"
         )
         if not file_path:
             return

@@ -160,18 +160,32 @@ class MainController:
         self.auto_save_timer.start()
 
     def _handle_startup_choice(self):
-        """處理正常啟動時使用者的選擇：開啟新專案 或 讀取專案存檔。"""
-        dialog = StartupDialog(self.view)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            if dialog.selected_action == "open":
-                opened = self.project.load_project_file_prompt()
-                if not opened:
-                    self.should_exit = True
+        """處理正常啟動時使用者的選擇：開啟新專案、讀取上次寫的專案、讀取專案存檔、讀取暫存檔。"""
+        while True:
+            dialog = StartupDialog(self.view)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                if dialog.selected_action == "new":
+                    self.project.init_default_project()
+                    break
+                elif dialog.selected_action == "open_latest":
+                    opened = self.project.load_latest_story_project(notify_if_empty=True)
+                    if opened:
+                        break
+                elif dialog.selected_action == "open":
+                    opened = self.project.load_project_file_prompt()
+                    if opened:
+                        break
+                elif dialog.selected_action == "open_temp":
+                    opened = self.project.load_temp_file_prompt()
+                    if opened:
+                        break
+                else:
+                    self.project.init_default_project()
+                    break
             else:
-                self.project.init_default_project()
-        else:
-            # 使用者在歡迎視窗按下 X 關閉，直接退出程式
-            self.should_exit = True
+                # 使用者在歡迎視窗按下 X 關閉，直接退出程式
+                self.should_exit = True
+                break
 
     def get_writing_logs_as_dict(self) -> List[dict]:
         """將 WritingLogEntry 清單轉換為 UI Dashboard 需要的 dict 清單。"""
@@ -255,7 +269,11 @@ class MainController:
         self.view.action_save_project.triggered.connect(self.project.save_project)
         self.view.action_save_project_as.triggered.connect(self.project.save_project_as)
         self.view.action_export.triggered.connect(lambda: self.export_single_document())
+        if hasattr(self.view, "action_load_latest_project"):
+            self.view.action_load_latest_project.triggered.connect(self.project.load_latest_story_project)
         self.view.action_load_project.triggered.connect(self.project.load_project)
+        if hasattr(self.view, "action_load_temp_project"):
+            self.view.action_load_temp_project.triggered.connect(self.project.load_temp_file_prompt)
         self.view.action_snapshot_manager.triggered.connect(self.snapshot.manage_snapshots)
         self.view.action_export_backup.triggered.connect(self.backup.export_backup_zip)
         self.view.action_restore_backup.triggered.connect(self.backup.restore_from_backup_zip)
