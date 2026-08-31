@@ -41,3 +41,6 @@ python_path_utf8.txt
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# AI Agent 專屬文件、規則與設定
+.agents/
