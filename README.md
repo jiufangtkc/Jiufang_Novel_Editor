@@ -97,19 +97,6 @@ python main.py
 pytest tests/
 ```
 
----
-
-## 📦 打包發布 (Windows 可執行檔)
-
-專案支援透過 PyInstaller 與 Inno Setup 進行安裝包製作：
-
-```bash
-# 1. 透過 PyInstaller 打包為獨立執行檔
-pyinstaller Jiufang_Novel_Editor.spec
-
-# 2. 透過 Inno Setup 編譯安裝程式 (可執行 build.bat)
-build.bat
-```
 
 ---
 
