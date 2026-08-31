@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QLineEdit, QWidget, QFrame, QColorDialog,
-    QFontDialog, QMenu, QApplication
+    QFontDialog, QMenu, QApplication, QStackedWidget
 )
 from PyQt6.QtGui import (
     QFont, QColor, QKeySequence, QShortcut, QAction
@@ -9,16 +9,19 @@ from PyQt6.QtGui import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from utils.theme_manager import THEME_COLORS
 from utils.font_manager import FontManager
+from utils.markdown_highlighter import MarkdownHighlighter
+from utils.markdown_utils import markdown_to_html
 
 
 class CardDetailTextEdit(QTextEdit):
-    """卡片詳情純文字編輯器：支援強制無格式貼上與 AI 右鍵討論"""
+    """卡片詳情純文字編輯器：支援強制無格式貼上、Markdown 即時高亮與 AI 右鍵討論"""
     signal_save_requested = pyqtSignal()
     signal_ai_chat = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptRichText(False)
+        self.highlighter = MarkdownHighlighter(self.document())
 
     def insertFromMimeData(self, source):
         """全局無格式貼上：過濾所有來源富文本/HTML格式，一律以純文字插入"""
@@ -118,6 +121,13 @@ class CardDetailDialog(QDialog):
         self.btn_change_color.clicked.connect(self.on_choose_color)
         top_meta_layout.addWidget(self.btn_change_color)
 
+        self.btn_toggle_preview = QPushButton("📖 渲染預覽")
+        self.btn_toggle_preview.setFont(FontManager.get_font(size=int(8 * self.scale_factor), weight=QFont.Weight.Bold))
+        self.btn_toggle_preview.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_preview.setToolTip("切換 Markdown 富文本渲染預覽與編輯模式")
+        self.btn_toggle_preview.clicked.connect(self.toggle_preview_mode)
+        top_meta_layout.addWidget(self.btn_toggle_preview)
+
         self.btn_choose_font = QPushButton("🔤 選擇字型")
         self.btn_choose_font.setFont(FontManager.get_font(size=int(8 * self.scale_factor)))
         self.btn_choose_font.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -158,21 +168,32 @@ class CardDetailDialog(QDialog):
 
         main_layout.addWidget(header_widget)
 
-        # 2. 純文字編輯區
+        # 2. 編輯與渲染預覽 Stack
+        self.stack = QStackedWidget()
+
+        # 2.1 純文字/Markdown 編輯區
         self.editor = CardDetailTextEdit()
         self.editor.setFont(FontManager.get_font(size=int(11 * self.scale_factor)))
-        self.editor.setPlaceholderText("在此輸入卡片設定、人物傳記或世界觀細節（純文字編輯，支援全局無格式貼上）...")
+        self.editor.setPlaceholderText("在此輸入卡片設定、人物傳記或世界觀細節（支援 Markdown 語法高亮與無格式貼上）...")
         self.editor.setPlainText(self.card_content)
         self.editor.textChanged.connect(self.update_word_count)
         self.editor.signal_save_requested.connect(self.on_save_clicked)
         self.editor.signal_ai_chat.connect(self.open_ai_chat)
-        main_layout.addWidget(self.editor, 1)
+        self.stack.addWidget(self.editor)
+
+        # 2.2 富文本 Markdown 渲染預覽區
+        self.preview_browser = QTextEdit()
+        self.preview_browser.setReadOnly(True)
+        self.preview_browser.setFont(FontManager.get_font(size=int(11 * self.scale_factor)))
+        self.stack.addWidget(self.preview_browser)
+
+        main_layout.addWidget(self.stack, 1)
 
         # 3. 底部操作按鈕列
         bottom_layout = QHBoxLayout()
         bottom_layout.setSpacing(int(10 * self.scale_factor))
 
-        self.lbl_tip = QLabel("純文字寫作模式：貼上文字時自動過濾來源格式。支援 Ctrl+S 儲存、Ctrl+W 關閉。")
+        self.lbl_tip = QLabel("編輯模式：支援 Markdown 語法高亮與自動貼上過濾。Ctrl+S 儲存、Ctrl+W 關閉。")
         self.lbl_tip.setFont(FontManager.get_font(size=int(8 * self.scale_factor)))
         self.lbl_tip.setStyleSheet("color: #888888;")
         bottom_layout.addWidget(self.lbl_tip)
@@ -198,6 +219,26 @@ class CardDetailDialog(QDialog):
         bottom_layout.addWidget(self.btn_close)
 
         main_layout.addLayout(bottom_layout)
+
+    def toggle_preview_mode(self):
+        """切換 Markdown 編輯模式與富文本渲染預覽模式"""
+        if self.stack.currentIndex() == 0:
+            # 切換到預覽
+            content = self.editor.toPlainText()
+            html_content = markdown_to_html(content)
+            self.preview_browser.setHtml(html_content)
+            self.stack.setCurrentIndex(1)
+            self.btn_toggle_preview.setText("📝 返回編輯")
+            self.btn_ellipsis.setEnabled(False)
+            self.btn_emdash.setEnabled(False)
+            self.lbl_tip.setText("預覽模式：已渲染 Markdown 樣式（唯讀檢視）。點擊「返回編輯」可繼續修改。")
+        else:
+            # 切換回編輯
+            self.stack.setCurrentIndex(0)
+            self.btn_toggle_preview.setText("📖 渲染預覽")
+            self.btn_ellipsis.setEnabled(True)
+            self.btn_emdash.setEnabled(True)
+            self.lbl_tip.setText("編輯模式：支援 Markdown 語法高亮與自動貼上過濾。Ctrl+S 儲存、Ctrl+W 關閉。")
 
     def update_word_count(self):
         text = self.editor.toPlainText()

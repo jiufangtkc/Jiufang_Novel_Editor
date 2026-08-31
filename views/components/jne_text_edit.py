@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QTextEdit, QMenu
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction
+from utils.markdown_highlighter import MarkdownHighlighter
 
 
 class JNE_TextEdit(QTextEdit):
@@ -15,6 +16,7 @@ class JNE_TextEdit(QTextEdit):
         super().__init__()
         self.main_window = main_window
         self.setAcceptRichText(False)
+        self.highlighter = MarkdownHighlighter(self.document())
 
     def insertFromMimeData(self, source):
         """全局無格式貼上：過濾所有來源富文本/HTML格式，一律以純文字插入"""

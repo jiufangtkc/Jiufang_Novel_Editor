@@ -1,6 +1,6 @@
 import uuid
 from PyQt6.QtWidgets import (
-    QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox
+    QTreeWidget, QTreeWidgetItem, QMenu, QMessageBox, QInputDialog
 )
 from PyQt6.QtGui import QAction, QColor, QPixmap, QPainter, QIcon
 from PyQt6.QtCore import Qt
@@ -73,47 +73,251 @@ class TreeController:
         item = self.view.tree_widget.itemAt(pos)
         menu = QMenu(self.view)
 
-        action_new_folder = QAction("新增卷", self.view)
-        action_new_folder.triggered.connect(lambda: self.add_tree_node(item, is_folder=True))
-        menu.addAction(action_new_folder)
-
-        action_new_file = QAction("新增章", self.view)
-        action_new_file.triggered.connect(lambda: self.add_tree_node(item, is_folder=False))
-        menu.addAction(action_new_file)
-
-        action_new_scene = QAction("新增幕", self.view)
-        action_new_scene.triggered.connect(lambda: self.add_scene_node(item))
-        menu.addAction(action_new_scene)
-
         if item:
-            node_data = item.data(0, Qt.ItemDataRole.UserRole)
-            node_type = node_data.get("type") if node_data else ""
+            node_data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+            node_type = node_data.get("type", "")
 
-            # scene 節點：提供「編輯場景屬性」
+            # ── 1. 新增項目 ─────────────────────────────
+            action_new_folder = QAction("📁 新增卷", self.view)
+            action_new_folder.triggered.connect(lambda: self.add_tree_node(item, is_folder=True))
+            menu.addAction(action_new_folder)
+
+            action_new_file = QAction("📄 新增章", self.view)
+            action_new_file.triggered.connect(lambda: self.add_tree_node(item, is_folder=False))
+            menu.addAction(action_new_file)
+
+            action_new_scene = QAction("🎬 新增幕", self.view)
+            action_new_scene.triggered.connect(lambda: self.add_scene_node(item))
+            menu.addAction(action_new_scene)
+
+            menu.addSeparator()
+
+            # ── 2. 編輯與複製 ───────────────────────────
+            action_rename = QAction("✏️ 重新命名", self.view)
+            action_rename.triggered.connect(lambda: self.rename_tree_node(item))
+            menu.addAction(action_rename)
+
+            action_duplicate = QAction("📋 建立副本", self.view)
+            action_duplicate.triggered.connect(lambda: self.duplicate_tree_node(item))
+            menu.addAction(action_duplicate)
+
             if node_type == "scene":
-                action_edit_scene = QAction("✏️ 編輯幕屬性", self.view)
+                action_edit_scene = QAction("⚙️ 編輯幕屬性", self.view)
                 action_edit_scene.triggered.connect(lambda: self.edit_scene_metadata(item))
                 menu.addAction(action_edit_scene)
 
-            action_delete = QAction("刪除", self.view)
-            action_delete.triggered.connect(lambda: self.delete_tree_node(item))
-            menu.addAction(action_delete)
+            menu.addSeparator()
 
+            # ── 3. 進度標記 ─────────────────────────────
             if node_type in ("file", "scene"):
-                mark_menu = menu.addMenu("新增標記")
+                mark_menu = menu.addMenu("🏷️ 設定進度標記")
                 marks = [
                     ("草稿 (灰)", MARK_COLOR_MAP.get("Draft", "#808080"), "Draft"),
                     ("一次校稿 (藍)", MARK_COLOR_MAP.get("1st Edit", "#0000FF"), "1st Edit"),
                     ("二次校稿 (黃)", MARK_COLOR_MAP.get("2nd Edit", "#FFFF00"), "2nd Edit"),
                     ("完稿 (綠)", MARK_COLOR_MAP.get("Final", "#008000"), "Final"),
-                    ("廢稿 (紅)", MARK_COLOR_MAP.get("Discarded", "#FF0000"), "Discarded")
+                    ("廢稿 (紅)", MARK_COLOR_MAP.get("Discarded", "#FF0000"), "Discarded"),
                 ]
                 for label, color_code, mark_val in marks:
                     action = QAction(label, self.view)
                     action.triggered.connect(lambda checked, i=item, c=color_code, v=mark_val: self.set_item_mark(i, c, v))
                     mark_menu.addAction(action)
 
+                action_clear_mark = QAction("無標記 (清除)", self.view)
+                action_clear_mark.triggered.connect(lambda: self.clear_item_mark(item))
+                mark_menu.addAction(action_clear_mark)
+
+                menu.addSeparator()
+
+            # ── 4. 排序與展開/收合 ──────────────────────
+            action_up = QAction("⬆️ 上移", self.view)
+            action_up.triggered.connect(lambda: self.move_item_up(item))
+            menu.addAction(action_up)
+
+            action_down = QAction("⬇️ 下移", self.view)
+            action_down.triggered.connect(lambda: self.move_item_down(item))
+            menu.addAction(action_down)
+
+            if item.childCount() > 0 or node_type == "folder":
+                action_expand = QAction("▼ 全部展開", self.view)
+                action_expand.triggered.connect(lambda: self._set_item_expanded_recursive(item, True))
+                menu.addAction(action_expand)
+
+                action_collapse = QAction("▶ 全部收合", self.view)
+                action_collapse.triggered.connect(lambda: self._set_item_expanded_recursive(item, False))
+                menu.addAction(action_collapse)
+
+            menu.addSeparator()
+
+            # ── 5. 刪除 ─────────────────────────────────
+            action_delete = QAction("🗑️ 移至垃圾桶", self.view)
+            action_delete.triggered.connect(lambda: self.delete_tree_node(item))
+            menu.addAction(action_delete)
+
+        else:
+            # 空白區域右鍵點擊
+            action_new_folder = QAction("📁 新增頂層卷", self.view)
+            action_new_folder.triggered.connect(lambda: self.add_tree_node(None, is_folder=True))
+            menu.addAction(action_new_folder)
+
+            action_new_file = QAction("📄 新增頂層章", self.view)
+            action_new_file.triggered.connect(lambda: self.add_tree_node(None, is_folder=False))
+            menu.addAction(action_new_file)
+
+            action_new_scene = QAction("🎬 新增頂層幕", self.view)
+            action_new_scene.triggered.connect(lambda: self.add_scene_node(None))
+            menu.addAction(action_new_scene)
+
+            menu.addSeparator()
+
+            action_expand_all = QAction("▼ 全部展開", self.view)
+            action_expand_all.triggered.connect(self.view.tree_widget.expandAll)
+            menu.addAction(action_expand_all)
+
+            action_collapse_all = QAction("▶ 全部收合", self.view)
+            action_collapse_all.triggered.connect(self.view.tree_widget.collapseAll)
+            menu.addAction(action_collapse_all)
+
         menu.exec(self.view.tree_widget.viewport().mapToGlobal(pos))
+
+    def rename_tree_node(self, item: QTreeWidgetItem):
+        """重新命名樹狀節點。"""
+        if not self.is_item_valid(item):
+            return
+        old_name = item.text(0)
+        new_name, ok = QInputDialog.getText(
+            self.view, "重新命名", "請輸入新名稱：", text=old_name
+        )
+        if ok and new_name.strip():
+            new_name = new_name.strip()
+            item.setText(0, new_name)
+            if item == self.mc.current_file_item:
+                self.view.lbl_current_file.setText(new_name)
+            self.mc.project.save_temp_doc()
+
+    def duplicate_tree_node(self, item: QTreeWidgetItem):
+        """建立選中節點的副本（包括子節點），並插入在同層位置。"""
+        if not self.is_item_valid(item):
+            return
+
+        self.mc.save_current_editor_content()
+
+        clone_item = self._clone_item_recursive(item, is_root=True)
+        parent = item.parent()
+        if parent:
+            idx = parent.indexOfChild(item)
+            parent.insertChild(idx + 1, clone_item)
+            parent.setExpanded(True)
+        else:
+            idx = self.view.tree_widget.indexOfTopLevelItem(item)
+            self.view.tree_widget.insertTopLevelItem(idx + 1, clone_item)
+
+        self.mc.update_status_bar()
+        self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+        self.view.tree_widget.setCurrentItem(clone_item)
+        self.on_tree_item_clicked(clone_item, 0)
+        self.mc.project.save_temp_doc()
+
+    def _clone_item_recursive(self, src_item: QTreeWidgetItem, is_root: bool = True) -> QTreeWidgetItem:
+        """遞迴複製 QTreeWidgetItem 及其子項目，生成新 UUID 並更新字數統計。"""
+        src_data = src_item.data(0, Qt.ItemDataRole.UserRole)
+        node_type = src_data.get("type", "file") if src_data else "file"
+
+        name = src_item.text(0)
+        if is_root:
+            name = f"{name} (副本)"
+
+        new_data = dict(src_data) if src_data else {}
+        new_id = str(uuid.uuid4())
+        new_data["id"] = new_id
+
+        is_folder = (node_type == "folder")
+        is_scene = (node_type == "scene")
+        content = new_data.get("content", "")
+
+        new_item = self.create_item(name, is_folder=is_folder, content=content, is_scene=is_scene)
+        new_item.setData(0, Qt.ItemDataRole.UserRole, new_data)
+
+        # 恢復標記圖示
+        mark_val = new_data.get("mark", "None")
+        if mark_val and mark_val != "None" and mark_val in MARK_COLOR_MAP:
+            self.set_item_mark(new_item, MARK_COLOR_MAP[mark_val], mark_val)
+
+        # 若為文字檔案或幕，更新字數快取
+        if node_type in ("file", "scene"):
+            stats = self.mc.stats.analyze_exclusions(content)
+            self.mc.file_word_stats[new_id] = stats
+
+        # 複製子項目
+        for i in range(src_item.childCount()):
+            child_clone = self._clone_item_recursive(src_item.child(i), is_root=False)
+            new_item.addChild(child_clone)
+
+        return new_item
+
+    def move_item_up(self, item: QTreeWidgetItem):
+        """將節點在其父層（或頂層）向上移動一位。"""
+        if not self.is_item_valid(item):
+            return
+        parent = item.parent()
+        if parent:
+            idx = parent.indexOfChild(item)
+            if idx > 0:
+                parent.takeChild(idx)
+                parent.insertChild(idx - 1, item)
+                self.view.tree_widget.setCurrentItem(item)
+                self.mc.project.save_temp_doc()
+        else:
+            idx = self.view.tree_widget.indexOfTopLevelItem(item)
+            if idx > 0:
+                self.view.tree_widget.takeTopLevelItem(idx)
+                self.view.tree_widget.insertTopLevelItem(idx - 1, item)
+                self.view.tree_widget.setCurrentItem(item)
+                self.mc.project.save_temp_doc()
+
+    def move_item_down(self, item: QTreeWidgetItem):
+        """將節點在其父層（或頂層）向下移動一位。"""
+        if not self.is_item_valid(item):
+            return
+        parent = item.parent()
+        if parent:
+            idx = parent.indexOfChild(item)
+            if idx < parent.childCount() - 1:
+                parent.takeChild(idx)
+                parent.insertChild(idx + 1, item)
+                self.view.tree_widget.setCurrentItem(item)
+                self.mc.project.save_temp_doc()
+        else:
+            idx = self.view.tree_widget.indexOfTopLevelItem(item)
+            if idx < self.view.tree_widget.topLevelItemCount() - 1:
+                self.view.tree_widget.takeTopLevelItem(idx)
+                self.view.tree_widget.insertTopLevelItem(idx + 1, item)
+                self.view.tree_widget.setCurrentItem(item)
+                self.mc.project.save_temp_doc()
+
+    def _set_item_expanded_recursive(self, item: QTreeWidgetItem, expanded: bool):
+        """遞迴展開或收合節點及其子項目。"""
+        item.setExpanded(expanded)
+        for i in range(item.childCount()):
+            self._set_item_expanded_recursive(item.child(i), expanded)
+
+    def clear_item_mark(self, item: QTreeWidgetItem):
+        """清除進度標記並還原原始圖示。"""
+        if not self.is_item_valid(item):
+            return
+        data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+        data['mark'] = "None"
+        self.view.tree_widget.blockSignals(True)
+        item.setData(0, Qt.ItemDataRole.UserRole, data)
+        self.view.tree_widget.blockSignals(False)
+
+        node_type = data.get("type", "file")
+        if node_type == "scene":
+            icon = create_custom_icon("folder", "#7EB8F7", self.view.scale_factor)
+        else:
+            icon = create_custom_icon("file", self.view.file_icon_color, self.view.scale_factor)
+        item.setIcon(0, icon)
+        self.mc.project.save_temp_doc()
 
     def add_tree_node(self, parent_item, is_folder: bool):
         name = "新卷" if is_folder else "新章"

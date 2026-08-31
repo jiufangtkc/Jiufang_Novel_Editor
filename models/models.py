@@ -31,6 +31,7 @@ class ProjectInfo:
     editor_font_family: str = "Iansui"
     editor_font_size: int = 12
     target_word_count: int = 100000
+    expanded_categories: Optional[List[str]] = None
 
 @dataclass
 class CardNode:
@@ -109,6 +110,7 @@ class ChapterNode:
     scene_summary: str = ""     # 場景摘要（scene 節點專用）
     scene_pov: str = ""         # 視角角色（scene 節點專用）
     scene_location: str = ""    # 場景地點（scene 節點專用）
+    is_expanded: bool = True
     children: List['ChapterNode'] = field(default_factory=list)
 
 @dataclass
@@ -142,3 +144,60 @@ class JneProject:
     category_order: List[str] = field(default_factory=lambda: [
         "summary", "character", "world", "timeline", "ai_chat"
     ])
+
+
+@dataclass
+class CompactState:
+    """HRCI 滾動壓縮狀態物件（雙軌索引資料結構）"""
+    characters: Dict[str, str] = field(default_factory=dict)       # 人物名稱: 特徵/當前狀態
+    world_elements: Dict[str, str] = field(default_factory=dict)   # 世界觀名詞/設定: 說明
+    timeline_events: List[str] = field(default_factory=list)       # 已發生的關鍵事件節點
+    unresolved_threads: List[str] = field(default_factory=list)    # 當前懸念與伏筆
+    current_scene_context: str = ""                                # 當前區塊結尾場景與狀態
+
+    def to_summary_text(self) -> str:
+        """將狀態序列化為精簡 Markdown 摘要文字供 LLM 上下文使用"""
+        lines = []
+        if self.characters:
+            lines.append("【已知人物與狀態】")
+            for name, desc in list(self.characters.items())[:15]:
+                lines.append(f"- {name}：{desc}")
+        if self.world_elements:
+            lines.append("【核心世界觀設定】")
+            for term, desc in list(self.world_elements.items())[:10]:
+                lines.append(f"- {term}：{desc}")
+        if self.timeline_events:
+            lines.append("【主要事件脈絡】")
+            for evt in self.timeline_events[-8:]:
+                lines.append(f"- {evt}")
+        if self.unresolved_threads:
+            lines.append("【當前伏筆與懸念】")
+            for thread in self.unresolved_threads[-5:]:
+                lines.append(f"- {thread}")
+        if self.current_scene_context:
+            lines.append(f"【前段結尾場景】\n{self.current_scene_context}")
+
+        return "\n".join(lines) if lines else "（目前為初始狀態，尚無歷史摘要索引）"
+
+
+@dataclass
+class ChunkAnalysisResult:
+    """單一分塊的分析結果"""
+    chunk_index: int
+    total_chunks: int
+    char_count: int
+    partial_analysis: str
+    updated_state: CompactState = field(default_factory=CompactState)
+    raw_response: str = ""
+
+
+@dataclass
+class LongTextAnalysisResult:
+    """長文滾動分析的完整彙整成果"""
+    task_type: str
+    total_chunks: int
+    total_chars: int
+    final_synthesis: str
+    chunk_results: List[ChunkAnalysisResult] = field(default_factory=list)
+    final_state: CompactState = field(default_factory=CompactState)
+

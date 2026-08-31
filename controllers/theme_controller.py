@@ -6,6 +6,7 @@ from utils.theme_manager import ThemeManager, set_window_dark_mode, create_custo
 from utils.font_manager import FontManager
 from views.components.card_widget import CardWidget
 from models.models import MARK_COLOR_MAP
+from services.app_settings_service import AppSettingsService
 
 class ThemeController:
     """負責主題切換、UI 縮放、全域字型調整、圖示更新與面板收折。"""
@@ -303,6 +304,11 @@ class ThemeController:
         self.apply_theme(self.view.current_theme)
 
         self.update_icons()
+
+        if hasattr(self.mc, "app_settings") and isinstance(self.mc.app_settings, dict):
+            self.mc.app_settings["scale_factor"] = scale
+            if hasattr(self.mc, "app_dir") and self.mc.app_dir:
+                AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
 
     def update_icons(self):
         self.view.btn_toggle_left.setIcon(create_custom_icon("arrow", self.view.arrow_icon_color, self.view.scale_factor, "left" if not self.view.tree_widget.isHidden() else "right"))

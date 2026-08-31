@@ -6,7 +6,10 @@ from views.dialogs.ai_preview_dialog import AIPreviewDialog
 from views.dialogs.ai_chat_dialog import AIChatDialog
 from views.dialogs.ai_expansion_dialog import AIExpansionDialog
 from views.dialogs.ai_proofread_dialog import AIProofreadDialog
+from views.dialogs.ai_scope_dialog import AIScopeDialog
+from views.dialogs.ai_character_review_dialog import AICharacterReviewDialog
 from views.components.ai_task_overlay import AITaskOverlay
+from views.components.ai_floating_hud import AIFloatingHUD
 
 
 class AIController:
@@ -19,6 +22,7 @@ class AIController:
         self.continuation_worker = None
         self.stream_worker = None
         self.ai_task_overlay = None
+        self.ai_floating_hud = None
         self.proofread_dialog = None
 
     def open_ai_settings_dialog(self):
@@ -153,15 +157,32 @@ class AIController:
 
     def handle_editor_ai_analyze(self, task_type: str, text: str):
         """處理編輯器右鍵或選單觸發的 AI 分析。"""
+        if task_type == "character":
+            self.mc.save_current_editor_content()
+            dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=text)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                scope_data = dlg.get_scope_content()
+                self.start_ai_analysis(task_type, scope_data["text_content"], scope_data["scope_title"])
+            return
+
         chapter_title = self.mc.current_file_item.text(0) if self.mc.current_file_item else ""
         self.start_ai_analysis(task_type, text, chapter_title)
 
     def trigger_ai_analysis(self, task_type: str):
-        """從工具列或選單觸發 AI 分析（優先使用選取文字，無選取則使用整篇）。"""
+        """從工具列或選單觸發 AI 分析。"""
         cursor = self.view.editor.textCursor()
         selected_text = cursor.selectedText().strip()
-        target_text = selected_text if selected_text else self.view.editor.toPlainText().strip()
 
+        # 登場角色提取：彈出專屬範圍選擇對話框（可選全文、當前章節、部分章節）
+        if task_type == "character":
+            self.mc.save_current_editor_content()
+            dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=selected_text)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                scope_data = dlg.get_scope_content()
+                self.start_ai_analysis(task_type, scope_data["text_content"], scope_data["scope_title"])
+            return
+
+        target_text = selected_text if selected_text else self.view.editor.toPlainText().strip()
         if not target_text:
             QMessageBox.information(self.view, "提示", "目前編輯器內無文字可供 AI 分析。")
             return
@@ -170,38 +191,86 @@ class AIController:
         self.start_ai_analysis(task_type, target_text, chapter_title)
 
     def start_ai_analysis(self, task_type: str, text: str, chapter_title: str = ""):
-        """啟動非同步 AI 分析執行緒。"""
+        """啟動非同步 AI 分析執行緒，並展示無焦點浮動進度 HUD。"""
         if self.ai_worker and self.ai_worker.isRunning():
             QMessageBox.warning(self.view, "提示", "AI 分析進行中，請稍候完成後再發起新請求。")
             return
 
-        self.view.lbl_word_count.setText("✨ AI 正在分析中，請稍候...")
+        if not self.ai_floating_hud:
+            self.ai_floating_hud = AIFloatingHUD(self.view)
+            self.ai_floating_hud.signal_cancel.connect(self.cancel_ai_analysis)
+
+        task_name_map = {
+            "character": "👤 登場角色提取",
+            "impression": "📝 文學評語與寫作建議",
+            "world": "🌍 世界觀設定提取",
+            "timeline": "⏱️ 時間線與事件梳理"
+        }
+        t_name = task_name_map.get(task_type, "✨ AI 文本分析")
+        if chapter_title:
+            t_name = f"{t_name} — {chapter_title}"
+        self.ai_floating_hud.start(t_name)
 
         self.ai_worker = AIWorker(task_type, text, chapter_title=chapter_title)
+        self.ai_worker.progress_signal.connect(self.on_ai_analysis_progress)
         self.ai_worker.finished_signal.connect(self.on_ai_analysis_finished)
         self.ai_worker.error_signal.connect(self.on_ai_analysis_error)
         self.ai_worker.start()
 
+    def cancel_ai_analysis(self):
+        """取消正在進行中的 AI 分析背景任務。"""
+        if self.ai_worker and self.ai_worker.isRunning():
+            self.ai_worker.cancel()
+            self.ai_worker.terminate()
+            self.mc.update_status_bar()
+
+    def on_ai_analysis_progress(self, current: int, total: int, message: str):
+        """AI 分析進度回報更新至浮動 HUD。"""
+        if self.ai_floating_hud:
+            self.ai_floating_hud.update_progress(current, total, message)
+
     def on_ai_analysis_finished(self, result_data: dict):
         """AI 分析成功回傳後的處理流程。"""
+        if self.ai_floating_hud:
+            self.ai_floating_hud.finish("✅ 分析完成！")
         self.mc.update_status_bar()
+
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
             self.mc.stats.record_ai_activity(chat_count=1)
 
-        dlg = AIPreviewDialog(self.view, result_data)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
-            card_info = dlg.get_card_data()
-            self.add_card_from_ai(
-                category=card_info["category"],
-                title=card_info["title"],
-                content=card_info["content"],
-                summary=card_info["summary"],
-                tags=card_info["tags"]
-            )
-            QMessageBox.information(self.view, "成功", f"已成功建立卡片「{card_info['title']}」至資料集！")
+        task_type = result_data.get("task_type", "")
+        if task_type == "character":
+            # 角色提取：開啟多角色卡與關係卡審核對話框
+            dlg = AICharacterReviewDialog(self.view, result_data)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                cards = dlg.get_selected_cards()
+                for c in cards:
+                    self.add_card_from_ai(
+                        category=c["category"],
+                        title=c["title"],
+                        content=c["content"],
+                        summary=c.get("summary", ""),
+                        tags=c.get("tags", [])
+                    )
+                QMessageBox.information(self.view, "成功", f"已成功建立 {len(cards)} 張角色卡片與關係卡至資料集！")
+        else:
+            # 其他一般分析：開啟單卡審核對話框
+            dlg = AIPreviewDialog(self.view, result_data)
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                card_info = dlg.get_card_data()
+                self.add_card_from_ai(
+                    category=card_info["category"],
+                    title=card_info["title"],
+                    content=card_info["content"],
+                    summary=card_info["summary"],
+                    tags=card_info["tags"]
+                )
+                QMessageBox.information(self.view, "成功", f"已成功建立卡片「{card_info['title']}」至資料集！")
 
     def on_ai_analysis_error(self, err_msg: str):
         """AI 分析發生錯誤時的回報與導引。"""
+        if self.ai_floating_hud:
+            self.ai_floating_hud.set_error(err_msg)
         self.mc.update_status_bar()
         reply = QMessageBox.critical(
             self.view,

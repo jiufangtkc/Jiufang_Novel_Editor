@@ -7,7 +7,7 @@ from models.models import JneProject, ProjectInfo, ChapterNode, CardNode, Writin
 from services.storage import StorageService
 
 class DatabaseService:
-    CURRENT_SCHEMA_VERSION = 8
+    CURRENT_SCHEMA_VERSION = 9
 
     @staticmethod
     def _get_current_schema_version(cursor: sqlite3.Cursor) -> int:
@@ -53,7 +53,13 @@ class DatabaseService:
         if "category_order" not in p_cols:
             return 6
             
-        return 7
+        if "proofread_results" not in tables:
+            return 7
+
+        if "is_expanded" not in ch_cols:
+            return 8
+
+        return 8
 
     @staticmethod
     def _upgrade_v1_to_v2(cursor: sqlite3.Cursor):
@@ -151,6 +157,19 @@ class DatabaseService:
         ''')
 
     @staticmethod
+    def _upgrade_v8_to_v9(cursor: sqlite3.Cursor):
+        """v8 -> v9：chapters 增加 is_expanded 欄位；project_info 增加 expanded_categories 欄位"""
+        cursor.execute("PRAGMA table_info(chapters)")
+        ch_cols = {row[1] for row in cursor.fetchall()}
+        if "is_expanded" not in ch_cols:
+            cursor.execute("ALTER TABLE chapters ADD COLUMN is_expanded INTEGER DEFAULT 1")
+
+        cursor.execute("PRAGMA table_info(project_info)")
+        p_cols = {row[1] for row in cursor.fetchall()}
+        if "expanded_categories" not in p_cols:
+            cursor.execute("ALTER TABLE project_info ADD COLUMN expanded_categories TEXT DEFAULT NULL")
+
+    @staticmethod
     def _apply_migrations(cursor: sqlite3.Cursor):
         import datetime
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -174,6 +193,7 @@ class DatabaseService:
             (5, DatabaseService._upgrade_v5_to_v6),
             (6, DatabaseService._upgrade_v6_to_v7),
             (7, DatabaseService._upgrade_v7_to_v8),
+            (8, DatabaseService._upgrade_v8_to_v9),
         ]
 
         for from_v, step_fn in migrations:
@@ -215,7 +235,8 @@ class DatabaseService:
                 editor_font_family TEXT,
                 editor_font_size INTEGER,
                 target_word_count INTEGER DEFAULT 100000,
-                category_order TEXT DEFAULT NULL
+                category_order TEXT DEFAULT NULL,
+                expanded_categories TEXT DEFAULT NULL
             )
         ''')
 
@@ -231,6 +252,7 @@ class DatabaseService:
                 scene_summary TEXT DEFAULT '',
                 scene_pov TEXT DEFAULT '',
                 scene_location TEXT DEFAULT '',
+                is_expanded INTEGER DEFAULT 1,
                 FOREIGN KEY (parent_id) REFERENCES chapters(id)
             )
         ''')
@@ -313,13 +335,16 @@ class DatabaseService:
         cursor.execute('DELETE FROM project_info')
         # 序列化 category_order 為 JSON 字串
         category_order_json = json.dumps(getattr(project, 'category_order', []), ensure_ascii=False)
+        expanded_categories = getattr(project.project_info, 'expanded_categories', None)
+        expanded_categories_json = json.dumps(expanded_categories, ensure_ascii=False) if expanded_categories is not None else None
         cursor.execute(
             '''INSERT INTO project_info (
                 title, logline, current_theme,
                 global_font_family, global_font_size,
                 editor_font_family, editor_font_size,
-                target_word_count, category_order
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                target_word_count, category_order,
+                expanded_categories
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (
                 project.project_info.title,
                 project.project_info.logline,
@@ -329,7 +354,8 @@ class DatabaseService:
                 project.project_info.editor_font_family,
                 project.project_info.editor_font_size,
                 getattr(project.project_info, 'target_word_count', 100000),
-                category_order_json
+                category_order_json,
+                expanded_categories_json
             )
         )
         
@@ -338,11 +364,12 @@ class DatabaseService:
         def save_chapter(node: ChapterNode, parent_id: Optional[str], sort_order: int):
             cursor.execute('''
                 INSERT INTO chapters (id, parent_id, name, node_type, content, mark, sort_order,
-                                     scene_summary, scene_pov, scene_location)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                     scene_summary, scene_pov, scene_location, is_expanded)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 node.id, parent_id, node.name, node.node_type, node.content, node.mark, sort_order,
-                node.scene_summary, node.scene_pov, node.scene_location
+                node.scene_summary, node.scene_pov, node.scene_location,
+                1 if getattr(node, 'is_expanded', True) else 0
             ))
             for idx, child in enumerate(node.children):
                 save_chapter(child, node.id, idx)
@@ -426,6 +453,14 @@ class DatabaseService:
                         project.category_order = merged
                 except (json.JSONDecodeError, ValueError):
                     pass
+            # 讀取 expanded_categories（v9 新增欄位）
+            if 'expanded_categories' in keys and p_row['expanded_categories'] is not None:
+                try:
+                    loaded_exp = json.loads(p_row['expanded_categories'])
+                    if isinstance(loaded_exp, list):
+                        project.project_info.expanded_categories = loaded_exp
+                except (json.JSONDecodeError, ValueError):
+                    pass
             
         # Load Chapters
         cursor.execute('SELECT * FROM chapters ORDER BY parent_id, sort_order')
@@ -435,6 +470,7 @@ class DatabaseService:
         if chapters_rows:
             chapter_keys = set(chapters_rows[0].keys())
         for row in chapters_rows:
+            is_expanded = bool(row['is_expanded']) if 'is_expanded' in chapter_keys and row['is_expanded'] is not None else True
             node = ChapterNode(
                 name=row['name'],
                 node_type=row['node_type'],
@@ -443,7 +479,8 @@ class DatabaseService:
                 mark=row['mark'],
                 scene_summary=row['scene_summary'] if 'scene_summary' in chapter_keys and row['scene_summary'] else "",
                 scene_pov=row['scene_pov'] if 'scene_pov' in chapter_keys and row['scene_pov'] else "",
-                scene_location=row['scene_location'] if 'scene_location' in chapter_keys and row['scene_location'] else ""
+                scene_location=row['scene_location'] if 'scene_location' in chapter_keys and row['scene_location'] else "",
+                is_expanded=is_expanded
             )
             chapters_map[node.id] = {"node": node, "parent_id": row['parent_id']}
             

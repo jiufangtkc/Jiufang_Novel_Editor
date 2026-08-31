@@ -1,6 +1,6 @@
 import uuid
 from typing import Optional, List
-from PyQt6.QtWidgets import QTreeWidgetItem, QMenu, QMessageBox, QInputDialog
+from PyQt6.QtWidgets import QTreeWidgetItem, QMenu, QMessageBox, QInputDialog, QApplication
 from PyQt6.QtCore import Qt
 from views.components.right_panel_view import ROLE_CARD_ID, ROLE_CATEGORY, ROLE_NODE_TYPE
 from views.dialogs.card_detail_dialog import CardDetailDialog
@@ -43,23 +43,64 @@ class CardController:
         rp.signal_card_dropped.connect(self.on_card_dropped)
 
     # =========================================================================
-    # 樹狀導航 — 建立 / 重建
+    # 樹狀導航 — 建立 / 重建與狀態同步
     # =========================================================================
 
-    def rebuild_card_tree(self):
+    def sync_expansion_states_from_tree(self):
+        """將 UI 上的分類展開狀態與各卡片節點的 is_collapsed 狀態同步至資料模型。"""
+        tree = self.card_tree
+        root = tree.invisibleRootItem()
+
+        # 1. 收集頂層分類展開狀態
+        expanded_cats = []
+        for i in range(root.childCount()):
+            cat_item = root.child(i)
+            cat_key = cat_item.data(0, ROLE_CATEGORY)
+            if cat_key and cat_item.isExpanded():
+                expanded_cats.append(cat_key)
+
+        if hasattr(self.mc, 'project_info') and self.mc.project_info:
+            self.mc.project_info.expanded_categories = expanded_cats
+
+        # 2. 遞迴同步各卡片節點的 is_collapsed
+        all_nodes = {}
+        for cards in self.mc.project_cards.values():
+            self._collect_all_nodes(cards, all_nodes)
+
+        def sync_item_collapse(item: QTreeWidgetItem):
+            card_id = item.data(0, ROLE_CARD_ID)
+            if card_id and card_id in all_nodes:
+                all_nodes[card_id].is_collapsed = not item.isExpanded()
+            for j in range(item.childCount()):
+                sync_item_collapse(item.child(j))
+
+        for i in range(root.childCount()):
+            cat_item = root.child(i)
+            for j in range(cat_item.childCount()):
+                sync_item_collapse(cat_item.child(j))
+
+    def rebuild_card_tree(self, expanded_categories=None):
         """根據 mc.project_cards 重新建立整個樹狀導航。"""
         tree = self.card_tree
         tree.blockSignals(True)
 
-        # 記憶展開狀態
-        expanded_categories = set()
-        root = tree.invisibleRootItem()
-        for i in range(root.childCount()):
-            cat_item = root.child(i)
-            if cat_item.isExpanded():
-                cat = cat_item.data(0, ROLE_CATEGORY)
-                if cat:
-                    expanded_categories.add(cat)
+        # 決定分類展開狀態
+        target_expanded = None
+        if expanded_categories is not None:
+            target_expanded = set(expanded_categories)
+        elif getattr(getattr(self.mc, 'project_info', None), 'expanded_categories', None) is not None:
+            target_expanded = set(self.mc.project_info.expanded_categories)
+        else:
+            # 從現有 UI 讀取（若有），否則預設全展開
+            root = tree.invisibleRootItem()
+            if root.childCount() > 0:
+                target_expanded = set()
+                for i in range(root.childCount()):
+                    cat_item = root.child(i)
+                    if cat_item.isExpanded():
+                        cat = cat_item.data(0, ROLE_CATEGORY)
+                        if cat:
+                            target_expanded.add(cat)
 
         tree.clear()
 
@@ -86,15 +127,29 @@ class CardController:
 
             tree.addTopLevelItem(cat_item)
 
-            # 恢復展開狀態（預設全部展開）
-            if category_key in expanded_categories or not expanded_categories:
+            # 恢復分類展開狀態（若 target_expanded 為 None 則預設展開）
+            if target_expanded is None or category_key in target_expanded:
                 cat_item.setExpanded(True)
+            else:
+                cat_item.setExpanded(False)
+
+            # 確保在依附到樹之後，遞迴套用各卡片節點的展開/收合狀態
+            for i, card_node in enumerate(cards):
+                if i < cat_item.childCount():
+                    self._apply_card_expansion(cat_item.child(i), card_node)
 
         # 更新下拉選單
         custom_cats = [k for k in category_order if k not in BUILTIN_CATEGORIES]
         rp.rebuild_category_combo(category_order, custom_cats)
 
         tree.blockSignals(False)
+
+    def _apply_card_expansion(self, item: QTreeWidgetItem, card_node: CardNode):
+        """遞迴套用卡片節點的展開/收折狀態。"""
+        item.setExpanded(not card_node.is_collapsed)
+        for i, child_node in enumerate(card_node.children):
+            if i < item.childCount():
+                self._apply_card_expansion(item.child(i), child_node)
 
     def _add_card_node_to_tree(self, card_node: CardNode, parent_item: QTreeWidgetItem,
                                 category_key: str) -> QTreeWidgetItem:
@@ -112,7 +167,6 @@ class CardController:
         for child_node in card_node.children:
             self._add_card_node_to_tree(child_node, item, category_key)
 
-        item.setExpanded(not card_node.is_collapsed)
         return item
 
     # =========================================================================
@@ -299,6 +353,13 @@ class CardController:
             act_add_cat = menu.addAction("⊕ 新增自訂分類")
             act_add_cat.triggered.connect(self.add_custom_category)
 
+            menu.addSeparator()
+
+            act_expand_all = menu.addAction("▼ 展開所有分類")
+            act_expand_all.triggered.connect(lambda: self.set_all_categories_expanded(True))
+            act_collapse_all = menu.addAction("▶ 收合所有分類")
+            act_collapse_all.triggered.connect(lambda: self.set_all_categories_expanded(False))
+
         elif item.data(0, ROLE_NODE_TYPE) == "category":
             cat_key = item.data(0, ROLE_CATEGORY)
             display_name = CATEGORY_DISPLAY_NAMES.get(cat_key, cat_key)
@@ -312,25 +373,36 @@ class CardController:
                 act_rename.triggered.connect(lambda: self.rename_category(cat_key, display_name))
                 act_del_cat = menu.addAction("🗑️ 刪除此分類")
                 act_del_cat.triggered.connect(lambda: self.delete_category(cat_key))
+                menu.addSeparator()
 
             act_expand = menu.addAction("▼ 全部展開")
             act_expand.triggered.connect(lambda: item.setExpanded(True))
-            act_collapse = menu.addAction("▶ 收合")
+            act_collapse = menu.addAction("▶ 全部收合")
             act_collapse.triggered.connect(lambda: item.setExpanded(False))
 
         elif item.data(0, ROLE_NODE_TYPE) == "card":
             card_id = item.data(0, ROLE_CARD_ID)
             category = item.data(0, ROLE_CATEGORY)
 
-            act_open = menu.addAction("🔍 開啟編輯")
+            # ── 1. 編輯與複製 ───────────────────────────
+            act_open = menu.addAction("🔍 開啟詳細編輯")
             act_open.triggered.connect(lambda: self._open_card_detail(item))
+
+            act_rename = menu.addAction("✏️ 重新命名")
+            act_rename.triggered.connect(lambda: self.rename_card(card_id, category))
+
+            act_dup = menu.addAction("📋 建立副本")
+            act_dup.triggered.connect(lambda: self.duplicate_card(card_id, category))
+
+            act_copy_txt = menu.addAction("📄 複製內文到剪貼簿")
+            act_copy_txt.triggered.connect(lambda: self.copy_card_content(card_id, category))
 
             act_add_child = menu.addAction("＋ 新增子卡片")
             act_add_child.triggered.connect(lambda: self.add_child_card(card_id, category))
 
             menu.addSeparator()
 
-            # 移動到其他分類
+            # ── 2. 移動到其他分類 ───────────────────────
             move_menu = menu.addMenu("→ 移動到...")
             for target_cat, target_display in CATEGORY_DISPLAY_NAMES.items():
                 if target_cat != category and target_cat in self.mc.project_cards:
@@ -342,11 +414,122 @@ class CardController:
                         self.move_card(cid, fc, tc)
                     )
 
+            # ── 3. 排序與展開 ───────────────────────────
+            act_up = menu.addAction("⬆️ 上移")
+            act_up.triggered.connect(lambda: self.move_card_up(card_id, category))
+
+            act_down = menu.addAction("⬇️ 下移")
+            act_down.triggered.connect(lambda: self.move_card_down(card_id, category))
+
+            if item.childCount() > 0:
+                act_expand_child = menu.addAction("▼ 展開子卡片")
+                act_expand_child.triggered.connect(lambda: item.setExpanded(True))
+                act_collapse_child = menu.addAction("▶ 收合子卡片")
+                act_collapse_child.triggered.connect(lambda: item.setExpanded(False))
+
             menu.addSeparator()
+
+            # ── 4. 刪除 ─────────────────────────────────
             act_del = menu.addAction("🗑️ 刪除此卡片")
             act_del.triggered.connect(lambda: self._confirm_delete_card(card_id, category))
 
         menu.exec(global_pos)
+
+    def rename_card(self, card_id: str, category: str):
+        """快速重新命名卡片標題。"""
+        card_node = self._find_card_node_by_id(card_id, category)
+        if not card_node:
+            card_node, category = self._find_card_node_globally(card_id)
+        if not card_node:
+            return
+
+        new_title, ok = QInputDialog.getText(
+            self.view, "重新命名卡片", "請輸入卡片名稱：", text=card_node.title
+        )
+        if ok and new_title.strip():
+            card_node.title = new_title.strip()
+            self.rebuild_card_tree()
+            self.mc.project.save_temp_doc()
+
+    def duplicate_card(self, card_id: str, category: str):
+        """建立指定卡片的副本（含所有子卡片），並插入在同層緊鄰位置。"""
+        res = self._find_card_parent_and_index(card_id, category)
+        if not res:
+            return
+        parent_list, idx, parent_node, card_node = res
+        clone_node = self._clone_card_node_recursive(card_node, is_root=True)
+        parent_list.insert(idx + 1, clone_node)
+        self.rebuild_card_tree()
+        self.mc.project.save_temp_doc()
+
+    def _clone_card_node_recursive(self, src: CardNode, is_root: bool = True) -> CardNode:
+        """遞迴複製 CardNode 及其子卡片，產生新 UUID。"""
+        title = f"{src.title} (副本)" if is_root else src.title
+        clone = CardNode(
+            title=title,
+            id=str(uuid.uuid4()),
+            content=src.content,
+            color=src.color,
+            is_collapsed=src.is_collapsed,
+            children=[self._clone_card_node_recursive(child, is_root=False) for child in src.children]
+        )
+        return clone
+
+    def copy_card_content(self, card_id: str, category: str):
+        """將卡片內文（或標題）複製到系統剪貼簿。"""
+        card_node = self._find_card_node_by_id(card_id, category)
+        if not card_node:
+            card_node, category = self._find_card_node_globally(card_id)
+        if not card_node:
+            return
+
+        text_to_copy = card_node.content if card_node.content.strip() else card_node.title
+        QApplication.clipboard().setText(text_to_copy)
+        self.mc.update_status_bar()
+
+    def move_card_up(self, card_id: str, category: str):
+        """將卡片在同層列表中向上移動一位。"""
+        res = self._find_card_parent_and_index(card_id, category)
+        if not res:
+            return
+        parent_list, idx, parent_node, card_node = res
+        if idx > 0:
+            parent_list[idx], parent_list[idx - 1] = parent_list[idx - 1], parent_list[idx]
+            self.rebuild_card_tree()
+            self.mc.project.save_temp_doc()
+
+    def move_card_down(self, card_id: str, category: str):
+        """將卡片在同層列表中向下移動一位。"""
+        res = self._find_card_parent_and_index(card_id, category)
+        if not res:
+            return
+        parent_list, idx, parent_node, card_node = res
+        if idx < len(parent_list) - 1:
+            parent_list[idx], parent_list[idx + 1] = parent_list[idx + 1], parent_list[idx]
+            self.rebuild_card_tree()
+            self.mc.project.save_temp_doc()
+
+    def set_all_categories_expanded(self, expanded: bool):
+        """展開或收合所有分類頂層項目。"""
+        root = self.card_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            cat_item = root.child(i)
+            cat_item.setExpanded(expanded)
+
+    def _find_card_parent_and_index(self, card_id: str, category: str):
+        """尋找卡片所在的清單、索引、父節點與卡片物件本身。
+        回傳 (parent_list, index, parent_node, card_node) 或 None。
+        """
+        cards = self.mc.project_cards.get(category, [])
+        def _search(node_list, parent=None):
+            for idx, node in enumerate(node_list):
+                if node.id == card_id:
+                    return node_list, idx, parent, node
+                res = _search(node.children, node)
+                if res:
+                    return res
+            return None
+        return _search(cards)
 
     def _confirm_delete_card(self, card_id: str, category: str):
         """詢問確認後刪除卡片。"""

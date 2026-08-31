@@ -74,9 +74,6 @@ class ProjectController:
 
         self.mc.theme.apply_global_font(self.mc.global_font_family, self.mc.global_font_size)
         self.mc.theme.apply_editor_font(self.mc.editor_font_family, self.mc.editor_font_size)
-        self.mc.theme.set_ui_scale(1.0)
-        self.mc.app_settings["scale_factor"] = 1.0
-        AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
         self.view.lbl_current_file.setText("請選擇左側文件進行編輯")
 
         self.mc.file_word_stats.clear()
@@ -220,6 +217,7 @@ class ProjectController:
     def _build_jne_project(self) -> JneProject:
         """從 UI 與共享狀態建構 JneProject dataclass。"""
         self.mc.save_current_editor_content()
+        self.mc.card.sync_expansion_states_from_tree()
 
         project = JneProject(
             project_info=ProjectInfo(
@@ -228,7 +226,9 @@ class ProjectController:
                 global_font_family=self.mc.global_font_family,
                 global_font_size=self.mc.global_font_size,
                 editor_font_family=self.mc.editor_font_family,
-                editor_font_size=self.mc.editor_font_size
+                editor_font_size=self.mc.editor_font_size,
+                target_word_count=getattr(self.mc.project_info, 'target_word_count', 100000),
+                expanded_categories=getattr(self.mc.project_info, 'expanded_categories', None)
             ),
             current_theme=self.view.current_theme
         )
@@ -252,7 +252,8 @@ class ProjectController:
                 mark=data.get("mark", "None") if data and node_type in ("file", "scene") else "None",
                 scene_summary=data.get("scene_summary", "") if data and node_type == "scene" else "",
                 scene_pov=data.get("scene_pov", "") if data and node_type == "scene" else "",
-                scene_location=data.get("scene_location", "") if data and node_type == "scene" else ""
+                scene_location=data.get("scene_location", "") if data and node_type == "scene" else "",
+                is_expanded=item.isExpanded()
             )
             for i in range(item.childCount()):
                 node.children.append(serialize_tree_item_to_node(item.child(i)))
@@ -301,7 +302,8 @@ class ProjectController:
                 node_type=node_data.get("type", "file"),
                 id=node_data.get("id", str(uuid.uuid4())),
                 content=node_data.get("content", ""),
-                mark=node_data.get("mark", "None")
+                mark=node_data.get("mark", "None"),
+                is_expanded=node_data.get("is_expanded", True)
             )
             for ch in node_data.get("children", []):
                 c_node.children.append(parse_dict_node(ch))
@@ -367,8 +369,8 @@ class ProjectController:
             self.mc._project_category_order = merged
         else:
             self.mc._project_category_order = list(self.mc.project_cards.keys())
-        # 重建樹狀導航 UI
-        self.mc.card.rebuild_card_tree()
+        # 重建樹狀導航 UI（依據儲存的分類展開狀態）
+        self.mc.card.rebuild_card_tree(getattr(project.project_info, 'expanded_categories', None))
 
         # 載入日誌
         self.mc.writing_logs = [
@@ -430,6 +432,8 @@ class ProjectController:
             for child_node in node.children:
                 deserialize_chapter_node(child_node, item)
 
+            item.setExpanded(getattr(node, "is_expanded", True))
+
         for root_chapter in project.tree:
             deserialize_chapter_node(root_chapter)
         self.view.tree_widget.blockSignals(False)
@@ -438,6 +442,18 @@ class ProjectController:
         self.update_project_labels()
         self.mc.update_status_bar()
 
+
+        def find_first_visible_file(item):
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if data and data.get("type") in ("file", "scene"):
+                return item
+            if not item.isExpanded():
+                return None
+            for i in range(item.childCount()):
+                res = find_first_visible_file(item.child(i))
+                if res:
+                    return res
+            return None
 
         def find_first_file(item):
             data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -449,11 +465,18 @@ class ProjectController:
                     return res
             return None
 
+        # 優先尋找已展開目錄下的第一個檔案（避免強制展開使用者收合的卷）
         first_file = None
         for i in range(self.view.tree_widget.topLevelItemCount()):
-            first_file = find_first_file(self.view.tree_widget.topLevelItem(i))
+            first_file = find_first_visible_file(self.view.tree_widget.topLevelItem(i))
             if first_file:
                 break
+        if not first_file:
+            for i in range(self.view.tree_widget.topLevelItemCount()):
+                first_file = find_first_file(self.view.tree_widget.topLevelItem(i))
+                if first_file:
+                    break
+
         if first_file:
             self.view.tree_widget.setCurrentItem(first_file)
             self.mc.tree.on_tree_item_clicked(first_file, 0)

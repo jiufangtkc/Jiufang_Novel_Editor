@@ -2,6 +2,7 @@ import os
 import tempfile
 import unittest
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
 from views.main_window import MainWindow
 from controllers.main_controller import MainController
 from services.app_settings_service import AppSettingsService, DEFAULT_WINDOW_SETTINGS
@@ -37,6 +38,10 @@ class TestWindowSettings(unittest.TestCase):
         self.assertEqual(view.last_left_width, 240)
         self.assertEqual(view.last_right_width, 480)
         self.assertEqual(view._saved_splitter_sizes, [240, 480, 480])
+
+        # 驗證資料集樹狀圖預設對齊設定（靠左）
+        self.assertEqual(view.right_panel.card_tree.layoutDirection(), Qt.LayoutDirection.LeftToRight)
+
         view.close()
 
     def test_app_settings_service_load_save(self):
@@ -156,6 +161,113 @@ class TestWindowSettings(unittest.TestCase):
 
         view.close()
 
+    def test_first_launch_initial_scale_dialog(self):
+        """測試乾淨首次啟動時彈出 InitialScaleDialog 並正確儲存偏好縮放比例"""
+        from unittest.mock import patch, MagicMock
+        from PyQt6.QtWidgets import QDialog
+        from views.dialogs.initial_scale_dialog import InitialScaleDialog
+
+        target_app_dir = os.path.join(self.temp_dir.name, "Jiufang_Novel_Editor")
+
+        # 確認初始狀態為首次啟動
+        self.assertTrue(AppSettingsService.is_first_launch(target_app_dir))
+
+        mock_dlg = MagicMock()
+        mock_dlg.exec.return_value = QDialog.DialogCode.Accepted
+        mock_dlg.selected_scale = 1.25
+
+        view = MainWindow()
+        with patch.dict(os.environ, {"LOCALAPPDATA": self.temp_dir.name}), \
+             patch("controllers.main_controller.InitialScaleDialog", return_value=mock_dlg) as mock_init_dlg, \
+             patch("controllers.main_controller.StartupDialog") as mock_startup:
+            mock_startup_inst = MagicMock()
+            mock_startup_inst.exec.return_value = QDialog.DialogCode.Accepted
+            mock_startup_inst.selected_action = "new"
+            mock_startup.return_value = mock_startup_inst
+
+            mc = MainController(view, interactive_startup=True)
+            mock_init_dlg.assert_called_once()
+            self.assertEqual(view.scale_factor, 1.25)
+            self.assertEqual(mc.app_settings["scale_factor"], 1.25)
+            self.assertTrue(mc.app_settings["has_completed_initial_setup"])
+
+            # 驗證本機設定檔已寫入
+            saved = AppSettingsService.load_settings(target_app_dir)
+            self.assertEqual(saved["scale_factor"], 1.25)
+            self.assertTrue(saved["has_completed_initial_setup"])
+            self.assertFalse(AppSettingsService.is_first_launch(target_app_dir))
+            view.close()
+
+    def test_subsequent_launch_preserves_scale_without_dialog(self):
+        """測試非首次啟動時直接套用已存的 scale_factor 且不彈出 InitialScaleDialog"""
+        from unittest.mock import patch, MagicMock
+        from PyQt6.QtWidgets import QDialog
+
+        target_app_dir = os.path.join(self.temp_dir.name, "Jiufang_Novel_Editor")
+
+        # 先預先寫入已設定的設定檔
+        AppSettingsService.save_settings({
+            "scale_factor": 1.5,
+            "has_completed_initial_setup": True,
+            "last_exit_normal": True,
+            "session_active": False,
+        }, target_app_dir)
+        self.assertFalse(AppSettingsService.is_first_launch(target_app_dir))
+
+        view = MainWindow()
+        with patch.dict(os.environ, {"LOCALAPPDATA": self.temp_dir.name}), \
+             patch("controllers.main_controller.InitialScaleDialog") as mock_init_dlg, \
+             patch("controllers.main_controller.StartupDialog") as mock_startup:
+            mock_startup_inst = MagicMock()
+            mock_startup_inst.exec.return_value = QDialog.DialogCode.Accepted
+            mock_startup_inst.selected_action = "new"
+            mock_startup.return_value = mock_startup_inst
+
+            mc = MainController(view, interactive_startup=True)
+            # 確保不會再彈出初次縮放詢問視窗
+            mock_init_dlg.assert_not_called()
+            self.assertEqual(view.scale_factor, 1.5)
+            self.assertEqual(mc.app_settings["scale_factor"], 1.5)
+            view.close()
+
+    def test_reset_project_state_preserves_scale(self):
+        """測試開啟新專案（_reset_project_state）時不會將縮放比例重設為 1.0"""
+        view = MainWindow()
+        mc = MainController(view)
+        mc.app_dir = self.temp_dir.name
+
+        # 使用者手動設定縮放至 1.8x
+        mc.theme.set_ui_scale(1.8)
+        self.assertEqual(view.scale_factor, 1.8)
+        self.assertEqual(mc.app_settings["scale_factor"], 1.8)
+
+        # 觸發開啟新專案（init_default_project）
+        mc.project.init_default_project()
+
+        # 驗證縮放比例依然維持 1.8x，不會被重設為 1.0
+        self.assertEqual(view.scale_factor, 1.8)
+        self.assertEqual(mc.app_settings["scale_factor"], 1.8)
+
+        saved = AppSettingsService.load_settings(self.temp_dir.name)
+        self.assertEqual(saved["scale_factor"], 1.8)
+        view.close()
+
+    def test_theme_set_ui_scale_persists_settings(self):
+        """測試 ThemeController.set_ui_scale 會即時將縮放比例持久化至 app_settings.json"""
+        view = MainWindow()
+        mc = MainController(view)
+        mc.app_dir = self.temp_dir.name
+
+        mc.theme.set_ui_scale(1.25)
+        saved = AppSettingsService.load_settings(self.temp_dir.name)
+        self.assertEqual(saved["scale_factor"], 1.25)
+
+        mc.theme.set_ui_scale(2.0)
+        saved = AppSettingsService.load_settings(self.temp_dir.name)
+        self.assertEqual(saved["scale_factor"], 2.0)
+        view.close()
+
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -6,6 +6,7 @@ from PyQt6.QtCore import QTimer
 
 from views.main_window import MainWindow
 from views.dialogs.startup_dialog import StartupDialog
+from views.dialogs.initial_scale_dialog import InitialScaleDialog
 from utils.theme_manager import set_window_dark_mode
 from utils.font_manager import FontManager
 from services.database import DatabaseService
@@ -107,9 +108,22 @@ class MainController:
         os.makedirs(os.path.join(app_dir, "story"), exist_ok=True)
 
         # 載入並套用前一次關閉編輯器時的介面大小與設定
+        is_first_launch = AppSettingsService.is_first_launch(self.app_dir)
         self.app_settings = AppSettingsService.load_settings(self.app_dir)
         AppSettingsService.apply_to_window(self.view, self.app_settings)
-        if "scale_factor" in self.app_settings and self.app_settings["scale_factor"] != 1.0:
+
+        # 第一次乾淨開啟時，預設介面在 100%，並詢問使用者的偏好介面大小
+        if is_first_launch:
+            self.theme.set_ui_scale(1.0)
+            if self.interactive_startup:
+                scale_dlg = InitialScaleDialog(self.view)
+                if scale_dlg.exec() == QDialog.DialogCode.Accepted:
+                    chosen_scale = scale_dlg.selected_scale
+                    self.theme.set_ui_scale(chosen_scale)
+                    self.app_settings["scale_factor"] = chosen_scale
+            self.app_settings["has_completed_initial_setup"] = True
+            AppSettingsService.save_settings(self.app_settings, self.app_dir)
+        elif "scale_factor" in self.app_settings and self.app_settings["scale_factor"] != 1.0:
             self.theme.set_ui_scale(self.app_settings["scale_factor"])
 
         # 啟動前先套用完整主題與配色，確保視窗背景與對話框顏色正常

@@ -25,6 +25,8 @@ DEFAULT_WINDOW_SETTINGS = {
     # 字數統計規則設定
     "stat_count_half_alnum_and_sym": False,
     "stat_count_full_space": False,
+    # 初次引導完成標記
+    "has_completed_initial_setup": False,
 }
 
 SETTINGS_FILENAME = "app_settings.json"
@@ -45,6 +47,26 @@ class AppSettingsService:
             os.makedirs(app_dir)
             
         return os.path.join(app_dir, SETTINGS_FILENAME)
+
+    @classmethod
+    def is_first_launch(cls, app_dir: Optional[str] = None) -> bool:
+        """判定是否為第一次乾淨開啟。
+        
+        若 app_settings.json 檔案不存在，或明確標記 has_completed_initial_setup 為 False，則視為初次乾淨開啟。
+        """
+        settings_path = cls.get_settings_file_path(app_dir)
+        if not os.path.exists(settings_path):
+            return True
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                if isinstance(saved, dict):
+                    if "has_completed_initial_setup" in saved:
+                        return not bool(saved["has_completed_initial_setup"])
+                    return False
+        except Exception:
+            return True
+        return False
 
     @classmethod
     def load_settings(cls, app_dir: Optional[str] = None) -> Dict[str, Any]:

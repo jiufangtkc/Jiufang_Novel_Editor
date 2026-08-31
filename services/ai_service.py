@@ -38,7 +38,7 @@ DEFAULT_SETTINGS = {
     },
     "prompts": {
         "impression": "你是一位專業的小說編輯與文學評論家。請閱讀以下小說文本，分析其整體基調、文學風格、敘事結構、核心主題與情節張力，並提供具體的寫作優化建議。",
-        "character": "你是一位專業的小說編輯。請閱讀以下小說文本，分析並提取出登場角色的姓名、外貌特徵、性格特點、行為動機以及彼此之間的關係網，以清晰結構化條列呈現。",
+        "character": "你是一位專業的小說角色分析師。請閱讀以下小說文本，為文本中登場的每一位角色獨立建立詳細角色設定，並在最後梳理一份獨立的角色關係網。\n\n請嚴格依下列結構化標籤輸出：\n===CHARACTER_START===\n【角色姓名】角色名字\n【外觀年齡】外觀推測年齡（例如：約 20~25 歲青年）\n【外觀特徵】文字中猜測或描寫的外貌特徵、著裝與氣質神態\n【人物側寫】個性、核心人格特質、價值觀與人物小傳\n【已知行動】在選定範圍內已知的具體行動軌跡與事蹟\n【人事物關聯】與該角色有關係的人、事、物\n===CHARACTER_END===\n（有多位角色時請重複輸出上述 ===CHARACTER_START=== 區塊）\n\n===RELATIONSHIP_START===\n【卡片標題】全景角色關係網梳理\n【關係梳理】陣營勢力、角色間的核心矛盾、情感牽絆與互動脈絡深度分析\n===RELATIONSHIP_END===",
         "world": "你是一位小說世界觀架構師。請閱讀以下小說文本，分析並提取出文本中涉及的世界觀設定、歷史背景、地理環境、勢力組織、力量體系或特殊術語，並進行系統化的整理。",
         "timeline": "你是一位專業的小說時間線規劃師。請閱讀以下小說文本，梳理出故事發生的時間線，按先後順序提取出關鍵事件、場景轉換及發生的具體時間節點。",
         "chat": "你是一位資深的小說寫作顧問與編輯助手。請以繁體中文與作者深入探討小說情節、人物塑造、世界觀設定、伏筆鋪陳與文字潤飾，提供具創意且具體可行的寫作建議。",
@@ -325,18 +325,227 @@ class AIService:
             print(f"偵測本機模型失敗 ({provider}): {e}")
             return []
 
+    @classmethod
+    def parse_character_extraction_result(cls, raw_text: str, scope_title: str = "") -> dict:
+        """
+        解析 AI 角色提取結果，將其拆解為個別角色卡與獨立角色關係卡。
+        支援 ===CHARACTER_START=== / ===RELATIONSHIP_START=== 結構化標籤與 Markdown 標題 fallback。
+        """
+        import re
+
+        clean_text = raw_text.strip()
+        characters = []
+        relationship_card = None
+
+        # 1. 嘗試解析 ===CHARACTER_START=== 區塊
+        char_blocks = re.findall(r'===CHARACTER_START===([\s\S]*?)===CHARACTER_END===', clean_text)
+        if char_blocks:
+            for block in char_blocks:
+                c_data = cls._parse_single_character_block(block)
+                if c_data:
+                    characters.append(c_data)
+        else:
+            # Fallback 1: 依據 Markdown 標題 (### 或 #### 或 ##) 切分
+            # 尋找如 ### 1. 莫庸 或 ### 莫庸 或 #### 莫庸
+            sub_sections = re.split(r'\n(?=#{2,4}\s+(?:\d+[\.、\s]+)?(?:[^\n]+))', clean_text)
+            for sec in sub_sections:
+                sec_clean = sec.strip()
+                if not sec_clean:
+                    continue
+                # 排除純關係網或大標題
+                if any(kw in sec_clean[:40] for kw in ["關係網", "角色關係", "總結報告", "登場角色", "主要角色"]):
+                    continue
+                c_data = cls._parse_fallback_character_block(sec_clean)
+                if c_data and c_data.get("name"):
+                    characters.append(c_data)
+
+        # 2. 嘗試解析 ===RELATIONSHIP_START=== 區塊
+        rel_match = re.search(r'===RELATIONSHIP_START===([\s\S]*?)===RELATIONSHIP_END===', clean_text)
+        if rel_match:
+            rel_content = rel_match.group(1).strip()
+            rel_title = f"【角色關係網】{scope_title}" if scope_title else "【角色關係網】全景梳理"
+            title_m = re.search(r'【卡片標題】\s*([^\n]+)', rel_content)
+            if title_m:
+                rel_title = title_m.group(1).strip()
+                rel_content = re.sub(r'【卡片標題】\s*[^\n]+\n*', '', rel_content).strip()
+
+            formatted_rel = f"【標籤】#AI角色關係 #關係網\n\n{rel_content}"
+            relationship_card = {
+                "title": rel_title,
+                "content": formatted_rel,
+                "tags": ["AI角色關係", "關係網"],
+                "summary": rel_content.replace('\n', ' ')[:90] + "...",
+                "selected": True
+            }
+        else:
+            # Fallback 2: 尋找文本中提及角色關係的段落
+            rel_m = re.search(r'(?:#{2,4}\s*.*?關係.*?\n|【角色關係.*?】)([\s\S]*)', clean_text)
+            if rel_m:
+                rel_content = rel_m.group(1).strip()
+                if rel_content:
+                    rel_title = f"【角色關係網】{scope_title}" if scope_title else "【角色關係網】全景梳理"
+                    formatted_rel = f"【標籤】#AI角色關係 #關係網\n\n{rel_content}"
+                    relationship_card = {
+                        "title": rel_title,
+                        "content": formatted_rel,
+                        "tags": ["AI角色關係", "關係網"],
+                        "summary": rel_content.replace('\n', ' ')[:90] + "...",
+                        "selected": True
+                    }
+
+        # 若仍無任何角色被解析出，將整篇文本作為一張角色總結卡
+        if not characters:
+            characters.append({
+                "name": "登場角色總結",
+                "title": f"【角色分析】{scope_title}" if scope_title else "【角色分析】登場人物",
+                "age": "詳見內文",
+                "appearance": "詳見內文",
+                "profile": "詳見內文",
+                "actions": "詳見內文",
+                "relations": "詳見內文",
+                "content": f"【標籤】#AI角色 #人物設定\n\n{clean_text}",
+                "tags": ["AI角色", "人物設定"],
+                "summary": clean_text.replace('\n', ' ')[:90] + "...",
+                "selected": True
+            })
+
+        return {
+            "characters": characters,
+            "relationship_card": relationship_card,
+            "raw_text": raw_text
+        }
+
+    @classmethod
+    def _parse_single_character_block(cls, block_text: str) -> dict:
+        import re
+
+        clean = block_text.strip()
+        if not clean:
+            return None
+
+        def extract_field(field_name, alt_names=None):
+            names = [field_name] + (alt_names or [])
+            pattern = r'(?:' + '|'.join([re.escape(f'【{n}】') for n in names]) + r')\s*([^\n]+(?:\n(?!【)[^\n]+)*)'
+            m = re.search(pattern, clean)
+            if m:
+                return m.group(1).strip()
+            # 支援冒號格式
+            pattern_colon = r'(?:' + '|'.join([re.escape(n) for n in names]) + r')[：:]\s*([^\n]+(?:\n(?!【)[^\n]+)*)'
+            m_col = re.search(pattern_colon, clean)
+            return m_col.group(1).strip() if m_col else ""
+
+        name = extract_field("角色姓名", ["姓名", "角色名稱", "人物姓名"])
+        if not name:
+            # 取第一行
+            first_line = clean.split('\n')[0].strip()
+            name = re.sub(r'^[#\s\d\.、\-\*【】]+', '', first_line).strip("【】:： ")
+
+        age = extract_field("外觀年齡", ["年齡", "推測年齡", "外貌年齡"]) or "未在選定範圍內具體提及"
+        appearance = extract_field("外觀特徵", ["外貌", "外貌特徵", "著裝氣質", "外觀描述"]) or "未在選定範圍內具體提及"
+        profile = extract_field("人物側寫", ["性格特點", "個性特質", "人物小傳", "側寫與性格"]) or "未在選定範圍內具體提及"
+        actions = extract_field("已知行動", ["核心行為", "行為動機", "事件軌跡", "在故事中的行動"]) or "未在選定範圍內具體提及"
+        relations = extract_field("人事物關聯", ["關聯人事物", "關係網", "與他有關係的人事物"]) or "未在選定範圍內具體提及"
+
+        card_title = f"【角色】{name}"
+        card_content = (
+            f"【標籤】#AI角色 #人物設定 #{name}\n\n"
+            f"### 【外觀年齡】\n{age}\n\n"
+            f"### 【外觀特徵】\n{appearance}\n\n"
+            f"### 【人物側寫】\n{profile}\n\n"
+            f"### 【已知行動】\n{actions}\n\n"
+            f"### 【人事物關聯】\n{relations}"
+        )
+
+        return {
+            "name": name,
+            "title": card_title,
+            "age": age,
+            "appearance": appearance,
+            "profile": profile,
+            "actions": actions,
+            "relations": relations,
+            "content": card_content,
+            "tags": ["AI角色", "人物設定", name],
+            "summary": f"{age} | {profile[:60]}...",
+            "selected": True
+        }
+
+    @classmethod
+    def _parse_fallback_character_block(cls, block_text: str) -> dict:
+        import re
+
+        clean = block_text.strip()
+        lines = [line.strip() for line in clean.split('\n') if line.strip()]
+        if not lines:
+            return None
+
+        # 從標題提取名字
+        first_line = lines[0]
+        name = re.sub(r'^[#\s\d\.、\-\*]+', '', first_line).strip("【】:： ")
+        name = re.sub(r'^(?:角色|主要角色|次要角色)\s*[\d\.、]*\s*', '', name).strip()
+        # 移除括號英文如 (Mo Yong)
+        name_clean = re.sub(r'\s*\([^)]*\)', '', name).strip()
+        if not name_clean or len(name_clean) > 30:
+            return None
+
+        def extract_pattern(keywords):
+            p = r'(?:' + '|'.join([re.escape(k) for k in keywords]) + r')[：:\s*]+([^\n]+(?:\n(?!\*|\#|\d\.)[^\n]+)*)'
+            m = re.search(p, clean)
+            return m.group(1).strip() if m else ""
+
+        age = extract_pattern(["外觀年齡", "年齡", "外貌年齡"]) or "未在選定範圍內具體提及"
+        appearance = extract_pattern(["外貌特徵", "外觀特徵", "外貌", "外觀"]) or "未在選定範圍內具體提及"
+        profile = extract_pattern(["性格特點", "人物側寫", "性格", "個性"]) or "未在選定範圍內具體提及"
+        actions = extract_pattern(["行為動機", "核心行為", "已知行動", "行動"]) or "未在選定範圍內具體提及"
+        relations = extract_pattern(["人事物關聯", "關係", "人際關係", "關係網"]) or "未在選定範圍內具體提及"
+
+        # 若完全無欄位匹配，則保留原文本內容
+        if appearance == profile == actions == relations == "未在選定範圍內具體提及":
+            card_content = f"【標籤】#AI角色 #人物設定 #{name_clean}\n\n{clean}"
+        else:
+            card_content = (
+                f"【標籤】#AI角色 #人物設定 #{name_clean}\n\n"
+                f"### 【外觀年齡】\n{age}\n\n"
+                f"### 【外觀特徵】\n{appearance}\n\n"
+                f"### 【人物側寫】\n{profile}\n\n"
+                f"### 【已知行動】\n{actions}\n\n"
+                f"### 【人事物關聯】\n{relations}"
+            )
+
+        return {
+            "name": name_clean,
+            "title": f"【角色】{name_clean}",
+            "age": age,
+            "appearance": appearance,
+            "profile": profile,
+            "actions": actions,
+            "relations": relations,
+            "content": card_content,
+            "tags": ["AI角色", "人物設定", name_clean],
+            "summary": f"{age} | {profile[:60]}...",
+            "selected": True
+        }
+
 
 class AIWorker(QThread):
-    """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線）"""
+    """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線，支援長文滾動壓縮 HRCI）"""
     finished_signal = pyqtSignal(dict)
+    progress_signal = pyqtSignal(int, int, str)  # (current_step, total_steps, message)
     error_signal = pyqtSignal(str)
 
-    def __init__(self, task_type: str, text_content: str, chapter_title: str = "", custom_prompt: str = ""):
+    def __init__(self, task_type: str, text_content: str, chapter_title: str = "",
+                 custom_prompt: str = "", chunk_threshold: int = 4000):
         super().__init__()
         self.task_type = task_type  # 'impression', 'character', 'world', 'timeline'
         self.text_content = text_content
         self.chapter_title = chapter_title
         self.custom_prompt = custom_prompt
+        self.chunk_threshold = chunk_threshold
+        self._is_cancelled = False
+
+    def cancel(self):
+        """取消背景分析任務"""
+        self._is_cancelled = True
 
     def run(self):
         try:
@@ -355,16 +564,49 @@ class AIWorker(QThread):
 
             system_prompt = self.custom_prompt or prompts.get(self.task_type, "")
 
-            # 呼叫 API
-            result_text = AIService.call_api(
-                provider=provider,
-                api_url=api_url,
-                api_key=api_key,
-                model=model,
-                system_prompt=system_prompt,
-                user_content=self.text_content,
-                timeout=timeout
-            )
+            # 判斷是否為長文（字數大於門檻）
+            text_len = len(self.text_content)
+            if text_len > self.chunk_threshold:
+                from services.long_text_analyzer import LongTextAnalyzer
+
+                def api_caller(sys_p: str, user_p: str) -> str:
+                    return AIService.call_api(
+                        provider=provider,
+                        api_url=api_url,
+                        api_key=api_key,
+                        model=model,
+                        system_prompt=sys_p,
+                        user_content=user_p,
+                        timeout=timeout
+                    )
+
+                def on_progress(cur: int, tot: int, msg: str):
+                    self.progress_signal.emit(cur, tot, msg)
+
+                def check_cancelled() -> bool:
+                    return self._is_cancelled
+
+                analyzer = LongTextAnalyzer(ai_caller=api_caller)
+                analysis_result = analyzer.analyze_long_text(
+                    text=self.text_content,
+                    task_type=self.task_type,
+                    custom_prompt=self.custom_prompt,
+                    progress_callback=on_progress,
+                    is_cancelled_callback=check_cancelled
+                )
+                result_text = analysis_result.final_synthesis
+            else:
+                self.progress_signal.emit(1, 1, "✨ AI 正在分析中，請稍候...")
+                # 呼叫單次 API
+                result_text = AIService.call_api(
+                    provider=provider,
+                    api_url=api_url,
+                    api_key=api_key,
+                    model=model,
+                    system_prompt=system_prompt,
+                    user_content=self.text_content,
+                    timeout=timeout
+                )
 
             # 解析結構與卡片預設對應類別
             category_map = {
@@ -407,6 +649,11 @@ class AIWorker(QThread):
                 "content": result_text,
                 "raw_response": result_text
             }
+
+            if self.task_type == "character":
+                parsed_res = AIService.parse_character_extraction_result(result_text, self.chapter_title)
+                result_dict["parsed_characters"] = parsed_res.get("characters", [])
+                result_dict["parsed_relationship"] = parsed_res.get("relationship_card")
 
             self.finished_signal.emit(result_dict)
         except Exception as e:

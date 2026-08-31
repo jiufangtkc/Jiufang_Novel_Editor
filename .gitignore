@@ -19,6 +19,7 @@ build/
 dist/
 *.exe
 Output/
+/*.spec
 
 # 使用者小說與創作資料庫（避免個人資料提交至儲存庫）
 story/
