@@ -2,6 +2,7 @@
 
 <div align="center">
 
+
 **專為長篇小說創作者打造的「一站式、純本地、AI 賦能」桌面寫作軟體**
 
 ![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue)
