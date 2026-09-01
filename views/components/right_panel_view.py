@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTreeWidget, QTreeWidgetItem, QAbstractItemView, QSplitter,
     QComboBox, QFrame, QLineEdit, QPlainTextEdit, QFormLayout,
-    QSizePolicy, QMenu
+    QSizePolicy, QMenu, QStackedWidget
 )
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
@@ -22,19 +22,21 @@ ROLE_NODE_TYPE = Qt.ItemDataRole.UserRole + 2
 
 
 class RightPanelView(QWidget):
-    """右側資料集面板：樹狀導航 + 操作區。"""
+    """右側資料集面板：樹狀導航（上方） + 卡片內容/幕資訊展示區（下方）。"""
 
     # 從 View 發出的信號（由 CardController 連接）
     signal_card_selected = pyqtSignal(object)          # 點擊卡片節點，傳遞 QTreeWidgetItem
     signal_context_menu_requested = pyqtSignal(object, object)  # (QTreeWidgetItem | None, QPoint)
-    signal_add_card_requested = pyqtSignal(str)        # 使用者按新增按鈕，傳遞分類 key
+    signal_add_card_requested = pyqtSignal(str)        # 使用者要求新增卡片，傳遞分類 key
     signal_add_category_requested = pyqtSignal()       # 使用者要求新增自訂分類
     signal_card_dropped = pyqtSignal()                 # 拖放完成，通知 Controller 同步資料
     signal_save_scene_info = pyqtSignal()              # 幕屬性儲存
+    signal_card_saved = pyqtSignal(str, str, str)      # 下方欄位儲存卡片變更: (card_id, new_title, new_content)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.scale_factor = 1.0
+        self.current_editing_card_id = None
         self.init_ui()
 
     def init_ui(self):
@@ -61,12 +63,12 @@ class RightPanelView(QWidget):
         header_layout.addWidget(self.btn_toggle_right)
         outer_layout.addWidget(header)
 
-        # ── 主體：垂直 Splitter（樹狀區 + 操作區）────────────────────
+        # ── 主體：垂直 Splitter（上下兩欄）─────────────────────────
         self.main_splitter = QSplitter(Qt.Orientation.Vertical)
         self.main_splitter.setHandleWidth(4)
         outer_layout.addWidget(self.main_splitter, 1)
 
-        # ── 上方：卡片樹狀導航 ──────────────────────────────────────
+        # ── 上方欄位：卡片樹狀導航 ──────────────────────────────────
         tree_container = QWidget()
         tree_layout = QVBoxLayout(tree_container)
         tree_layout.setContentsMargins(0, 0, 0, 0)
@@ -97,43 +99,60 @@ class RightPanelView(QWidget):
         tree_layout.addWidget(self.card_tree)
         self.main_splitter.addWidget(tree_container)
 
-        # ── 下方：操作區 ────────────────────────────────────────────
-        bottom_container = QWidget()
-        bottom_container.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
-        bottom_layout = QVBoxLayout(bottom_container)
-        bottom_layout.setContentsMargins(0, 4, 0, 0)
-        bottom_layout.setSpacing(6)
+        # ── 下方欄位：Stack 切換（提示頁 / 卡片內容編輯頁 / 幕資訊頁）───
+        self.bottom_stack = QStackedWidget()
+        self.bottom_stack.setObjectName("bottom_stack")
 
-        # 新增卡片列
-        add_row = QHBoxLayout()
-        add_row.setSpacing(4)
+        # 1. 預設提示頁 (Index 0)
+        self.placeholder_panel = QFrame()
+        self.placeholder_panel.setFrameShape(QFrame.Shape.StyledPanel)
+        ph_layout = QVBoxLayout(self.placeholder_panel)
+        ph_layout.setContentsMargins(10, 10, 10, 10)
+        ph_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_placeholder = QLabel("點擊上方卡片以檢視內容")
+        self.lbl_placeholder.setFont(FontManager.get_font(size=9))
+        self.lbl_placeholder.setStyleSheet("color: #888888;")
+        ph_layout.addWidget(self.lbl_placeholder)
+        self.bottom_stack.addWidget(self.placeholder_panel)
 
-        self.combo_add_category = QComboBox()
-        self.combo_add_category.setFont(FontManager.get_font(size=9))
-        self.combo_add_category.setFixedHeight(26)
-        self.combo_add_category.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        add_row.addWidget(self.combo_add_category)
+        # 2. 卡片內容編輯頁 (Index 1)
+        self.card_detail_panel = QFrame()
+        self.card_detail_panel.setFrameShape(QFrame.Shape.StyledPanel)
+        cd_layout = QVBoxLayout(self.card_detail_panel)
+        cd_layout.setContentsMargins(6, 6, 6, 6)
+        cd_layout.setSpacing(5)
 
-        self.btn_add_card = QPushButton("＋ 新增卡片")
-        self.btn_add_card.setObjectName("btn_add_card")
-        self.btn_add_card.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
-        self.btn_add_card.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add_card.setFixedHeight(26)
-        self.btn_add_card.clicked.connect(self._on_add_card_clicked)
-        add_row.addWidget(self.btn_add_card)
+        # 卡片頂部資訊行：分類標籤與卡片標題輸入框
+        header_card_row = QHBoxLayout()
+        header_card_row.setSpacing(4)
+        self.lbl_card_category = QLabel("📁 卡片")
+        self.lbl_card_category.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        header_card_row.addWidget(self.lbl_card_category)
+        
+        self.card_title_edit = QLineEdit()
+        self.card_title_edit.setPlaceholderText("卡片名稱...")
+        self.card_title_edit.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        header_card_row.addWidget(self.card_title_edit, 1)
+        cd_layout.addLayout(header_card_row)
 
-        self.btn_add_category = QPushButton("⊕")
-        self.btn_add_category.setObjectName("btn_add_category")
-        self.btn_add_category.setFont(FontManager.get_font(size=11))
-        self.btn_add_category.setToolTip("新增自訂大分類")
-        self.btn_add_category.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add_category.setFixedSize(26, 26)
-        self.btn_add_category.clicked.connect(self.signal_add_category_requested.emit)
-        add_row.addWidget(self.btn_add_category)
+        # 卡片內容多行文字編輯
+        self.card_content_edit = QPlainTextEdit()
+        self.card_content_edit.setPlaceholderText("在此輸入卡片內容...")
+        self.card_content_edit.setFont(FontManager.get_font(size=9))
+        cd_layout.addWidget(self.card_content_edit, 1)
 
-        bottom_layout.addLayout(add_row)
+        # 儲存卡片按鈕
+        self.btn_save_card_content = QPushButton("儲存卡片變更")
+        self.btn_save_card_content.setObjectName("btn_save_card_content")
+        self.btn_save_card_content.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.btn_save_card_content.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_save_card_content.setFixedHeight(26)
+        self.btn_save_card_content.clicked.connect(self._on_save_card_clicked)
+        cd_layout.addWidget(self.btn_save_card_content)
 
-        # ── 幕屬性編輯（僅在選中 scene 節點時顯示）────────────────
+        self.bottom_stack.addWidget(self.card_detail_panel)
+
+        # 3. 幕屬性編輯頁 (Index 2)
         self.scene_panel = QFrame()
         self.scene_panel.setFrameShape(QFrame.Shape.StyledPanel)
         scene_inner = QVBoxLayout(self.scene_panel)
@@ -177,40 +196,68 @@ class RightPanelView(QWidget):
         self.btn_save_scene_info.clicked.connect(self.signal_save_scene_info.emit)
         scene_inner.addWidget(self.btn_save_scene_info)
 
-        self.scene_panel.hide()  # 預設隱藏
-        bottom_layout.addWidget(self.scene_panel)
+        self.bottom_stack.addWidget(self.scene_panel)
 
-        self.main_splitter.addWidget(bottom_container)
-        self.main_splitter.setSizes([500, 120])
+        self.main_splitter.addWidget(self.bottom_stack)
+        self.main_splitter.setSizes([260, 260])
         self.main_splitter.setStretchFactor(0, 1)
-        self.main_splitter.setStretchFactor(1, 0)
+        self.main_splitter.setStretchFactor(1, 1)
 
-        # 初始化分類下拉（由外部 CardController 呼叫 rebuild_category_combo() 更新）
+        # 預設顯示提示頁
+        self.bottom_stack.setCurrentIndex(0)
+
+        # ── 向後相容 stub 屬性（不放入可見 UI，避免舊呼叫或測試報錯）─────
+        self.combo_add_category = QComboBox()
+        self.combo_add_category.hide()
+        self.btn_add_card = QPushButton("＋ 新增卡片")
+        self.btn_add_card.hide()
+        self.btn_add_category = QPushButton("⊕")
+        self.btn_add_category.hide()
+
+        # 初始化分類（若有需要）
         self._rebuild_default_combo()
 
     def _rebuild_default_combo(self):
-        """根據內建分類初始化下拉選單（CardController 載入後會再呼叫完整版本）。"""
+        """根據內建分類初始化下拉選單（相容用）。"""
         self.combo_add_category.clear()
         for key in BUILTIN_CATEGORIES:
             if key == "ai_chat":
-                continue  # AI 對話紀錄不允許手動新增
+                continue
             display = CATEGORY_DISPLAY_NAMES.get(key, key)
             icon_char = CATEGORY_ICONS.get(key, "📁")
             self.combo_add_category.addItem(f"{icon_char} {display}", key)
 
     def rebuild_category_combo(self, category_order: list, custom_categories: list):
-        """CardController 呼叫以同步自訂分類到下拉選單。"""
+        """CardController 呼叫以同步自訂分類到下拉選單（相容用）。"""
         self.combo_add_category.clear()
         for key in category_order:
             if key == "ai_chat":
-                continue  # AI 對話紀錄不允許手動新增
+                continue
             display = CATEGORY_DISPLAY_NAMES.get(key, key)
             icon_char = CATEGORY_ICONS.get(key, CATEGORY_ICONS["_custom"])
             self.combo_add_category.addItem(f"{icon_char} {display}", key)
 
+    def show_placeholder(self):
+        """切換為下方提示頁面。"""
+        self.current_editing_card_id = None
+        self.bottom_stack.setCurrentIndex(0)
+
+    def show_card_detail(self, card_id: str, title: str, content: str, category_name: str):
+        """切換並顯示下方卡片內容編輯頁面。"""
+        self.current_editing_card_id = card_id
+        self.lbl_card_category.setText(f"📁 {category_name}")
+        self.card_title_edit.setText(title)
+        self.card_content_edit.setPlainText(content)
+        self.bottom_stack.setCurrentIndex(1)
+
     def set_scene_panel_visible(self, visible: bool):
         """控制幕屬性編輯面板的顯示。"""
-        self.scene_panel.setVisible(visible)
+        if visible:
+            self.current_editing_card_id = None
+            self.bottom_stack.setCurrentIndex(2)
+        else:
+            if self.bottom_stack.currentIndex() == 2:
+                self.bottom_stack.setCurrentIndex(0)
 
     # ── 內部事件處理器 ────────────────────────────────────────────────
 
@@ -218,6 +265,9 @@ class RightPanelView(QWidget):
         node_type = item.data(0, ROLE_NODE_TYPE)
         if node_type == "card":
             self.signal_card_selected.emit(item)
+        else:
+            # 點擊分類節點時切換為提示頁
+            self.show_placeholder()
 
     def _on_context_menu(self, pos):
         item = self.card_tree.itemAt(pos)
@@ -228,6 +278,12 @@ class RightPanelView(QWidget):
         category_key = self.combo_add_category.currentData()
         if category_key:
             self.signal_add_card_requested.emit(category_key)
+
+    def _on_save_card_clicked(self):
+        if self.current_editing_card_id:
+            title = self.card_title_edit.text()
+            content = self.card_content_edit.toPlainText()
+            self.signal_card_saved.emit(self.current_editing_card_id, title, content)
 
     # ── 樹狀節點建立輔助 ─────────────────────────────────────────────
 
@@ -286,6 +342,13 @@ class RightPanelView(QWidget):
 
         for i in range(self.card_tree.topLevelItemCount()):
             _update_items(self.card_tree.topLevelItem(i))
+
+        self.lbl_placeholder.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.lbl_card_category.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
+        self.card_title_edit.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
+        self.card_content_edit.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.btn_save_card_content.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
+        self.btn_save_card_content.setFixedHeight(int(26 * scale))
 
         self.combo_add_category.setFont(FontManager.get_font(size=int(9 * scale)))
         self.combo_add_category.setFixedHeight(int(26 * scale))

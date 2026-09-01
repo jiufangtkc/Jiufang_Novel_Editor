@@ -28,7 +28,7 @@ from controllers.backup_controller import BackupController
 class MainController:
     """主控制器（聚合器），負責協調各子控制器、持有共享狀態並連接 UI 信號。"""
 
-    def __init__(self, view: MainWindow, interactive_startup: bool = False):
+    def __init__(self, view: MainWindow, interactive_startup: bool = False, app_dir: Optional[str] = None):
         self.view = view
         self.interactive_startup = interactive_startup
 
@@ -99,10 +99,11 @@ class MainController:
         self.should_exit: bool = False
 
         # 自動防護目錄與全域設定初始化
-        local_app_data = os.environ.get('LOCALAPPDATA')
-        if not local_app_data:
-            local_app_data = os.path.join(os.path.expanduser('~'), 'AppData', 'Local')
-        app_dir = os.path.join(local_app_data, 'Jiufang_Novel_Editor')
+        if not app_dir:
+            local_app_data = os.environ.get('LOCALAPPDATA')
+            if not local_app_data:
+                local_app_data = os.path.join(os.path.expanduser('~'), 'AppData', 'Local')
+            app_dir = os.path.join(local_app_data, 'Jiufang_Novel_Editor')
         self.app_dir = app_dir
 
         # 載入並套用前一次關閉編輯器時的介面大小與設定

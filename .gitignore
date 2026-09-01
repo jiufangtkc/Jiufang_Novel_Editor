@@ -44,4 +44,7 @@ Desktop.ini
 .DS_Store
 
 # AI Agent 專屬文件、規則與設定
-.agents/
+.agents/*
+!.agents/docs/
+!.agents/rules/
+!.agents/build/

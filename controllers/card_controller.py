@@ -37,6 +37,7 @@ class CardController:
         """連接右側面板的 Signal（在 MainController.connect_signals 中呼叫）。"""
         rp = self.view.right_panel
         rp.signal_card_selected.connect(self.on_card_item_clicked)
+        rp.signal_card_saved.connect(self.save_card_from_panel)
         rp.signal_context_menu_requested.connect(self.on_context_menu)
         rp.signal_add_card_requested.connect(self.add_core_card)
         rp.signal_add_category_requested.connect(self.add_custom_category)
@@ -174,7 +175,7 @@ class CardController:
     # =========================================================================
 
     def add_core_card(self, category: str):
-        """在指定分類下新增一張空白卡片，並立即開啟編輯對話框。"""
+        """在指定分類下新增一張空白卡片，並選取至下方欄位檢視與編輯。"""
         if category not in self.mc.project_cards:
             self.mc.project_cards[category] = []
 
@@ -184,12 +185,11 @@ class CardController:
         self.rebuild_card_tree()
         self.mc.project.save_temp_doc()
 
-        # 找到新建的節點並打開編輯框（僅在視窗可見時才開啟，避免測試環境 hang）
+        # 找到新建的節點並載入至下方欄位
         new_item = self._find_tree_item_by_id(new_card.id)
         if new_item:
             self.card_tree.setCurrentItem(new_item)
-            if self.view.isVisible():
-                self._open_card_detail(new_item)
+            self.on_card_item_clicked(new_item)
 
     def add_child_card(self, parent_card_id: str, category: str):
         """在指定父卡片下新增子卡片。"""
@@ -205,10 +205,13 @@ class CardController:
         new_item = self._find_tree_item_by_id(child.id)
         if new_item:
             self.card_tree.setCurrentItem(new_item)
-            self._open_card_detail(new_item)
+            self.on_card_item_clicked(new_item)
 
     def delete_card(self, card_id: str, category: str):
         """從資料中遞迴刪除指定卡片（含其所有子卡片）。"""
+        if getattr(self.view.right_panel, 'current_editing_card_id', None) == card_id:
+            self.view.right_panel.show_placeholder()
+
         cards = self.mc.project_cards.get(category, [])
         removed = self._remove_card_by_id(cards, card_id)
         if not removed:
@@ -305,8 +308,44 @@ class CardController:
     # =========================================================================
 
     def on_card_item_clicked(self, item: QTreeWidgetItem):
-        """點擊卡片節點時，打開 CardDetailDialog。"""
-        self._open_card_detail(item)
+        """點擊卡片節點時，於下方欄位展示卡片標題與內容。"""
+        card_id = item.data(0, ROLE_CARD_ID)
+        category = item.data(0, ROLE_CATEGORY)
+        if not card_id:
+            self.view.right_panel.show_placeholder()
+            return
+
+        card_node = self._find_card_node_by_id(card_id, category)
+        if not card_node:
+            card_node, category = self._find_card_node_globally(card_id)
+        if not card_node:
+            self.view.right_panel.show_placeholder()
+            return
+
+        display_name = CATEGORY_DISPLAY_NAMES.get(category, "資料集卡片")
+        self.view.right_panel.show_card_detail(
+            card_id=card_node.id,
+            title=card_node.title,
+            content=card_node.content,
+            category_name=display_name
+        )
+
+    def save_card_from_panel(self, card_id: str, new_title: str, new_content: str):
+        """從下方欄位儲存卡片標題與內文變更。"""
+        card_node, category = self._find_card_node_globally(card_id)
+        if not card_node:
+            return
+
+        card_node.title = new_title
+        card_node.content = new_content
+
+        # 更新樹狀節點顯示名稱
+        item = self._find_tree_item_by_id(card_id)
+        if item:
+            display_title = new_title.strip() if new_title.strip() else "（未命名卡片）"
+            item.setText(0, f"  {display_title}")
+
+        self.mc.project.save_temp_doc()
 
     def _open_card_detail(self, item: QTreeWidgetItem):
         """根據 item 中的 card_id 找到 CardNode，打開詳細編輯對話框。"""
@@ -337,6 +376,14 @@ class CardController:
             card_node.color = new_color
             # 更新樹狀節點顯示名稱
             item.setText(0, f"  {new_title.strip() if new_title.strip() else '（未命名卡片）'}")
+            # 若下方欄位正在編輯同一張卡片，同步刷新
+            if getattr(self.view.right_panel, 'current_editing_card_id', None) == card_node.id:
+                self.view.right_panel.show_card_detail(
+                    card_id=card_node.id,
+                    title=new_title,
+                    content=new_content,
+                    category_name=display_name
+                )
             self.mc.project.save_temp_doc()
 
         dlg.signal_saved.connect(on_detail_saved)
@@ -347,9 +394,17 @@ class CardController:
         menu = QMenu(self.view)
 
         if item is None:
-            # 空白區域點擊
-            act_add = menu.addAction("＋ 新增卡片")
-            act_add.triggered.connect(lambda: self.view.right_panel._on_add_card_clicked())
+            # 空白區域點擊：提供選擇分類的新增子選單
+            add_menu = menu.addMenu("＋ 新增卡片至...")
+            category_order = getattr(self.mc, '_project_category_order', list(self.mc.project_cards.keys()))
+            for cat_key in category_order:
+                if cat_key == "ai_chat":
+                    continue
+                disp = CATEGORY_DISPLAY_NAMES.get(cat_key, cat_key)
+                icon = CATEGORY_ICONS.get(cat_key, "📁")
+                act = add_menu.addAction(f"{icon} {disp}")
+                act.triggered.connect(lambda checked, ck=cat_key: self.add_core_card(ck))
+
             act_add_cat = menu.addAction("⊕ 新增自訂分類")
             act_add_cat.triggered.connect(self.add_custom_category)
 
@@ -732,6 +787,7 @@ class CardController:
         """清空卡片資料並重建空樹狀導航。"""
         self.mc.project_cards = {cat: [] for cat in BUILTIN_CATEGORIES}
         self.mc._project_category_order = list(BUILTIN_CATEGORIES)
+        self.view.right_panel.show_placeholder()
         self.rebuild_card_tree()
 
     def update_cards_buttons_state(self):
