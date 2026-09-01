@@ -2,6 +2,7 @@
 
 <div align="center">
 
+<img src="pics/app_icon.png" width="200" alt="Jiufang Novel Editor Logo">
 
 **專為長篇小說創作者打造的「一站式、純本地、AI 賦能」桌面寫作軟體**
 
