@@ -35,9 +35,10 @@ Jiufang_Novel_Editor/
 │   └── dialogs/                    # 獨立的彈出視窗 (如 AI 對話框、檢查器、設定視窗)
 ├── controllers/                    # [Controller 層] 業務邏輯中樞 (Business Logic)
 │   ├── main_controller.py          # ★ 核心聚合器：持有所有子控制器實例，管理共享狀態
-│   └── (其他 11 個子控制器)          # 各司其職 (Tree, Editor, Search, Stats, Project, Theme, Card, Export, AI, Snapshot, Backup)
+│   └── (其他 12 個子控制器)          # 各司其職 (Tree, Editor, Search, Stats, Project, Autosave, Theme, Card, Export, AI, Snapshot, Backup)
 ├── services/                       # [Service 層] 資料存取與外部通訊 (Data & External API)
-│   ├── database.py                 # ★ 唯一真實資料來源 (Source of Truth)：處理 SQLite (.db) 的 CRUD 與版本遷移
+│   ├── database.py                 # ★ 唯一真實資料來源 (Source of Truth)：處理 SQLite (.db) 的 CRUD 操作
+│   ├── database_migrations.py      # SQLite schema_version 版本化升級與 Migration Pipeline
 │   ├── storage.py                  # 僅限舊版 JSON 專案向後相容讀取（已封存寫入功能）
 │   ├── ai_service.py               # 處理 OpenAI/Gemini/Claude/本地端 LLM 的 API 請求
 │   ├── app_settings_service.py     # 應用程式全域設定讀取與儲存

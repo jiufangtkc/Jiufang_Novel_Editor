@@ -503,6 +503,10 @@ class CardController:
         )
         if ok and new_title.strip():
             card_node.title = new_title.strip()
+            # 若下方欄位正開啟此卡片，即時同步更新其標題輸入框
+            rp = self.view.right_panel
+            if rp.current_editing_card_id == card_node.id:
+                rp.card_title_edit.setText(card_node.title)
             self.rebuild_card_tree()
             self.mc.project.save_temp_doc()
 

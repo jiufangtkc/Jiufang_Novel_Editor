@@ -109,5 +109,24 @@ class TestRightPanelSplit(unittest.TestCase):
         self.rp.set_scene_panel_visible(False)
         self.assertEqual(self.rp.bottom_stack.currentIndex(), 0)
 
+    def test_card_rename_sync_with_editing_panel(self):
+        """測試當卡片更名時，下方正在開啟的編輯欄位標題即時連動更新。"""
+        from unittest.mock import patch
+        card = CardNode(title="原標題", content="內文測試")
+        self.mc.project_cards["world"] = [card]
+        self.mc.card.rebuild_card_tree()
+
+        card_item = self.mc.card._find_tree_item_by_id(card.id)
+        self.rp._on_item_clicked(card_item, 0)
+        self.assertEqual(self.rp.card_title_edit.text(), "原標題")
+
+        # 模擬呼叫 rename_card
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("世界觀新標題", True)):
+            self.mc.card.rename_card(card.id, "world")
+
+        # 驗證下方欄位標題與卡片資料同步更新
+        self.assertEqual(card.title, "世界觀新標題")
+        self.assertEqual(self.rp.card_title_edit.text(), "世界觀新標題")
+
 if __name__ == "__main__":
     unittest.main()

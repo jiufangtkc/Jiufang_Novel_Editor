@@ -24,6 +24,7 @@ from controllers.ai_controller import AIController
 from controllers.search_controller import SearchController
 from controllers.snapshot_controller import SnapshotController
 from controllers.backup_controller import BackupController
+from controllers.autosave_controller import AutosaveController
 
 class MainController:
     """主控制器（聚合器），負責協調各子控制器、持有共享狀態並連接 UI 信號。"""
@@ -74,11 +75,12 @@ class MainController:
         self.writing_timer.timeout.connect(self.check_writing_inactivity)
         self.writing_timer.start()
 
-        # 實體化 9 個子控制器
+        # 實體化 12 個子控制器
         self.tree = TreeController(self)
         self.editor = EditorController(self)
         self.stats = StatsController(self)
         self.project = ProjectController(self)
+        self.autosave = AutosaveController(self)
         self.theme = ThemeController(self)
         self.card = CardController(self)
         self.export_controller = ExportController(self)

@@ -13,7 +13,6 @@ from services.database import DatabaseService
 from services.app_settings_service import AppSettingsService
 from services.storage_migration_service import StorageMigrationService
 from views.dialogs.new_book_dialog import NewBookDialog
-from views.dialogs.autosave_settings_dialog import AutosaveSettingsDialog
 from views.dialogs.storage_path_dialog import StoragePathDialog
 from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
@@ -119,87 +118,12 @@ class ProjectController:
         self._reset_project_state("請點擊輸入書名", "點擊輸入一句話大綱(logline)")
 
     def auto_load_latest_temp(self) -> bool:
-        """軟體啟動時自動檢查 Temp_doc 與存檔目錄，並優先載入最新暫存檔。"""
-        temp_dir = self.mc.get_temp_dir()
-
-        # 1. 優先檢查 Temp_doc 下的 .db 暫存檔
-        if os.path.exists(temp_dir):
-            db_files = [
-                os.path.join(temp_dir, f) for f in os.listdir(temp_dir)
-                if f.lower().endswith(".db") and os.path.isfile(os.path.join(temp_dir, f))
-            ]
-            db_files = [f for f in db_files if os.path.getsize(f) > 0]
-            if db_files:
-                db_files.sort(key=get_temp_db_sort_key, reverse=True)
-                for db_file in db_files:
-                    try:
-                        loaded_project = DatabaseService.load_project(db_file)
-                        if loaded_project and (loaded_project.tree or (loaded_project.project_info and loaded_project.project_info.title)):
-                            self.load_project_data(loaded_project)
-                            return True
-                    except Exception as e:
-                        print(f"嘗試載入暫存檔 {db_file} 失敗: {e}", file=sys.stderr)
-
-            # 2. 若無可用 .db 檔案，檢查是否有舊版 .json 暫存檔
-            json_files = [
-                os.path.join(temp_dir, f) for f in os.listdir(temp_dir)
-                if f.lower().endswith(".json") and os.path.isfile(os.path.join(temp_dir, f))
-            ]
-            json_files = [f for f in json_files if os.path.getsize(f) > 0]
-            if json_files:
-                json_files.sort(key=get_temp_db_sort_key, reverse=True)
-                for json_file in json_files:
-                    try:
-                        from services.storage import StorageService
-                        data = StorageService.load_data(json_file)
-                        if data:
-                            self.load_project_data(data)
-                            return True
-                    except Exception as e:
-                        print(f"嘗試載入舊版 JSON 暫存檔 {json_file} 失敗: {e}", file=sys.stderr)
-
-        # 3. 若 Temp_doc 無可用暫存檔，檢查 story/ 正式存檔目錄作為保底
-        story_dir = self.mc.get_story_dir()
-        if os.path.exists(story_dir):
-            story_files = []
-            for root, _, files in os.walk(story_dir):
-                for f in files:
-                    if f.lower().endswith(".db"):
-                        full_p = os.path.join(root, f)
-                        if os.path.isfile(full_p) and os.path.getsize(full_p) > 0:
-                            story_files.append(full_p)
-            if story_files:
-                story_files.sort(key=get_temp_db_sort_key, reverse=True)
-                for s_file in story_files:
-                    try:
-                        loaded_project = DatabaseService.load_project(s_file)
-                        if loaded_project:
-                            self.load_project_data(loaded_project)
-                            self.current_project_path = s_file
-                            return True
-                    except Exception as e:
-                        print(f"嘗試載入正式存檔 {s_file} 失敗: {e}", file=sys.stderr)
-
-        return False
+        """軟體啟動時自動檢查 Temp_doc 與存檔目錄，並優先載入最新暫存檔（委派至 AutosaveController）。"""
+        return self.mc.autosave.auto_load_latest_temp()
 
     def clean_files_limit(self, folder_path: str, limit: int = None):
-        if limit is None:
-            limit = getattr(self.mc, "autosave_max_files", 100)
-        if not os.path.exists(folder_path):
-            return
-        try:
-            files = [os.path.join(folder_path, f) for f in os.listdir(folder_path)]
-            files = [f for f in files if os.path.isfile(f)]
-            if len(files) > limit:
-                files.sort(key=get_temp_db_sort_key)
-                delete_count = len(files) - limit
-                for i in range(delete_count):
-                    try:
-                        os.remove(files[i])
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+        """清理資料夾內超出數量上限之檔案（委派至 AutosaveController）。"""
+        return self.mc.autosave.clean_files_limit(folder_path, limit)
 
     def on_close_event(self, event):
         self.mc.flush_active_writing_session()
@@ -514,31 +438,8 @@ class ProjectController:
         }
 
     def open_autosave_settings_dialog(self):
-        """開啟暫存與自動存檔設定對話框。"""
-        curr_interval = getattr(self.mc, "autosave_interval_minutes", 10)
-        curr_max_files = getattr(self.mc, "autosave_max_files", 100)
-
-        dialog = AutosaveSettingsDialog(self.view, interval_minutes=curr_interval, max_files=curr_max_files)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            interval, max_files = dialog.get_settings()
-            self.mc.autosave_interval_minutes = interval
-            self.mc.autosave_max_files = max_files
-            self.mc.auto_save_timer.setInterval(interval * 60 * 1000)
-
-            # 更新並儲存偏好設定
-            self.mc.app_settings["autosave_interval_minutes"] = interval
-            self.mc.app_settings["autosave_max_files"] = max_files
-            AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
-
-            # 立即執行一次清理上限檢查
-            temp_dir = self.mc.get_temp_dir()
-            self.clean_files_limit(temp_dir, limit=max_files)
-
-            QMessageBox.information(
-                self.view,
-                "設定成功",
-                f"暫存與自動存檔設定已更新！\n\n• 自動存檔間隔：{interval} 分鐘\n• 最多保留暫存檔：{max_files} 個"
-            )
+        """開啟暫存與自動存檔設定對話框（委派至 AutosaveController）。"""
+        self.mc.autosave.open_autosave_settings_dialog()
 
     def open_storage_path_dialog(self):
         """開啟存檔路徑設定對話框，支援雲端同步目錄設定與歷史稿件/暫存檔遷移。"""
@@ -695,22 +596,8 @@ class ProjectController:
             return False
 
     def save_temp_doc(self):
-        """暫存使用 SQLite .db 格式"""
-        self.mc.flush_active_writing_session()
-        try:
-            temp_dir = self.mc.get_temp_dir()
-            os.makedirs(temp_dir, exist_ok=True)
-
-            project = self._build_jne_project()
-            now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            temp_file_name = f"temp_{now_str}.db"
-            temp_file_path = os.path.join(temp_dir, temp_file_name)
-
-            DatabaseService.save_project(project, temp_file_path)
-            max_files = getattr(self.mc, "autosave_max_files", 100)
-            self.clean_files_limit(temp_dir, limit=max_files)
-        except Exception as e:
-            print(f"暫存失敗: {e}", file=sys.stderr)
+        """暫存使用 SQLite .db 格式（委派至 AutosaveController）。"""
+        self.mc.autosave.save_temp_doc()
 
     def save_project(self):
         """正式存檔為 SQLite .db 格式"""
