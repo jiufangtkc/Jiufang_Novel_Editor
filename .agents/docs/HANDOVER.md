@@ -67,6 +67,17 @@
         ├── 20.2 ProjectController 模組化：抽離 controllers/autosave_controller.py 獨立管理暫存、計時器與崩潰還原
         ├── 20.3 UI 狀態防護加固：卡片改名時即時連動同步下方編輯欄位標題，防範資料覆寫
         └── 20.4 測試套件擴充：新增連動同步測試，127/127 項測試全數通過
+    └── Phase 21：資料集卡片 Markdown 富文本渲染與格式化工具支援（✅ 全部完成）
+        ├── 21.1 編輯器升級：RightPanelCardEditor 整合 MarkdownHighlighter 即時語法高亮
+        ├── 21.2 快捷格式化工具列：提供粗體 (B/Ctrl+B)、斜體 (I/Ctrl+I)、標題 (H)、清單 (•)、刪除線 (~S~)、省略號 (……)、破折號 (──) 等快速按鈕
+        ├── 21.3 Markdown 富文本渲染預覽：新增「📖 預覽 / 📝 編輯」模式切換與 HTML 渲染 (markdown_to_html)
+        └── 21.4 測試套件擴充：新增高亮、預覽切換與格式化工具列單元測試，129/129 項測試全數通過
+    └── Phase 22：小說編輯器 Markdown 底層轉換中介與極簡所見即所得支援（✅ 全部完成）
+        ├── 22.1 Markdown 轉換中介核心：建立 utils/markdown_converter.py，支援結構化 Token 解析、純文字小說排版清洗 (全形縮排)、Docx Runs 生成、ePub 語意化 HTML 轉換
+        ├── 22.2 編輯區極簡所見即所得體驗：JNE_TextEdit 支援 Ctrl+B (粗體)、Ctrl+I (斜體)、Ctrl+Shift+S (刪除線)、Ctrl+Shift+H (場景分隔線) 快捷操作與右鍵格式選單
+        ├── 22.3 視覺減噪渲染：MarkdownHighlighter 導入 fmt_muted 淡化語法標記符號，顯著加強粗體、斜體等正文樣式
+        ├── 22.4 多格式匯出升級：ExportController 全面整合 MarkdownConverter，匯出 Word/ePub/TXT 自動轉為出版級排版與乾淨純文字
+        └── 22.5 單元測試擴充：新增 test_markdown_converter.py 並更新 test_export.py，134/134 項測試全數通過
 ```
 
 ---
@@ -101,18 +112,29 @@
 ### 陷阱 9：存檔與暫存路徑請統一透過 MainController 取得
 - 請統一呼叫 `self.mc.get_story_dir()` 與 `self.mc.get_temp_dir()` 取得路徑，不可硬編碼 `os.path.join(self.mc.app_dir, "story")`，以確保使用者自訂雲端同步路徑時能正確運作。
 
+### 陷阱 10：小說文字儲存與匯出轉換
+- 編輯器底層以純文字 Markdown 儲存，匯出時必須透過 `MarkdownConverter` 進行轉檔，確保輸出之 Word 文件（.docx）帶有真實樣式 Run、電子書（.epub）具有語意化 HTML 標籤、純文字（.txt）已清洗語法符號。
+
 ---
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (Phase 20)**：
-  1. **`services/database_migrations.py` 獨立模組**：將 SQLite 資料庫 v1～v9 的完整 Schema 升級邏輯、版本檢測與 Migration Pipeline 獨立抽離，`DatabaseService` 大幅瘦身至更清晰高內聚的狀態。
-  2. **`controllers/autosave_controller.py` 獨立控制器**：將自動暫存 (`save_temp_doc`)、排程計時器、暫存檔案清理 (`clean_files_limit`)、崩潰還原 (`auto_load_latest_temp`) 與暫存設定對話框完全抽離，減輕 `ProjectController` 負擔。
-  3. **UI 狀態同步與防護加固**：在卡片更名 (`rename_card`) 時，加入對右側下方正處於編輯狀態之面板標題的連動同步，防止因點擊儲存造成舊標題覆寫。
-  4. **單元測試全數通過**：全套 **127 項測試 100% 通過**（含新增之連動同步測試與子控制器初始化驗證）。
-- **當前任務狀態**：Phase 20 系統重構、模組化與狀態防護加固已全部實作完畢並通過驗證。
+- **本次完成事項 (Phase 22)**：
+  1. **Markdown 轉換中介器 (`utils/markdown_converter.py`)**：
+     - 解析小說常用 Markdown 行內標記（粗體、斜體、刪除線、行內代碼）與區塊標記（標題、引言、分隔線）。
+     - 提供 `to_plain_text`（去除語法符號，套用全形縮排）、`to_html_paragraphs`（語意化標籤）以及 `render_to_docx`（Word Run 格式化）。
+  2. **主編輯區極簡所見即所得體驗 (`JNE_TextEdit`)**：
+     - 支援快捷鍵操作：`Ctrl+B`（粗體包裹/解除）、`Ctrl+I`（斜體包裹/解除）、`Ctrl+Shift+S`（刪除線包裹/解除）、`Ctrl+Shift+H`（插入場景分隔線）。
+     - 右鍵選單整合「格式與排版」專用動作。
+  3. **語法視覺減噪 (`MarkdownHighlighter`)**：
+     - 引入 `fmt_muted` 淡化語法標記符號顏色，讓作者視線自然聚焦於粗體、斜體等正文排版。
+  4. **匯出控制器升級 (`ExportController`)**：
+     - `.docx` 匯出自動渲染粗體、斜體、刪除線、分隔線與引言。
+     - `.epub` 匯出生成語意化 XHTML 與排版 CSS。
+     - `.txt` 匯出自動清洗 Markdown 符號並補齊中文全形首行縮排。
+  5. **單元測試全數通過**：全套 **134 項測試 100% 通過**。
+- **當前任務狀態**：小說編輯器 Markdown 底層中介與極簡所見即所得支援全數實作完成並驗證。
 - **下一個 Agent 的任務指引**：
-  1. 軟體核心功能、MVC 分層、各子模組規模與單元測試已達到極度穩健的最佳狀態。
-  2. 後續可根據使用者提出的具體新功能需求（如更多自訂匯出範本、新主題配色、AI 提示詞自訂庫等）進行持續迭代。
-  3. 任何修改請繼續嚴格遵守 10B LLM 防卡死守則與 MVC 邊界規範。若需打包釋出，僅可使用 `.agents/build/build.bat`。
+  1. 軟體核心功能、MVC 分層與單元測試均處於最佳狀態。
+  2. 任何修改請繼續嚴格遵守 10B LLM 防卡死守則與 MVC 邊界規範。若需打包釋出，僅可使用 `.agents/build/build.bat`。
 

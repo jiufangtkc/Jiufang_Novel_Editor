@@ -12,6 +12,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.oxml.ns import qn
 
 from views.dialogs.export_scope_dialog import ExportScopeDialog
+from utils.markdown_converter import MarkdownConverter
 
 
 class ExportController:
@@ -159,11 +160,6 @@ class ExportController:
             title = file_item.text(0).strip()
             raw_content = self._get_item_plain_text(file_item)
 
-            # 解析純文字內容
-            temp_doc = QTextDocument()
-            temp_doc.setPlainText(raw_content)
-            plain_content = temp_doc.toPlainText().strip()
-
             if include_title and title:
                 heading = doc.add_paragraph()
                 heading.paragraph_format.space_before = Pt(14)
@@ -176,20 +172,8 @@ class ExportController:
                 run.font.name = font_family
                 run._element.rPr.rFonts.set(qn('w:eastAsia'), font_family)
 
-            if plain_content:
-                paragraphs = plain_content.split('\n')
-                for p_text in paragraphs:
-                    clean_p = p_text.rstrip()
-                    p = doc.add_paragraph()
-                    p.paragraph_format.space_after = Pt(4)
-                    p.paragraph_format.line_spacing = 1.35
-                    
-                    if clean_p:
-                        p.paragraph_format.first_line_indent = Pt(24)
-                        run = p.add_run(clean_p)
-                        run.font.name = font_family
-                        run.font.size = Pt(12)
-                        run._element.rPr.rFonts.set(qn('w:eastAsia'), font_family)
+            if raw_content:
+                MarkdownConverter.render_to_docx(raw_content, doc, font_family)
 
         doc.save(save_path)
 
@@ -203,17 +187,8 @@ class ExportController:
                 lines.append(f"【{title}】\n")
 
             if raw_content:
-                paragraphs = raw_content.split('\n')
-                for p in paragraphs:
-                    p_clean = p.rstrip()
-                    if p_clean:
-                        # 全形中文縮排兩格
-                        if not p_clean.startswith("　　") and not p_clean.startswith("    "):
-                            lines.append(f"　　{p_clean}")
-                        else:
-                            lines.append(p_clean)
-                    else:
-                        lines.append("")
+                clean_text = MarkdownConverter.to_plain_text(raw_content, auto_indent=True)
+                lines.append(clean_text)
             lines.append("\n")
 
         with open(save_path, "w", encoding="utf-8") as f:
@@ -258,7 +233,11 @@ class ExportController:
             css_content = """
 body { font-family: "PingFang TC", "Heiti TC", "Microsoft JhengHei", "Iansui", serif; line-height: 1.7; margin: 4%; }
 h1 { text-align: center; margin-top: 1.5em; margin-bottom: 1.2em; font-size: 1.5em; color: #222; }
+h2 { margin-top: 1.2em; margin-bottom: 0.8em; font-size: 1.3em; color: #333; }
+h3 { margin-top: 1.0em; margin-bottom: 0.6em; font-size: 1.1em; color: #444; }
 p { text-indent: 2em; margin-top: 0.4em; margin-bottom: 0.4em; text-align: justify; }
+blockquote { margin: 1em 2em; color: #555; border-left: 3px solid #ccc; padding-left: 1em; }
+hr { border: none; border-top: 1px dashed #aaa; margin: 2em auto; width: 60%; }
 """
             zf.writestr("OEBPS/style.css", css_content, compress_type=zipfile.ZIP_DEFLATED)
 
@@ -282,15 +261,7 @@ p { text-indent: 2em; margin-top: 0.4em; margin-bottom: 0.4em; text-align: justi
     <content src="{ch_filename}"/>
   </navPoint>""")
 
-                paras = ch_content.split('\n')
-                p_tags = []
-                for p in paras:
-                    p_clean = p.strip()
-                    if p_clean:
-                        p_tags.append(f"<p>{html.escape(p_clean)}</p>")
-                    else:
-                        p_tags.append("<p><br/></p>")
-
+                p_tags = MarkdownConverter.to_html_paragraphs(ch_content)
                 title_html = f"<h1>{html.escape(ch_title)}</h1>" if include_title else ""
                 ch_html = f"""<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>

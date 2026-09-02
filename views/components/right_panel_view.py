@@ -2,12 +2,14 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTreeWidget, QTreeWidgetItem, QAbstractItemView, QSplitter,
     QComboBox, QFrame, QLineEdit, QPlainTextEdit, QFormLayout,
-    QSizePolicy, QMenu, QStackedWidget
+    QSizePolicy, QMenu, QStackedWidget, QTextEdit
 )
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont, QIcon, QAction
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from utils.theme_manager import create_custom_icon
 from utils.font_manager import FontManager
+from utils.markdown_highlighter import MarkdownHighlighter
+from utils.markdown_utils import markdown_to_html
 from models.models import (
     BUILTIN_CATEGORIES, CATEGORY_DISPLAY_NAMES, CATEGORY_ICONS
 )
@@ -19,6 +21,109 @@ from models.models import (
 ROLE_CARD_ID  = Qt.ItemDataRole.UserRole
 ROLE_CATEGORY = Qt.ItemDataRole.UserRole + 1
 ROLE_NODE_TYPE = Qt.ItemDataRole.UserRole + 2
+
+
+class RightPanelCardEditor(QTextEdit):
+    """資料集卡片文字編輯器：支援 Markdown 即時語法高亮、強制純文字貼上與快速鍵"""
+    signal_save_requested = pyqtSignal()
+    signal_ai_chat = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptRichText(False)
+        self.highlighter = MarkdownHighlighter(self.document())
+
+    def insertFromMimeData(self, source):
+        """過濾所有外部 HTML / 富文本格式，一律以純文字插入"""
+        if source.hasText():
+            self.insertPlainText(source.text())
+        else:
+            super().insertFromMimeData(source)
+
+    def keyPressEvent(self, event):
+        modifiers = event.modifiers()
+        key = event.key()
+
+        # Ctrl+S 快捷鍵儲存
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_S:
+            self.signal_save_requested.emit()
+            event.accept()
+            return
+
+        # Ctrl+B 粗體快捷鍵
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_B:
+            self.wrap_selection("**", "**")
+            event.accept()
+            return
+
+        # Ctrl+I 斜體快捷鍵
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_I:
+            self.wrap_selection("*", "*")
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
+
+    def wrap_selection(self, prefix: str, suffix: str):
+        """將目前選取文字包裹指定前後標記，若無選取則插入標記並將光標置中"""
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            text = cursor.selectedText()
+            if text.startswith(prefix) and text.endswith(suffix) and len(text) >= len(prefix) + len(suffix):
+                unwrapped = text[len(prefix):len(text)-len(suffix)]
+                cursor.insertText(unwrapped)
+            else:
+                cursor.insertText(f"{prefix}{text}{suffix}")
+        else:
+            pos = cursor.position()
+            cursor.insertText(f"{prefix}{suffix}")
+            cursor.setPosition(pos + len(prefix))
+            self.setTextCursor(cursor)
+        self.setFocus()
+
+    def toggle_line_prefix(self, prefix: str):
+        """為當前行或選取行增加或移除指定行首前綴（例如標題 ### 或清單 - ）"""
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+        start = cursor.selectionStart()
+        end = cursor.selectionEnd()
+        cursor.setPosition(start)
+        cursor.movePosition(cursor.MoveOperation.StartOfLine)
+        cursor.setPosition(end, cursor.MoveMode.KeepAnchor)
+        cursor.movePosition(cursor.MoveOperation.EndOfLine, cursor.MoveMode.KeepAnchor)
+
+        selected_text = cursor.selectedText()
+        lines = selected_text.split("\u2029")
+        all_have_prefix = all(l.startswith(prefix) for l in lines if l.strip())
+        new_lines = []
+        for l in lines:
+            if all_have_prefix:
+                if l.startswith(prefix):
+                    new_lines.append(l[len(prefix):])
+                else:
+                    new_lines.append(l)
+            else:
+                new_lines.append(prefix + l if l.strip() else l)
+
+        cursor.insertText("\n".join(new_lines))
+        cursor.endEditBlock()
+        self.setFocus()
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()
+        menu.addSeparator()
+
+        selected_text = self.textCursor().selectedText().strip()
+        has_selection = bool(selected_text)
+        target_text = selected_text if has_selection else self.toPlainText().strip()
+        scope_text = "選取內容" if has_selection else "卡片全文"
+
+        act_chat = QAction(f"💬 與 AI 討論 ({scope_text})...", self)
+        act_chat.setEnabled(bool(target_text))
+        act_chat.triggered.connect(lambda: self.signal_ai_chat.emit(target_text))
+        menu.addAction(act_chat)
+
+        menu.exec(event.globalPos())
 
 
 class RightPanelView(QWidget):
@@ -120,7 +225,7 @@ class RightPanelView(QWidget):
         self.card_detail_panel.setFrameShape(QFrame.Shape.StyledPanel)
         cd_layout = QVBoxLayout(self.card_detail_panel)
         cd_layout.setContentsMargins(6, 6, 6, 6)
-        cd_layout.setSpacing(5)
+        cd_layout.setSpacing(4)
 
         # 卡片頂部資訊行：分類標籤與卡片標題輸入框
         header_card_row = QHBoxLayout()
@@ -135,11 +240,103 @@ class RightPanelView(QWidget):
         header_card_row.addWidget(self.card_title_edit, 1)
         cd_layout.addLayout(header_card_row)
 
-        # 卡片內容多行文字編輯
-        self.card_content_edit = QPlainTextEdit()
-        self.card_content_edit.setPlaceholderText("在此輸入卡片內容...")
+        # Markdown 格式化工具列
+        self.card_toolbar = QWidget()
+        toolbar_layout = QHBoxLayout(self.card_toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(2)
+
+        self.btn_format_bold = QPushButton("B")
+        self.btn_format_bold.setFont(FontManager.get_font(size=8, weight=QFont.Weight.Bold))
+        self.btn_format_bold.setToolTip("粗體 (Ctrl+B) — **文字**")
+        self.btn_format_bold.setFixedWidth(24)
+        self.btn_format_bold.setFixedHeight(22)
+        self.btn_format_bold.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_bold.clicked.connect(lambda: self.card_content_edit.wrap_selection("**", "**"))
+        toolbar_layout.addWidget(self.btn_format_bold)
+
+        self.btn_format_italic = QPushButton("I")
+        self.btn_format_italic.setFont(FontManager.get_font(size=8, italic=True))
+        self.btn_format_italic.setToolTip("斜體 (Ctrl+I) — *文字*")
+        self.btn_format_italic.setFixedWidth(24)
+        self.btn_format_italic.setFixedHeight(22)
+        self.btn_format_italic.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_italic.clicked.connect(lambda: self.card_content_edit.wrap_selection("*", "*"))
+        toolbar_layout.addWidget(self.btn_format_italic)
+
+        self.btn_format_header = QPushButton("H")
+        self.btn_format_header.setFont(FontManager.get_font(size=8, weight=QFont.Weight.Bold))
+        self.btn_format_header.setToolTip("標題 — ### 標題")
+        self.btn_format_header.setFixedWidth(24)
+        self.btn_format_header.setFixedHeight(22)
+        self.btn_format_header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_header.clicked.connect(lambda: self.card_content_edit.toggle_line_prefix("### "))
+        toolbar_layout.addWidget(self.btn_format_header)
+
+        self.btn_format_list = QPushButton("•")
+        self.btn_format_list.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.btn_format_list.setToolTip("清單項目 — - 項目")
+        self.btn_format_list.setFixedWidth(24)
+        self.btn_format_list.setFixedHeight(22)
+        self.btn_format_list.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_list.clicked.connect(lambda: self.card_content_edit.toggle_line_prefix("- "))
+        toolbar_layout.addWidget(self.btn_format_list)
+
+        self.btn_format_strike = QPushButton("~S~")
+        self.btn_format_strike.setFont(FontManager.get_font(size=7))
+        self.btn_format_strike.setToolTip("刪除線 — ~~文字~~")
+        self.btn_format_strike.setFixedWidth(28)
+        self.btn_format_strike.setFixedHeight(22)
+        self.btn_format_strike.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_strike.clicked.connect(lambda: self.card_content_edit.wrap_selection("~~", "~~"))
+        toolbar_layout.addWidget(self.btn_format_strike)
+
+        self.btn_format_ellipsis = QPushButton("……")
+        self.btn_format_ellipsis.setFont(FontManager.get_font(size=7))
+        self.btn_format_ellipsis.setToolTip("插入省略號 (……)")
+        self.btn_format_ellipsis.setFixedWidth(26)
+        self.btn_format_ellipsis.setFixedHeight(22)
+        self.btn_format_ellipsis.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_ellipsis.clicked.connect(lambda: self.card_content_edit.insertPlainText("……"))
+        toolbar_layout.addWidget(self.btn_format_ellipsis)
+
+        self.btn_format_emdash = QPushButton("──")
+        self.btn_format_emdash.setFont(FontManager.get_font(size=7))
+        self.btn_format_emdash.setToolTip("插入破折號 (──)")
+        self.btn_format_emdash.setFixedWidth(26)
+        self.btn_format_emdash.setFixedHeight(22)
+        self.btn_format_emdash.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_format_emdash.clicked.connect(lambda: self.card_content_edit.insertPlainText("──"))
+        toolbar_layout.addWidget(self.btn_format_emdash)
+
+        toolbar_layout.addStretch()
+
+        self.btn_toggle_card_preview = QPushButton("📖 預覽")
+        self.btn_toggle_card_preview.setFont(FontManager.get_font(size=8, weight=QFont.Weight.Bold))
+        self.btn_toggle_card_preview.setToolTip("切換 Markdown 富文本渲染預覽與編輯模式")
+        self.btn_toggle_card_preview.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_card_preview.setFixedHeight(22)
+        self.btn_toggle_card_preview.clicked.connect(self._toggle_card_preview_mode)
+        toolbar_layout.addWidget(self.btn_toggle_card_preview)
+
+        cd_layout.addWidget(self.card_toolbar)
+
+        # 內容堆疊：Markdown 編輯器 (Index 0) / 富文本 HTML 預覽 (Index 1)
+        self.card_content_stack = QStackedWidget()
+
+        self.card_content_edit = RightPanelCardEditor()
+        self.card_content_edit.setPlaceholderText("在此輸入卡片內容（支援 Markdown 語法高亮）...")
         self.card_content_edit.setFont(FontManager.get_font(size=9))
-        cd_layout.addWidget(self.card_content_edit, 1)
+        self.card_content_edit.signal_save_requested.connect(self._on_save_card_clicked)
+        self.card_content_edit.signal_ai_chat.connect(self._open_ai_chat_for_card)
+        self.card_content_stack.addWidget(self.card_content_edit)
+
+        self.card_preview_browser = QTextEdit()
+        self.card_preview_browser.setReadOnly(True)
+        self.card_preview_browser.setFont(FontManager.get_font(size=9))
+        self.card_content_stack.addWidget(self.card_preview_browser)
+
+        cd_layout.addWidget(self.card_content_stack, 1)
 
         # 儲存卡片按鈕
         self.btn_save_card_content = QPushButton("儲存卡片變更")
@@ -248,7 +445,45 @@ class RightPanelView(QWidget):
         self.lbl_card_category.setText(f"📁 {category_name}")
         self.card_title_edit.setText(title)
         self.card_content_edit.setPlainText(content)
+        # 若當前處於預覽模式，同步更新預覽 HTML
+        if self.card_content_stack.currentIndex() == 1:
+            self.card_preview_browser.setHtml(markdown_to_html(content))
         self.bottom_stack.setCurrentIndex(1)
+
+    def _toggle_card_preview_mode(self):
+        """切換卡片內容的編輯與 Markdown 富文本預覽模式"""
+        if self.card_content_stack.currentIndex() == 0:
+            # 切換到預覽
+            content = self.card_content_edit.toPlainText()
+            html_content = markdown_to_html(content)
+            self.card_preview_browser.setHtml(html_content)
+            self.card_content_stack.setCurrentIndex(1)
+            self.btn_toggle_card_preview.setText("📝 編輯")
+            self._set_formatting_buttons_enabled(False)
+        else:
+            # 切換回編輯
+            self.card_content_stack.setCurrentIndex(0)
+            self.btn_toggle_card_preview.setText("📖 預覽")
+            self._set_formatting_buttons_enabled(True)
+
+    def _set_formatting_buttons_enabled(self, enabled: bool):
+        for btn in [
+            self.btn_format_bold, self.btn_format_italic,
+            self.btn_format_header, self.btn_format_list,
+            self.btn_format_strike, self.btn_format_ellipsis,
+            self.btn_format_emdash
+        ]:
+            btn.setEnabled(enabled)
+
+    def _open_ai_chat_for_card(self, context_text: str):
+        """開啟 AI 對話視窗並引用卡片文字"""
+        try:
+            from views.dialogs.ai_chat_dialog import AIChatDialog
+            dlg = AIChatDialog(self, initial_context=context_text)
+            dlg.signal_insert_to_editor.connect(lambda text: self.card_content_edit.insertPlainText(text))
+            dlg.exec()
+        except Exception:
+            pass
 
     def set_scene_panel_visible(self, visible: bool):
         """控制幕屬性編輯面板的顯示。"""
@@ -347,6 +582,26 @@ class RightPanelView(QWidget):
         self.lbl_card_category.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
         self.card_title_edit.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
         self.card_content_edit.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.card_preview_browser.setFont(FontManager.get_font(size=int(9 * scale)))
+
+        if hasattr(self, "btn_format_bold"):
+            self.btn_format_bold.setFont(FontManager.get_font(size=int(8 * scale), weight=QFont.Weight.Bold))
+            self.btn_format_bold.setFixedSize(int(24 * scale), int(22 * scale))
+            self.btn_format_italic.setFont(FontManager.get_font(size=int(8 * scale), italic=True))
+            self.btn_format_italic.setFixedSize(int(24 * scale), int(22 * scale))
+            self.btn_format_header.setFont(FontManager.get_font(size=int(8 * scale), weight=QFont.Weight.Bold))
+            self.btn_format_header.setFixedSize(int(24 * scale), int(22 * scale))
+            self.btn_format_list.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
+            self.btn_format_list.setFixedSize(int(24 * scale), int(22 * scale))
+            self.btn_format_strike.setFont(FontManager.get_font(size=int(7 * scale)))
+            self.btn_format_strike.setFixedSize(int(28 * scale), int(22 * scale))
+            self.btn_format_ellipsis.setFont(FontManager.get_font(size=int(7 * scale)))
+            self.btn_format_ellipsis.setFixedSize(int(26 * scale), int(22 * scale))
+            self.btn_format_emdash.setFont(FontManager.get_font(size=int(7 * scale)))
+            self.btn_format_emdash.setFixedSize(int(26 * scale), int(22 * scale))
+            self.btn_toggle_card_preview.setFont(FontManager.get_font(size=int(8 * scale), weight=QFont.Weight.Bold))
+            self.btn_toggle_card_preview.setFixedHeight(int(22 * scale))
+
         self.btn_save_card_content.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
         self.btn_save_card_content.setFixedHeight(int(26 * scale))
 

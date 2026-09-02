@@ -40,6 +40,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             tag_color = QColor("#c678dd")
             field_color = QColor("#56b6c2")
             hr_color = QColor("#5c6370")
+            muted_color = QColor("#5c6370")
         else:
             h1_color = QColor("#0066cc")
             h2_color = QColor("#007acc")
@@ -55,6 +56,12 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             tag_color = QColor("#6f42c1")
             field_color = QColor("#005cc5")
             hr_color = QColor("#d1d5da")
+            muted_color = QColor("#b0b8c4")
+
+        # 語法標記淡化格式 (用於 **、*、~~ 等符號，達成視覺減噪)
+        self.fmt_muted = QTextCharFormat()
+        self.fmt_muted.setForeground(muted_color)
+        self.fmt_muted.setFontWeight(QFont.Weight.Normal)
 
         # 標題格式 (H1 ~ H4)
         self.fmt_h1 = QTextCharFormat()
@@ -160,8 +167,23 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         ]
 
     def highlightBlock(self, text: str):
+        # 先套用基礎格式
         for pattern, fmt in self.highlighting_rules:
             for match in pattern.finditer(text):
                 start = match.start()
                 length = match.end() - start
                 self.setFormat(start, length, fmt)
+
+        # 視覺減噪處理：淡化語法符號 (**、*、~~、`、#)
+        symbol_patterns = [
+            re.compile(r"\*\*|__"),      # 粗體符號
+            re.compile(r"(?<!\*)\*(?!\*)|(?<!\w)_(?!\w)"),  # 斜體符號
+            re.compile(r"~~"),            # 刪除線符號
+            re.compile(r"`"),             # 代碼符號
+            re.compile(r"^#{1,6}\s"),     # 標題前綴
+            re.compile(r"^>\s*"),         # 引言前綴
+        ]
+        for pat in symbol_patterns:
+            for match in pat.finditer(text):
+                self.setFormat(match.start(), match.end() - match.start(), self.fmt_muted)
+

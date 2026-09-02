@@ -18,6 +18,59 @@ class JNE_TextEdit(QTextEdit):
         self.setAcceptRichText(False)
         self.highlighter = MarkdownHighlighter(self.document())
 
+    def keyPressEvent(self, event):
+        modifiers = event.modifiers()
+        key = event.key()
+
+        # Ctrl+B: 粗體切換
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_B:
+            self.toggle_inline_format("**")
+            return
+
+        # Ctrl+I: 斜體切換
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_I:
+            self.toggle_inline_format("*")
+            return
+
+        # Ctrl+Shift+S: 刪除線切換
+        if modifiers == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier) and key == Qt.Key.Key_S:
+            self.toggle_inline_format("~~")
+            return
+
+        # Ctrl+Shift+H: 插入場景分隔線
+        if modifiers == (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier) and key == Qt.Key.Key_H:
+            self.insert_scene_divider()
+            return
+
+        super().keyPressEvent(event)
+
+    def toggle_inline_format(self, wrap_tag: str):
+        """為選取文字套用或移除 Markdown 行內包裹語法（如 ** 或 * 或 ~~）"""
+        cursor = self.textCursor()
+        tag_len = len(wrap_tag)
+
+        if not cursor.hasSelection():
+            # 無選取文字：插入一對標記並將游標置於中央
+            pos = cursor.position()
+            cursor.insertText(f"{wrap_tag}{wrap_tag}")
+            cursor.setPosition(pos + tag_len)
+            self.setTextCursor(cursor)
+            return
+
+        selected_text = cursor.selectedText()
+        if selected_text.startswith(wrap_tag) and selected_text.endswith(wrap_tag) and len(selected_text) >= tag_len * 2:
+            # 已包裹：去除標記
+            new_text = selected_text[tag_len:-tag_len]
+            cursor.insertText(new_text)
+        else:
+            # 未包裹：加上標記
+            cursor.insertText(f"{wrap_tag}{selected_text}{wrap_tag}")
+
+    def insert_scene_divider(self):
+        """插入小說場景分隔線 (---)"""
+        cursor = self.textCursor()
+        cursor.insertText("\n---\n")
+
     def insertFromMimeData(self, source):
         """全局無格式貼上：過濾所有來源富文本/HTML格式，一律以純文字插入"""
         if source.hasText():
@@ -28,6 +81,27 @@ class JNE_TextEdit(QTextEdit):
     def contextMenuEvent(self, event):
         # 建立標準右鍵選單
         menu = self.createStandardContextMenu()
+        menu.addSeparator()
+
+        # 格式與排版子選單
+        fmt_menu = menu.addMenu("🔤 格式與排版")
+        act_bold = QAction("粗體 (Ctrl+B)", self)
+        act_bold.triggered.connect(lambda: self.toggle_inline_format("**"))
+        fmt_menu.addAction(act_bold)
+
+        act_italic = QAction("斜體 (Ctrl+I)", self)
+        act_italic.triggered.connect(lambda: self.toggle_inline_format("*"))
+        fmt_menu.addAction(act_italic)
+
+        act_strike = QAction("刪除線 (Ctrl+Shift+S)", self)
+        act_strike.triggered.connect(lambda: self.toggle_inline_format("~~"))
+        fmt_menu.addAction(act_strike)
+
+        fmt_menu.addSeparator()
+        act_divider = QAction("插入場景分隔線 (Ctrl+Shift+H)", self)
+        act_divider.triggered.connect(self.insert_scene_divider)
+        fmt_menu.addAction(act_divider)
+
         menu.addSeparator()
 
         # 取得選取文字或全文

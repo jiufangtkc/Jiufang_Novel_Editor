@@ -24,9 +24,9 @@ class TestExportFormats(unittest.TestCase):
         self.view = MainWindow()
         self.mc = MainController(self.view)
 
-        # 建立測試節點
-        self.item1 = self.mc.tree.create_item("第一章 啟程", is_folder=False, content="這是第一章的內文，冒險即將開始。\n微風徐徐。")
-        self.item2 = self.mc.tree.create_item("第二章 冒險", is_folder=False, content="這是第二章的內文，遭遇了強大的對手。")
+        # 建立測試節點 (包含 Markdown 標記)
+        self.item1 = self.mc.tree.create_item("第一章 啟程", is_folder=False, content="這是**第一章**的內文，他*輕聲說道*。\n---\n> 這是一封密信。")
+        self.item2 = self.mc.tree.create_item("第二章 冒險", is_folder=False, content="這是第二章的內文，遭遇了~~強大的對手~~強敵。")
         self.files_list = [self.item1, self.item2]
 
     def tearDown(self):
@@ -44,6 +44,9 @@ class TestExportFormats(unittest.TestCase):
         doc = Document(docx_path)
         self.assertTrue(len(doc.paragraphs) >= 4)
         self.assertEqual(doc.paragraphs[0].text, "第一章 啟程")
+        # 驗證是否有粗體 Run
+        has_bold_run = any(r.bold and r.text == "第一章" for p in doc.paragraphs for r in p.runs)
+        self.assertTrue(has_bold_run)
 
     def test_export_txt(self):
         txt_path = os.path.join(self.temp_dir.name, "test.txt")
@@ -52,7 +55,9 @@ class TestExportFormats(unittest.TestCase):
         with open(txt_path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("【第一章 啟程】", content)
-        self.assertIn("這是第一章的內文", content)
+        # 驗證 Markdown 標記已乾淨去除並保留純文字
+        self.assertIn("這是第一章的內文，他輕聲說道。", content)
+        self.assertNotIn("**第一章**", content)
         self.assertIn("【第二章 冒險】", content)
 
     def test_export_md(self):
@@ -62,7 +67,7 @@ class TestExportFormats(unittest.TestCase):
         with open(md_path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("# 第一章 啟程", content)
-        self.assertIn("這是第一章的內文", content)
+        self.assertIn("這是**第一章**的內文", content)
         self.assertIn("# 第二章 冒險", content)
 
     def test_export_epub(self):
@@ -74,3 +79,4 @@ class TestExportFormats(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
