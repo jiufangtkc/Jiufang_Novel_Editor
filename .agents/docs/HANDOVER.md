@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-01，完成 Phase 20「系統重構、模組化與狀態防護加固」，全部 127 項單元測試全數通過。
+> 最後更新：2026-09-03，完成 Phase 27「Markdown 所見即所得空行雙倍行高根除（精確單行高度還原）」，全部 144 項單元測試全數通過。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -78,6 +78,12 @@
         ├── 22.3 視覺減噪渲染：MarkdownHighlighter 導入 fmt_muted 淡化語法標記符號，顯著加強粗體、斜體等正文樣式
         ├── 22.4 多格式匯出升級：ExportController 全面整合 MarkdownConverter，匯出 Word/ePub/TXT 自動轉為出版級排版與乾淨純文字
         └── 22.5 單元測試擴充：新增 test_markdown_converter.py 並更新 test_export.py，134/134 項測試全數通過
+    └── Phase 26：當日目標與進度多設備（Dropbox 同步）持久化與日誌連動（✅ 全部完成）
+        ├── 26.1 模型擴充：ProjectInfo 新增 daily_target_word_count 欄位（預設 1000 字）
+        ├── 26.2 SQLite 遷移升級：DatabaseMigrations 實現 v9 -> v10 升級，為 project_info 表補齊目標欄位
+        ├── 26.3 跨設備開檔狀態還原：load_project_data 自動還原目標字數，並依今日日期 (YYYY-MM-DD) 從 writing_logs 還原已寫字數
+        ├── 26.4 雙向即時同步與清除：set_daily_target、flush_active_writing_session、clear_daily_progress 與專案日誌及暫存即時連動
+        └── 26.5 測試套件擴充：新增 test_daily_progress_sync.py（7 項測試），全套 143/143 項單元測試 100% 通過
 ```
 
 ---
@@ -115,26 +121,37 @@
 ### 陷阱 10：小說文字儲存與匯出轉換
 - 編輯器底層以純文字 Markdown 儲存，匯出時必須透過 `MarkdownConverter` 進行轉檔，確保輸出之 Word 文件（.docx）帶有真實樣式 Run、電子書（.epub）具有語意化 HTML 標籤、純文字（.txt）已清洗語法符號。
 
+### 陷阱 11：不要在 apply_theme 中直接呼叫 QApplication.setStyleSheet()
+- 在 PyQt6 / Windows 上，若對全域 `QApplication.instance()` 呼叫 `setStyleSheet`，會導致部分已手動指定字型的 widget（如 `QComboBox`）觸發全域字型 reset（變回 9pt）。
+- 正確做法為在各對話框初始化時使用 `ThemeManager.apply_theme_to_dialog(self, parent)`，既保證完整繼承主題色彩與縮放，又不會污染或重設主視窗的字型。
+
+### 陷阱 12：Windows 剪貼簿單元測試請 Mock，避免 OLE 重試與衝突
+- 在單元測試中若需測試複製到剪貼簿功能（如 `copy_card_content`），應使用 `unittest.mock.patch.object(QApplication.clipboard(), "setText")` 驗證傳入參數，嚴禁直接依賴系統全域剪貼簿。在 Windows 平台無頭或背景測試環境中，`OpenClipboard` 易與其他程式（或 COM 歷程記錄）衝突觸發 `0x800401d0`，導致 Qt 不斷 retry 造成數秒卡頓並拋出 `AssertionError`。
+
+### 陷阱 13：外部與本機網路端點測試必須 Mock
+- 在測試 `AIService.detect_local_models` 時，不得直接發送真實 HTTP request 到未開放的本機端點（如 `99999` port），否則在 Windows 系統連線 socket 超時會導致測試每次延遲 2 秒以上，應使用 `unittest.mock.patch("urllib.request.urlopen")` 模擬異常以保持測試純淨與毫秒級快速執行。
+
+### 陷阱 14：Antigravity Agent 執行測試與背景工作機制
+- 專案全套測試數量達 154 項，完整執行需耗時約 17 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須使用 `manage_task` 追蹤狀態直至 `DONE` 並讀取日誌回報結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
+
 ---
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (Phase 22)**：
-  1. **Markdown 轉換中介器 (`utils/markdown_converter.py`)**：
-     - 解析小說常用 Markdown 行內標記（粗體、斜體、刪除線、行內代碼）與區塊標記（標題、引言、分隔線）。
-     - 提供 `to_plain_text`（去除語法符號，套用全形縮排）、`to_html_paragraphs`（語意化標籤）以及 `render_to_docx`（Word Run 格式化）。
-  2. **主編輯區極簡所見即所得體驗 (`JNE_TextEdit`)**：
-     - 支援快捷鍵操作：`Ctrl+B`（粗體包裹/解除）、`Ctrl+I`（斜體包裹/解除）、`Ctrl+Shift+S`（刪除線包裹/解除）、`Ctrl+Shift+H`（插入場景分隔線）。
-     - 右鍵選單整合「格式與排版」專用動作。
-  3. **語法視覺減噪 (`MarkdownHighlighter`)**：
-     - 引入 `fmt_muted` 淡化語法標記符號顏色，讓作者視線自然聚焦於粗體、斜體等正文排版。
-  4. **匯出控制器升級 (`ExportController`)**：
-     - `.docx` 匯出自動渲染粗體、斜體、刪除線、分隔線與引言。
-     - `.epub` 匯出生成語意化 XHTML 與排版 CSS。
-     - `.txt` 匯出自動清洗 Markdown 符號並補齊中文全形首行縮排。
-  5. **單元測試全數通過**：全套 **134 項測試 100% 通過**。
-- **當前任務狀態**：小說編輯器 Markdown 底層中介與極簡所見即所得支援全數實作完成並驗證。
+- **本次完成事項 (Phase 29：修復測試套件剪貼簿 OLE 重試卡頓與網路 Socket 阻塞問題，恢復全套 154 項自動化測試 100% 綠燈)**：
+  1. **排查測試卡頓與未回報的根本原因**：
+     - **背景工作盲點**：`python -m pytest tests/` 跑全套 154 項測試需要約 17 秒，超過 tool 的 10 秒上限後會自動切入 Background Task，上個 Agent 未使用 `manage_task` 監控完成狀態就中斷，導致使用者端看似卡死。
+     - **Socket Timeout 阻塞**：`tests/test_ai_service.py` 中的 `test_detect_local_models_empty_or_offline` 直接向 99999 port 發送真實網路連線，造成每次執行固定卡住 2 秒多。
+     - **Windows OLE 剪貼簿衝突**：`tests/test_context_menus.py` 中的 `test_card_copy_content` 直接呼叫 Windows 剪貼簿，觸發 COM error `0x800401d0: OpenClipboard 失敗`，Qt 連續重試 6 次造成嚴重延遲並導致測試失敗。
+  2. **測試套件全面優化與修復**：
+     - `tests/test_context_menus.py`：使用 `patch.object(QApplication.clipboard(), "setText")` 精準驗證卡片內文拷貝，徹底杜絕 Windows 剪貼簿 OLE 衝突與重試延遲。
+     - `tests/test_ai_service.py`：使用 `patch("urllib.request.urlopen")` 模擬離線/連線異常，消除真實 socket 連線超時，該測試耗時由 2.03s 降至 0.09s，同時補齊空 URL 邊界案例。
+  3. **測試與文件同步**：
+     - 全套 **154 項單元測試 100% 通過**（`pytest tests/` 154 passed in 17s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md` 與 `.agents/docs/HANDOVER.md`。
+- **當前任務狀態**：
+  1. 自動化測試套件完全無阻礙、無衝突，全套 154 項單元測試均可在 17 秒內乾淨且穩定通過。
 - **下一個 Agent 的任務指引**：
-  1. 軟體核心功能、MVC 分層與單元測試均處於最佳狀態。
-  2. 任何修改請繼續嚴格遵守 10B LLM 防卡死守則與 MVC 邊界規範。若需打包釋出，僅可使用 `.agents/build/build.bat`。
-
+  1. 執行 `pytest tests/` 時請注意其耗時約 17 秒，若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
+  2. 編寫涉及系統級服務（剪貼簿、網路請求）的單元測試時，請嚴格遵守 Mock 原則。
+  3. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。

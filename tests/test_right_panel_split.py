@@ -129,24 +129,24 @@ class TestRightPanelSplit(unittest.TestCase):
         self.assertEqual(self.rp.card_title_edit.text(), "世界觀新標題")
 
     def test_markdown_highlighter_and_formatting(self):
-        """測試卡片編輯區掛載 MarkdownHighlighter，且工具列格式化按鈕正常運作。"""
-        self.assertIsNotNone(getattr(self.rp.card_content_edit, "highlighter", None))
+        """測試卡片編輯區支援所見即所得富文本，且工具列格式化按鈕正常運作。"""
+        self.assertTrue(self.rp.card_content_edit.acceptRichText())
         
         # 測試文字包裹格式化 (Bold / Italic / Strike)
-        self.rp.card_content_edit.setPlainText("測試文字")
+        self.rp.card_content_edit.set_markdown("測試文字")
         cursor = self.rp.card_content_edit.textCursor()
         cursor.select(cursor.SelectionType.Document)
         self.rp.card_content_edit.setTextCursor(cursor)
         
         self.rp.btn_format_bold.click()
-        self.assertEqual(self.rp.card_content_edit.toPlainText(), "**測試文字**")
+        self.assertEqual(self.rp.card_content_edit.to_markdown(), "**測試文字**")
         
-        # 再次點擊解除包裹
+        # 再次點擊解除粗體
         cursor = self.rp.card_content_edit.textCursor()
         cursor.select(cursor.SelectionType.Document)
         self.rp.card_content_edit.setTextCursor(cursor)
         self.rp.btn_format_bold.click()
-        self.assertEqual(self.rp.card_content_edit.toPlainText(), "測試文字")
+        self.assertEqual(self.rp.card_content_edit.to_markdown(), "測試文字")
 
     def test_markdown_preview_toggle(self):
         """測試卡片 Markdown 富文本預覽切換功能。"""

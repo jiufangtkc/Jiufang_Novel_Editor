@@ -6,8 +6,9 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 from utils.markdown_highlighter import MarkdownHighlighter
-from utils.markdown_utils import markdown_to_html
+from utils.markdown_utils import markdown_to_html, document_to_markdown
 
 
 class AICharacterReviewDialog(QDialog):
@@ -128,6 +129,7 @@ class AICharacterReviewDialog(QDialog):
         left_btn_layout.addStretch()
         left_layout.addLayout(left_btn_layout)
 
+        check_icon = ThemeManager._get_checkmark_icon_path()
         self.card_list_widget = QListWidget()
         self.card_list_widget.setFont(FontManager.get_font(size=int(9 * sf)))
         self.card_list_widget.setStyleSheet(f"""
@@ -151,8 +153,19 @@ class AICharacterReviewDialog(QDialog):
                 color: #ffffff;
             }}
             QListWidget::indicator {{
-                width: {int(15 * sf)}px;
-                height: {int(15 * sf)}px;
+                width: {int(16 * sf)}px;
+                height: {int(16 * sf)}px;
+                border: 2px solid #8c939d;
+                border-radius: 3px;
+                background-color: #1a1d22;
+            }}
+            QListWidget::indicator:hover {{
+                border-color: #61afef;
+            }}
+            QListWidget::indicator:checked {{
+                background-color: #0e639c;
+                border-color: #61afef;
+                image: url('{check_icon}');
             }}
         """)
         self.card_list_widget.currentRowChanged.connect(self._on_card_selection_changed)
@@ -245,10 +258,10 @@ class AICharacterReviewDialog(QDialog):
         """
 
         self.editor = QTextEdit()
+        self.editor.setAcceptRichText(True)
         self.editor.setFont(FontManager.get_font(size=int(10 * sf)))
         self.editor.setStyleSheet(editor_style)
         self.editor.textChanged.connect(self._save_current_card_content)
-        self.highlighter = MarkdownHighlighter(self.editor.document())
         self.stack.addWidget(self.editor)
 
         self.preview_browser = QTextEdit()
@@ -341,14 +354,15 @@ class AICharacterReviewDialog(QDialog):
             self.txt_title.setText(card.get("title", ""))
             tags = card.get("tags", [])
             self.txt_tags.setText(", ".join(tags) if isinstance(tags, list) else str(tags))
-            self.editor.setPlainText(card.get("content", ""))
+            raw_content = card.get("content", "")
+            self.editor.setHtml(markdown_to_html(raw_content))
 
             self.txt_title.blockSignals(False)
             self.txt_tags.blockSignals(False)
             self.editor.blockSignals(False)
 
             if self.stack.currentIndex() == 1:
-                html = markdown_to_html(card.get("content", ""))
+                html = markdown_to_html(raw_content)
                 self.preview_browser.setHtml(html)
 
     def _save_current_card_meta(self):
@@ -367,7 +381,7 @@ class AICharacterReviewDialog(QDialog):
     def _save_current_card_content(self):
         row = self.card_list_widget.currentRow()
         if 0 <= row < len(self.cards_data):
-            content = self.editor.toPlainText()
+            content = document_to_markdown(self.editor.document())
             self.cards_data[row]["content"] = content
             if self.stack.currentIndex() == 1:
                 self.preview_browser.setHtml(markdown_to_html(content))
@@ -403,7 +417,7 @@ class AICharacterReviewDialog(QDialog):
 
     def _toggle_preview(self):
         if self.stack.currentIndex() == 0:
-            content = self.editor.toPlainText()
+            content = document_to_markdown(self.editor.document())
             self.preview_browser.setHtml(markdown_to_html(content))
             self.stack.setCurrentIndex(1)
             self.btn_toggle_preview.setText("📝 返回編輯")

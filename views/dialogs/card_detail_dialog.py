@@ -10,21 +10,52 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from utils.theme_manager import THEME_COLORS
 from utils.font_manager import FontManager
 from utils.markdown_highlighter import MarkdownHighlighter
-from utils.markdown_utils import markdown_to_html
+from utils.markdown_utils import markdown_to_html, document_to_markdown
 
 
 class CardDetailTextEdit(QTextEdit):
-    """卡片詳情純文字編輯器：支援強制無格式貼上、Markdown 即時高亮與 AI 右鍵討論"""
+    """卡片詳情所見即所得富文本編輯器：支援 Markdown 雙向轉換與 AI 右鍵討論"""
     signal_save_requested = pyqtSignal()
     signal_ai_chat = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAcceptRichText(False)
-        self.highlighter = MarkdownHighlighter(self.document())
+        self.setAcceptRichText(True)
+        # 移除 Qt HTML 預設段落邊距，維持緊湊排版
+        self.document().setDefaultStyleSheet("p, li { margin: 0px; padding: 0px; }")
+
+    def set_markdown(self, md_text: str):
+        self.blockSignals(True)
+        html = markdown_to_html(md_text)
+        self.setHtml(html)
+        self.blockSignals(False)
+
+    def to_markdown(self) -> str:
+        return document_to_markdown(self.document())
+
+    def toggle_bold(self):
+        cursor = self.textCursor()
+        fmt = QTextCharFormat()
+        is_bold = (cursor.charFormat().fontWeight() == QFont.Weight.Bold) or (cursor.charFormat().fontWeight() >= 700)
+        fmt.setFontWeight(QFont.Weight.Normal if is_bold else QFont.Weight.Bold)
+        cursor.mergeCharFormat(fmt)
+
+    def toggle_italic(self):
+        cursor = self.textCursor()
+        fmt = QTextCharFormat()
+        is_italic = cursor.charFormat().fontItalic()
+        fmt.setFontItalic(not is_italic)
+        cursor.mergeCharFormat(fmt)
+
+    def toggle_strike(self):
+        cursor = self.textCursor()
+        fmt = QTextCharFormat()
+        is_strike = cursor.charFormat().fontStrikeOut()
+        fmt.setFontStrikeOut(not is_strike)
+        cursor.mergeCharFormat(fmt)
 
     def insertFromMimeData(self, source):
-        """全局無格式貼上：過濾所有來源富文本/HTML格式，一律以純文字插入"""
+        """貼上文字時若含有 Markdown 格式，自動轉換為乾淨純文字或保持排版"""
         if source.hasText():
             self.insertPlainText(source.text())
         else:
@@ -37,6 +68,18 @@ class CardDetailTextEdit(QTextEdit):
         # Ctrl+S 快捷鍵儲存
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_S:
             self.signal_save_requested.emit()
+            event.accept()
+            return
+
+        # Ctrl+B: 粗體切換 (所見即所得)
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_B:
+            self.toggle_bold()
+            event.accept()
+            return
+
+        # Ctrl+I: 斜體切換 (所見即所得)
+        if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_I:
+            self.toggle_italic()
             event.accept()
             return
 
@@ -150,7 +193,7 @@ class CardDetailDialog(QDialog):
 
         self.lbl_word_count = QLabel("字數：0")
         self.lbl_word_count.setFont(FontManager.get_font(size=int(9 * self.scale_factor)))
-        self.lbl_word_count.setStyleSheet("color: #888888;")
+        self.lbl_word_count.setStyleSheet("color: #a0aec0;")
         top_meta_layout.addWidget(self.lbl_word_count)
 
         header_layout.addLayout(top_meta_layout)
@@ -174,8 +217,8 @@ class CardDetailDialog(QDialog):
         # 2.1 純文字/Markdown 編輯區
         self.editor = CardDetailTextEdit()
         self.editor.setFont(FontManager.get_font(size=int(11 * self.scale_factor)))
-        self.editor.setPlaceholderText("在此輸入卡片設定、人物傳記或世界觀細節（支援 Markdown 語法高亮與無格式貼上）...")
-        self.editor.setPlainText(self.card_content)
+        self.editor.setPlaceholderText("在此輸入卡片設定、人物傳記或世界觀細節（支援所見即所得富文本排版）...")
+        self.editor.set_markdown(self.card_content)
         self.editor.textChanged.connect(self.update_word_count)
         self.editor.signal_save_requested.connect(self.on_save_clicked)
         self.editor.signal_ai_chat.connect(self.open_ai_chat)
@@ -193,9 +236,9 @@ class CardDetailDialog(QDialog):
         bottom_layout = QHBoxLayout()
         bottom_layout.setSpacing(int(10 * self.scale_factor))
 
-        self.lbl_tip = QLabel("編輯模式：支援 Markdown 語法高亮與自動貼上過濾。Ctrl+S 儲存、Ctrl+W 關閉。")
+        self.lbl_tip = QLabel("編輯模式：支援所見即所得富文本排版。Ctrl+B 粗體、Ctrl+I 斜體、Ctrl+S 儲存。")
         self.lbl_tip.setFont(FontManager.get_font(size=int(8 * self.scale_factor)))
-        self.lbl_tip.setStyleSheet("color: #888888;")
+        self.lbl_tip.setStyleSheet("color: #a0aec0;")
         bottom_layout.addWidget(self.lbl_tip)
 
         bottom_layout.addStretch()
@@ -224,7 +267,7 @@ class CardDetailDialog(QDialog):
         """切換 Markdown 編輯模式與富文本渲染預覽模式"""
         if self.stack.currentIndex() == 0:
             # 切換到預覽
-            content = self.editor.toPlainText()
+            content = self.editor.to_markdown()
             html_content = markdown_to_html(content)
             self.preview_browser.setHtml(html_content)
             self.stack.setCurrentIndex(1)
@@ -238,7 +281,7 @@ class CardDetailDialog(QDialog):
             self.btn_toggle_preview.setText("📖 渲染預覽")
             self.btn_ellipsis.setEnabled(True)
             self.btn_emdash.setEnabled(True)
-            self.lbl_tip.setText("編輯模式：支援 Markdown 語法高亮與自動貼上過濾。Ctrl+S 儲存、Ctrl+W 關閉。")
+            self.lbl_tip.setText("編輯模式：支援所見即所得富文本排版。Ctrl+B 粗體、Ctrl+I 斜體、Ctrl+S 儲存。")
 
     def update_word_count(self):
         text = self.editor.toPlainText()
@@ -261,8 +304,8 @@ class CardDetailDialog(QDialog):
             )
 
     def get_current_markdown_content(self) -> str:
-        """相容性方法：回傳純文字內容"""
-        return self.editor.toPlainText()
+        """相容性方法：回傳 Markdown 內容"""
+        return self.editor.to_markdown()
 
     def on_copy_clicked(self):
         content = self.editor.toPlainText()
@@ -273,7 +316,7 @@ class CardDetailDialog(QDialog):
 
     def on_save_clicked(self):
         new_title = self.title_edit.text().strip()
-        new_content = self.editor.toPlainText()
+        new_content = self.editor.to_markdown()
         self.card_title = new_title
         self.card_content = new_content
 
@@ -283,7 +326,7 @@ class CardDetailDialog(QDialog):
 
     def on_close_clicked(self):
         new_title = self.title_edit.text().strip()
-        new_content = self.editor.toPlainText()
+        new_content = self.editor.to_markdown()
         if new_title != self.card_title or new_content != self.card_content:
             self.signal_saved.emit(new_title, new_content, self.color_hex)
         self.accept()

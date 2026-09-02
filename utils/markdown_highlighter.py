@@ -40,7 +40,8 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             tag_color = QColor("#c678dd")
             field_color = QColor("#56b6c2")
             hr_color = QColor("#5c6370")
-            muted_color = QColor("#5c6370")
+            arrow_color = QColor("#61afef")
+            muted_color = QColor("#4b5263")
         else:
             h1_color = QColor("#0066cc")
             h2_color = QColor("#007acc")
@@ -56,12 +57,18 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             tag_color = QColor("#6f42c1")
             field_color = QColor("#005cc5")
             hr_color = QColor("#d1d5da")
-            muted_color = QColor("#b0b8c4")
+            arrow_color = QColor("#007acc")
+            muted_color = QColor("#c0c6d0")
 
         # 語法標記淡化格式 (用於 **、*、~~ 等符號，達成視覺減噪)
         self.fmt_muted = QTextCharFormat()
         self.fmt_muted.setForeground(muted_color)
         self.fmt_muted.setFontWeight(QFont.Weight.Normal)
+
+        # 關係箭頭格式 (⟷, ➔, ↔ 等)
+        self.fmt_arrow = QTextCharFormat()
+        self.fmt_arrow.setForeground(arrow_color)
+        self.fmt_arrow.setFontWeight(QFont.Weight.Bold)
 
         # 標題格式 (H1 ~ H4)
         self.fmt_h1 = QTextCharFormat()
@@ -164,6 +171,9 @@ class MarkdownHighlighter(QSyntaxHighlighter):
 
             # 11. 行內代碼 (`code`)
             (re.compile(r"`[^`\n]+`"), self.fmt_code),
+
+            # 12. 關係箭頭與 LaTeX 指令 (⟷, ➔, $\leftrightarrow$, \leftrightarrow 等)
+            (re.compile(r"[⟷⟺➔←⇒⇐↔⇄]|(?:\$\\?[a-zA-Z]+\$)|(?:\\[a-zA-Z]+)"), self.fmt_arrow),
         ]
 
     def highlightBlock(self, text: str):
@@ -174,7 +184,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
                 length = match.end() - start
                 self.setFormat(start, length, fmt)
 
-        # 視覺減噪處理：淡化語法符號 (**、*、~~、`、#)
+        # 視覺減噪處理：淡化語法符號 (**、*、~~、`、#、$)
         symbol_patterns = [
             re.compile(r"\*\*|__"),      # 粗體符號
             re.compile(r"(?<!\*)\*(?!\*)|(?<!\w)_(?!\w)"),  # 斜體符號
@@ -182,6 +192,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             re.compile(r"`"),             # 代碼符號
             re.compile(r"^#{1,6}\s"),     # 標題前綴
             re.compile(r"^>\s*"),         # 引言前綴
+            re.compile(r"\$"),            # 數學符號標記
         ]
         for pat in symbol_patterns:
             for match in pat.finditer(text):

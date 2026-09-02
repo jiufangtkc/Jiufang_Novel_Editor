@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen
 from PyQt6.QtCore import Qt
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 
 
 class ExportScopeDialog(QDialog):
@@ -19,6 +20,7 @@ class ExportScopeDialog(QDialog):
         self.setWindowTitle("匯出作品與格式設定")
         self.resize(480, 580)
         self.setModal(True)
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self._ensure_checkbox_icons()
 
@@ -37,15 +39,26 @@ class ExportScopeDialog(QDialog):
         if parent and hasattr(parent, 'tree_widget'):
             self.tree_widget.setIconSize(parent.tree_widget.iconSize())
 
+        # 取得當前主題色彩
+        theme_name = "default"
+        if parent and hasattr(parent, "current_theme"):
+            theme_name = parent.current_theme
+        theme_colors = ThemeManager.get_theme_colors(theme_name)
+        tree_bg = theme_colors.get("tree_bg", "#1e2227")
+        tree_fg = theme_colors.get("tree_fg", "#e3e3e3")
+        tree_border = theme_colors.get("tree_border", "#3e4451")
+        tree_hover = theme_colors.get("tree_item_hover_bg", "#2c313a")
+        tree_selected = theme_colors.get("tree_item_selected_bg", "#094771")
+
         # 設定高對比度核取方塊樣式
         icon_checked_path = os.path.abspath("resources/icons/checkbox_checked.png").replace("\\", "/")
         icon_unchecked_path = os.path.abspath("resources/icons/checkbox_unchecked.png").replace("\\", "/")
         
         self.tree_widget.setStyleSheet(f"""
             QTreeWidget {{
-                background-color: #1e2227;
-                color: #e3e3e3;
-                border: 1px solid #3e4451;
+                background-color: {tree_bg};
+                color: {tree_fg};
+                border: 1px solid {tree_border};
                 border-radius: 4px;
                 padding: 4px;
             }}
@@ -54,10 +67,10 @@ class ExportScopeDialog(QDialog):
                 border-radius: 3px;
             }}
             QTreeWidget::item:hover {{
-                background-color: #2c313a;
+                background-color: {tree_hover};
             }}
             QTreeWidget::item:selected {{
-                background-color: #3e4451;
+                background-color: {tree_selected};
                 color: #ffffff;
             }}
             QTreeWidget::indicator {{
@@ -201,30 +214,28 @@ class ExportScopeDialog(QDialog):
         checked_file = "resources/icons/checkbox_checked.png"
         unchecked_file = "resources/icons/checkbox_unchecked.png"
 
-        if not os.path.exists(checked_file):
-            p = QPixmap(20, 20)
-            p.fill(Qt.GlobalColor.transparent)
-            pt = QPainter(p)
-            pt.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pt.setBrush(QColor("#2b78e4"))
-            pt.setPen(QPen(QColor("#5c9bf5"), 1.5))
-            pt.drawRoundedRect(1, 1, 18, 18, 4, 4)
-            pt.setPen(QPen(QColor("#ffffff"), 2.5))
-            pt.drawLine(5, 10, 8, 14)
-            pt.drawLine(8, 14, 15, 6)
-            pt.end()
-            p.save(checked_file)
+        p = QPixmap(20, 20)
+        p.fill(Qt.GlobalColor.transparent)
+        pt = QPainter(p)
+        pt.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pt.setBrush(QColor("#2b78e4"))
+        pt.setPen(QPen(QColor("#5c9bf5"), 1.8))
+        pt.drawRoundedRect(1, 1, 18, 18, 4, 4)
+        pt.setPen(QPen(QColor("#ffffff"), 2.5))
+        pt.drawLine(5, 10, 8, 14)
+        pt.drawLine(8, 14, 15, 6)
+        pt.end()
+        p.save(checked_file)
 
-        if not os.path.exists(unchecked_file):
-            p2 = QPixmap(20, 20)
-            p2.fill(Qt.GlobalColor.transparent)
-            pt2 = QPainter(p2)
-            pt2.setRenderHint(QPainter.RenderHint.Antialiasing)
-            pt2.setBrush(QColor("#22262b"))
-            pt2.setPen(QPen(QColor("#6c757d"), 1.5))
-            pt2.drawRoundedRect(1, 1, 18, 18, 4, 4)
-            pt2.end()
-            p2.save(unchecked_file)
+        p2 = QPixmap(20, 20)
+        p2.fill(Qt.GlobalColor.transparent)
+        pt2 = QPainter(p2)
+        pt2.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pt2.setBrush(QColor("#22262b"))
+        pt2.setPen(QPen(QColor("#8c939d"), 2.0))
+        pt2.drawRoundedRect(1, 1, 18, 18, 4, 4)
+        pt2.end()
+        p2.save(unchecked_file)
 
     def copy_tree_item(self, src_item):
         dest_item = QTreeWidgetItem([src_item.text(0)])

@@ -222,6 +222,38 @@ class TestAICharacterExtraction(unittest.TestCase):
         scope_dlg.close()
         main_win.close()
 
+    def test_latex_and_tag_cleaning(self):
+        """測試 LaTeX 關係指令與重複標籤的清理與富文本渲染。"""
+        sample_with_latex = """
+===CHARACTER_START===
+【角色姓名】解璃 (Jie Li)
+【標籤】#AI角色 #人物設定 #解璃 (Jie Li)
+【外觀年齡】二十出頭
+【外觀特徵】清冷、溫和、剛健的劍修之姿。
+【人物側寫】**（核心：包容下的堅韌）** 他是太形劍宗的頂點代表。
+【已知行動】面對毒襲時祭出最強絕技。
+【人事物關聯】**太形劍宗（領袖）** $\\leftrightarrow$ **紋面男子（哲學挑戰者）** $\\rightarrow$ **越無憂（救贖/錨點）**
+===CHARACTER_END===
+"""
+        parsed = AIService.parse_character_extraction_result(sample_with_latex)
+        self.assertEqual(len(parsed["characters"]), 1)
+        c = parsed["characters"][0]
+        
+        # 1. 驗證 LaTeX 箭頭已轉為 Unicode
+        self.assertNotIn("$\\leftrightarrow$", c["relations"])
+        self.assertNotIn("$\\rightarrow$", c["relations"])
+        self.assertIn("⟷", c["relations"])
+        self.assertIn("➔", c["relations"])
+        
+        # 2. 驗證富文本 Markdown 轉 HTML 時無殘留指令
+        html = markdown_to_html(c["content"])
+        self.assertNotIn("$\\leftrightarrow$", html)
+        self.assertNotIn("###", html)
+        self.assertIn("⟷", html)
+        self.assertIn("<strong>", html)
+        # 確保【標籤】未重複出現兩次
+        self.assertEqual(html.count("【標籤】"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

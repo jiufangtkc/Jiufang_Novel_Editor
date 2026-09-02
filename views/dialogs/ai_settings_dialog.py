@@ -120,7 +120,7 @@ class AISettingsDialog(QDialog):
         timeout_layout = QHBoxLayout()
         timeout_layout.addWidget(self.spin_timeout)
         lbl_timeout_hint = QLabel("(預設 300 秒 / 5 分鐘，上限 8 小時)")
-        lbl_timeout_hint.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_timeout_hint.setStyleSheet("color: #a0aec0; font-size: 11px;")
         timeout_layout.addWidget(lbl_timeout_hint)
         timeout_layout.addStretch(1)
 
@@ -134,7 +134,7 @@ class AISettingsDialog(QDialog):
         self.btn_test = QPushButton("測試連線")
         self.btn_test.clicked.connect(self._test_connection)
         self.lbl_test_status = QLabel("")
-        self.lbl_test_status.setStyleSheet("color: #888888; font-size: 11px;")
+        self.lbl_test_status.setStyleSheet("color: #a0aec0; font-size: 11px;")
         test_layout.addWidget(self.btn_test)
         test_layout.addWidget(self.lbl_test_status, 1)
         basic_layout.addRow("", test_layout)

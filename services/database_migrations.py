@@ -3,7 +3,7 @@ import datetime
 
 class DatabaseMigrations:
     """管理 SQLite 資料庫 schema_version 與歷代版本升級 (Migrations)。"""
-    CURRENT_SCHEMA_VERSION = 9
+    CURRENT_SCHEMA_VERSION = 10
 
     @staticmethod
     def get_current_schema_version(cursor: sqlite3.Cursor) -> int:
@@ -55,7 +55,10 @@ class DatabaseMigrations:
         if "is_expanded" not in ch_cols:
             return 8
 
-        return 8
+        if "daily_target_word_count" not in p_cols:
+            return 9
+
+        return 10
 
     @staticmethod
     def upgrade_v1_to_v2(cursor: sqlite3.Cursor):
@@ -165,6 +168,14 @@ class DatabaseMigrations:
         if "expanded_categories" not in p_cols:
             cursor.execute("ALTER TABLE project_info ADD COLUMN expanded_categories TEXT DEFAULT NULL")
 
+    @staticmethod
+    def upgrade_v9_to_v10(cursor: sqlite3.Cursor):
+        """v9 -> v10：project_info 增加 daily_target_word_count 欄位"""
+        cursor.execute("PRAGMA table_info(project_info)")
+        p_cols = {row[1] for row in cursor.fetchall()}
+        if "daily_target_word_count" not in p_cols:
+            cursor.execute("ALTER TABLE project_info ADD COLUMN daily_target_word_count INTEGER DEFAULT 1000")
+
     @classmethod
     def apply_migrations(cls, cursor: sqlite3.Cursor):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -189,6 +200,7 @@ class DatabaseMigrations:
             (6, cls.upgrade_v6_to_v7),
             (7, cls.upgrade_v7_to_v8),
             (8, cls.upgrade_v8_to_v9),
+            (9, cls.upgrade_v9_to_v10),
         ]
 
         for from_v, step_fn in migrations:

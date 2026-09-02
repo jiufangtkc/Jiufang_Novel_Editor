@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 
 
 class AutosaveSettingsDialog(QDialog):
@@ -18,6 +19,7 @@ class AutosaveSettingsDialog(QDialog):
         self.setWindowTitle("暫存與自動存檔設定")
         self.resize(420, 260)
         self.setModal(True)
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self.interval_minutes = interval_minutes
         self.max_files = max_files
@@ -42,27 +44,43 @@ class AutosaveSettingsDialog(QDialog):
         header_layout.addWidget(lbl_desc)
         layout.addLayout(header_layout)
 
+        # 取得當前主題色彩
+        theme_name = "default"
+        if self.parent() and hasattr(self.parent(), "current_theme"):
+            theme_name = self.parent().current_theme
+        theme_colors = ThemeManager.get_theme_colors(theme_name)
+        accent = theme_colors.get("accent", "#2b78e4")
+        subtext = theme_colors.get("subtext_color", "#a0aec0")
+        card_bg = theme_colors.get("tree_bg", "#252930")
+        card_border = theme_colors.get("tree_border", "#3c424a")
+        fg = theme_colors.get("main_fg", "#e0e0e0")
+
+        lbl_desc.setStyleSheet(f"color: {subtext}; font-size: 11px;")
+
         # 表單區
         form_frame = QFrame()
-        form_frame.setStyleSheet("""
-            QFrame {
-                background-color: #2b2b2b;
-                border: 1px solid #3c3f41;
+        form_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
                 border-radius: 6px;
                 padding: 10px;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 font-size: 12px;
-                color: #e0e0e0;
-            }
-            QSpinBox {
-                background-color: #3c3f41;
-                color: #ffffff;
-                border: 1px solid #555555;
+                color: {fg};
+            }}
+            QSpinBox {{
+                background-color: {theme_colors.get('input_bg', '#3c3f41')};
+                color: {theme_colors.get('input_fg', '#ffffff')};
+                border: 1px solid {theme_colors.get('input_border', '#555555')};
                 border-radius: 4px;
                 padding: 4px 8px;
                 min-width: 100px;
-            }
+            }}
+            QSpinBox:focus {{
+                border: 1px solid {accent};
+            }}
         """)
         form_layout = QFormLayout(form_frame)
         form_layout.setSpacing(12)
@@ -87,7 +105,7 @@ class AutosaveSettingsDialog(QDialog):
 
         # 提示文字
         lbl_hint = QLabel("💡 提示：超過保留數量時，系統將自動從最舊的暫存檔開始清理。")
-        lbl_hint.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_hint.setStyleSheet(f"color: {subtext}; font-size: 11px;")
         lbl_hint.setWordWrap(True)
         layout.addWidget(lbl_hint)
 
@@ -96,33 +114,34 @@ class AutosaveSettingsDialog(QDialog):
         btn_layout.addStretch()
 
         self.btn_cancel = QPushButton("取消")
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #3c3f41;
-                color: #e0e0e0;
-                border: 1px solid #555555;
+        self.btn_cancel.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme_colors.get('btn_bg', '#3c3f41')};
+                color: {fg};
+                border: 1px solid {theme_colors.get('btn_border', '#555555')};
                 border-radius: 4px;
                 padding: 6px 16px;
-            }
-            QPushButton:hover {
-                background-color: #4c4f51;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {theme_colors.get('btn_hover_bg', '#4c4f51')};
+            }}
         """)
         self.btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(self.btn_cancel)
 
         self.btn_ok = QPushButton("儲存設定")
-        self.btn_ok.setStyleSheet("""
-            QPushButton {
-                background-color: #2b78e4;
+        self.btn_ok.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
                 color: #ffffff;
+                border: none;
                 border-radius: 4px;
                 padding: 6px 18px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3b88f4;
-            }
+            }}
+            QPushButton:hover {{
+                opacity: 0.9;
+            }}
         """)
         self.btn_ok.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_ok)

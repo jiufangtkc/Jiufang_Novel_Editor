@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 from services.lint_service import LintService
 
 class LintWhitelistDialog(QDialog):
@@ -18,6 +19,7 @@ class LintWhitelistDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("文風檢查詞彙庫與白名單管理")
         self.setMinimumSize(520, 420)
+        ThemeManager.apply_theme_to_dialog(self, parent)
         self.settings = settings or LintService.load_settings()
         self.init_ui()
 
@@ -32,7 +34,7 @@ class LintWhitelistDialog(QDialog):
 
         desc_lbl = QLabel("在此維護您的自訂白名單（永久忽略不提醒）與個人專屬贅詞庫。")
         desc_lbl.setFont(FontManager.get_font(size=9))
-        desc_lbl.setStyleSheet("color: #888888;")
+        desc_lbl.setStyleSheet("color: #a0aec0;")
         layout.addWidget(desc_lbl)
 
         self.tabs = QTabWidget()

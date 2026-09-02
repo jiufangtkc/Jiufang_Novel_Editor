@@ -21,12 +21,12 @@ class TestCardDetailDialog(unittest.TestCase):
             category_name="登場角色"
         )
 
-        # 驗證純文字編輯器內容
+        # 驗證所見即所得編輯器內容
         self.assertEqual(dlg.editor.toPlainText(), initial_text)
-        self.assertFalse(dlg.editor.acceptRichText())
+        self.assertTrue(dlg.editor.acceptRichText())
 
         # 編輯內文
-        dlg.editor.setPlainText(initial_text + "\n附加背景故事。")
+        dlg.editor.set_markdown(initial_text + "\n附加背景故事。")
         data = dlg.get_data()
         self.assertEqual(data["title"], "主角設定")
         self.assertEqual(data["content"], initial_text + "\n附加背景故事。")
@@ -43,7 +43,7 @@ class TestCardDetailDialog(unittest.TestCase):
         mime.setText("粗體斜體彩色文字")
         
         dlg.editor.insertFromMimeData(mime)
-        self.assertEqual(dlg.editor.toPlainText(), "粗體斜體彩色文字")
+        self.assertEqual(dlg.editor.toPlainText().strip(), "粗體斜體彩色文字")
         self.assertNotIn("<b>", dlg.editor.toPlainText())
         self.assertNotIn("color:red", dlg.editor.toPlainText())
 

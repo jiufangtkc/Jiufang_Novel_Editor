@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 
 
 class WordCountSettingsDialog(QDialog):
@@ -20,6 +21,7 @@ class WordCountSettingsDialog(QDialog):
         self.setWindowTitle("字數統計規則設定")
         self.resize(460, 320)
         self.setModal(True)
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self.count_half_alnum_and_sym = count_half_alnum_and_sym
         self.count_full_space = count_full_space
@@ -44,31 +46,48 @@ class WordCountSettingsDialog(QDialog):
         header_layout.addWidget(lbl_desc)
         layout.addLayout(header_layout)
 
+        # 取得當前主題色彩
+        theme_name = "default"
+        if self.parent() and hasattr(self.parent(), "current_theme"):
+            theme_name = self.parent().current_theme
+        theme_colors = ThemeManager.get_theme_colors(theme_name)
+        accent = theme_colors.get("accent", "#4a90e2")
+        check_icon = theme_colors.get("checkbox_check_icon", "")
+        chk_border = theme_colors.get("checkbox_border", "#8c939d")
+        subtext = theme_colors.get("subtext_color", "#a0aec0")
+        card_bg = theme_colors.get("tree_bg", "#252930")
+        card_border = theme_colors.get("tree_border", "#3c424a")
+        fg = theme_colors.get("main_fg", "#e0e0e0")
+
         # 設定選項區
         options_frame = QFrame()
-        options_frame.setStyleSheet("""
-            QFrame {
-                background-color: #2b2b2b;
-                border: 1px solid #3c3f41;
+        options_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
                 border-radius: 6px;
                 padding: 12px;
-            }
-            QCheckBox {
+            }}
+            QCheckBox {{
                 font-size: 12px;
-                color: #e0e0e0;
+                color: {fg};
                 spacing: 8px;
-            }
-            QCheckBox::indicator {
+            }}
+            QCheckBox::indicator {{
                 width: 18px;
                 height: 18px;
-                border: 1px solid #555555;
+                border: 2px solid {chk_border};
                 border-radius: 3px;
-                background-color: #3c3f41;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #4a90e2;
-                border-color: #4a90e2;
-            }
+                background-color: {theme_colors.get('input_bg', '#2a2e35')};
+            }}
+            QCheckBox::indicator:hover {{
+                border-color: {accent};
+            }}
+            QCheckBox::indicator:checked {{
+                background-color: {accent};
+                border-color: {accent};
+                image: url('{check_icon}');
+            }}
         """)
         options_layout = QVBoxLayout(options_frame)
         options_layout.setSpacing(14)
@@ -82,7 +101,7 @@ class WordCountSettingsDialog(QDialog):
         half_box.addWidget(self.chk_half)
 
         lbl_half_note = QLabel("勾選時計入半形字母 (a-z)、數字 (0-9)、半形標點與空白鍵；取消勾選則排除。")
-        lbl_half_note.setStyleSheet("color: #999999; font-size: 11px; margin-left: 26px;")
+        lbl_half_note.setStyleSheet(f"color: {subtext}; font-size: 11px; margin-left: 26px;")
         lbl_half_note.setWordWrap(True)
         half_box.addWidget(lbl_half_note)
         options_layout.addLayout(half_box)
@@ -91,7 +110,7 @@ class WordCountSettingsDialog(QDialog):
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
-        line.setStyleSheet("background-color: #3c3f41;")
+        line.setStyleSheet(f"background-color: {card_border};")
         options_layout.addWidget(line)
 
         # 2. 全形空格
@@ -103,7 +122,7 @@ class WordCountSettingsDialog(QDialog):
         full_space_box.addWidget(self.chk_full_space)
 
         lbl_full_space_note = QLabel("勾選時段首縮排之全形空格計入字數；取消勾選則排除。")
-        lbl_full_space_note.setStyleSheet("color: #999999; font-size: 11px; margin-left: 26px;")
+        lbl_full_space_note.setStyleSheet(f"color: {subtext}; font-size: 11px; margin-left: 26px;")
         lbl_full_space_note.setWordWrap(True)
         full_space_box.addWidget(lbl_full_space_note)
         options_layout.addLayout(full_space_box)
@@ -112,7 +131,7 @@ class WordCountSettingsDialog(QDialog):
 
         # 提示文字
         lbl_hint = QLabel("💡 提示：全形中文字與全形標點符號一律計入統計。移動滑鼠至底部字數欄位可查看詳細構成。")
-        lbl_hint.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_hint.setStyleSheet(f"color: {subtext}; font-size: 11px;")
         lbl_hint.setWordWrap(True)
         layout.addWidget(lbl_hint)
 
@@ -121,36 +140,36 @@ class WordCountSettingsDialog(QDialog):
         btn_layout.addStretch()
 
         self.btn_cancel = QPushButton("取消")
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #3c3f41;
-                color: #e0e0e0;
-                border: 1px solid #555555;
+        self.btn_cancel.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme_colors.get('btn_bg', '#3c3f41')};
+                color: {fg};
+                border: 1px solid {theme_colors.get('btn_border', '#555555')};
                 border-radius: 4px;
                 padding: 6px 16px;
                 font-size: 11px;
-            }
-            QPushButton:hover {
-                background-color: #484b4d;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {theme_colors.get('btn_hover_bg', '#484b4d')};
+            }}
         """)
         self.btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(self.btn_cancel)
 
         self.btn_ok = QPushButton("儲存設定")
-        self.btn_ok.setStyleSheet("""
-            QPushButton {
-                background-color: #4a90e2;
+        self.btn_ok.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
                 color: #ffffff;
                 border: none;
                 border-radius: 4px;
                 padding: 6px 16px;
                 font-size: 11px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #357abd;
-            }
+            }}
+            QPushButton:hover {{
+                opacity: 0.9;
+            }}
         """)
         self.btn_ok.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_ok)

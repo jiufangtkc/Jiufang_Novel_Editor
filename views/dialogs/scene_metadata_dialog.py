@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QDialogButtonBox, QFrame
 )
 from PyQt6.QtCore import Qt
+from utils.theme_manager import ThemeManager
 
 
 class SceneMetadataDialog(QDialog):
@@ -31,6 +32,7 @@ class SceneMetadataDialog(QDialog):
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
         )
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self._init_ui(scene_name, scene_summary, scene_pov, scene_location)
 

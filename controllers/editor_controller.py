@@ -16,8 +16,11 @@ class EditorController:
             self.mc.current_file_item = None
         if self.mc.current_file_item:
             data = self.mc.current_file_item.data(0, Qt.ItemDataRole.UserRole)
-            # 統一儲存乾淨純文字內容，保留使用者所有單換行與空行
-            data["content"] = self.view.editor.toPlainText()
+            # 統一儲存乾淨 Markdown 內容
+            if hasattr(self.view.editor, "to_markdown"):
+                data["content"] = self.view.editor.to_markdown()
+            else:
+                data["content"] = self.view.editor.toPlainText()
             self.mc.current_file_item.setData(0, Qt.ItemDataRole.UserRole, data)
 
     def on_editor_text_changed(self):

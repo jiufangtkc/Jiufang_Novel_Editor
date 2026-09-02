@@ -171,14 +171,19 @@ class MarkdownConverter:
 
         lines = md_text.split('\n')
         html_paragraphs = []
+        consecutive_empty = 0
 
         for line in lines:
             stripped = line.strip()
 
-            # 空行
+            # 空行處理：遵循標準 Markdown 語意，單個空行僅為段落分隔；連續 2 個以上空行才視為刻意留白的過場
             if not stripped:
-                html_paragraphs.append("<p><br/></p>")
+                consecutive_empty += 1
+                if consecutive_empty >= 2:
+                    html_paragraphs.append('<p class="scene-break"><br/></p>')
                 continue
+
+            consecutive_empty = 0
 
             # 分隔線
             if re.match(r'^(?:---|\*\*\*|___)$', stripped):

@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtCore import Qt, pyqtSignal
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 
 class GlobalSearchDialog(QDialog):
     """跨章節全文搜尋對話框。"""
@@ -20,62 +21,80 @@ class GlobalSearchDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e1e1e;
-                color: #cccccc;
-            }
-            QLineEdit {
-                background-color: #2d2d2d;
-                color: #ffffff;
-                border: 1px solid #3c3c3c;
+        theme_name = "default"
+        if self.parent() and hasattr(self.parent(), "current_theme"):
+            theme_name = self.parent().current_theme
+        theme_colors = ThemeManager.get_theme_colors(theme_name)
+        main_bg = theme_colors.get("main_bg", "#1e1e1e")
+        main_fg = theme_colors.get("main_fg", "#e3e3e3")
+        tree_bg = theme_colors.get("tree_bg", "#252526")
+        input_bg = theme_colors.get("input_bg", "#2d2d2d")
+        input_fg = theme_colors.get("input_fg", "#ffffff")
+        input_border = theme_colors.get("input_border", "#3c3c3c")
+        accent = theme_colors.get("accent", "#007acc")
+        btn_bg = theme_colors.get("btn_bg", "#333333")
+        btn_fg = theme_colors.get("btn_fg", "#cccccc")
+        btn_border = theme_colors.get("btn_border", "#555555")
+        btn_hover = theme_colors.get("btn_hover_bg", "#444444")
+        tree_sel = theme_colors.get("tree_item_selected_bg", "#094771")
+        subtext = theme_colors.get("subtext_color", "#a0aec0")
+
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {main_bg};
+                color: {main_fg};
+            }}
+            QLineEdit {{
+                background-color: {input_bg};
+                color: {input_fg};
+                border: 1px solid {input_border};
                 padding: 5px 8px;
                 border-radius: 4px;
-                selection-background-color: #264f78;
-            }
-            QLineEdit:focus {
-                border: 1px solid #007acc;
-            }
-            QPushButton, QToolButton {
-                background-color: #333333;
-                color: #cccccc;
-                border: 1px solid #555555;
+                selection-background-color: {tree_sel};
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {accent};
+            }}
+            QPushButton, QToolButton {{
+                background-color: {btn_bg};
+                color: {btn_fg};
+                border: 1px solid {btn_border};
                 padding: 4px 10px;
                 border-radius: 4px;
                 font-size: 11px;
-            }
-            QPushButton:hover, QToolButton:hover {
-                background-color: #444444;
+            }}
+            QPushButton:hover, QToolButton:hover {{
+                background-color: {btn_hover};
                 color: #ffffff;
-            }
-            QPushButton:pressed, QToolButton:pressed {
-                background-color: #007acc;
+            }}
+            QPushButton:pressed, QToolButton:pressed {{
+                background-color: {accent};
                 color: #ffffff;
-            }
-            QToolButton:checked {
-                background-color: #0e639c;
-                border-color: #1177bb;
+            }}
+            QToolButton:checked {{
+                background-color: {accent};
+                border-color: {accent};
                 color: #ffffff;
-            }
-            QTableWidget {
-                background-color: #252526;
-                color: #d4d4d4;
-                border: 1px solid #3c3c3c;
-                gridline-color: #2d2d2d;
-                selection-background-color: #094771;
+            }}
+            QTableWidget {{
+                background-color: {tree_bg};
+                color: {main_fg};
+                border: 1px solid {input_border};
+                gridline-color: {input_border};
+                selection-background-color: {tree_sel};
                 selection-color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #2d2d2d;
-                color: #cccccc;
+            }}
+            QHeaderView::section {{
+                background-color: {theme_colors.get('header_bg', '#2d2d2d')};
+                color: {main_fg};
                 padding: 4px;
-                border: 1px solid #3c3c3c;
+                border: 1px solid {input_border};
                 font-weight: bold;
-            }
-            QLabel {
-                color: #aaaaaa;
+            }}
+            QLabel {{
+                color: {subtext};
                 font-size: 11px;
-            }
+            }}
         """)
 
         layout = QVBoxLayout(self)

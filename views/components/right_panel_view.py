@@ -4,12 +4,12 @@ from PyQt6.QtWidgets import (
     QComboBox, QFrame, QLineEdit, QPlainTextEdit, QFormLayout,
     QSizePolicy, QMenu, QStackedWidget, QTextEdit
 )
-from PyQt6.QtGui import QFont, QIcon, QAction
+from PyQt6.QtGui import QFont, QIcon, QAction, QTextCharFormat
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from utils.theme_manager import create_custom_icon
 from utils.font_manager import FontManager
 from utils.markdown_highlighter import MarkdownHighlighter
-from utils.markdown_utils import markdown_to_html
+from utils.markdown_utils import markdown_to_html, document_to_markdown
 from models.models import (
     BUILTIN_CATEGORIES, CATEGORY_DISPLAY_NAMES, CATEGORY_ICONS
 )
@@ -24,17 +24,48 @@ ROLE_NODE_TYPE = Qt.ItemDataRole.UserRole + 2
 
 
 class RightPanelCardEditor(QTextEdit):
-    """資料集卡片文字編輯器：支援 Markdown 即時語法高亮、強制純文字貼上與快速鍵"""
+    """資料集卡片所見即所得富文本編輯器：支援 Markdown 雙向轉換、直接樣式切換與快速鍵"""
     signal_save_requested = pyqtSignal()
     signal_ai_chat = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setAcceptRichText(False)
-        self.highlighter = MarkdownHighlighter(self.document())
+        self.setAcceptRichText(True)
+        # 移除 Qt HTML 預設段落邊距，維持緊湊排版
+        self.document().setDefaultStyleSheet("p, li { margin: 0px; padding: 0px; }")
+
+    def set_markdown(self, md_text: str):
+        self.blockSignals(True)
+        html = markdown_to_html(md_text)
+        self.setHtml(html)
+        self.blockSignals(False)
+
+    def to_markdown(self) -> str:
+        return document_to_markdown(self.document())
+
+    def toggle_bold(self):
+        cursor = self.textCursor()
+        fmt = QTextCharFormat()
+        is_bold = (cursor.charFormat().fontWeight() == QFont.Weight.Bold) or (cursor.charFormat().fontWeight() >= 700)
+        fmt.setFontWeight(QFont.Weight.Normal if is_bold else QFont.Weight.Bold)
+        cursor.mergeCharFormat(fmt)
+
+    def toggle_italic(self):
+        cursor = self.textCursor()
+        fmt = QTextCharFormat()
+        is_italic = cursor.charFormat().fontItalic()
+        fmt.setFontItalic(not is_italic)
+        cursor.mergeCharFormat(fmt)
+
+    def toggle_strike(self):
+        cursor = self.textCursor()
+        fmt = QTextCharFormat()
+        is_strike = cursor.charFormat().fontStrikeOut()
+        fmt.setFontStrikeOut(not is_strike)
+        cursor.mergeCharFormat(fmt)
 
     def insertFromMimeData(self, source):
-        """過濾所有外部 HTML / 富文本格式，一律以純文字插入"""
+        """貼上文字時若含有 Markdown 格式，自動轉換為乾淨純文字或保持排版"""
         if source.hasText():
             self.insertPlainText(source.text())
         else:
@@ -50,39 +81,38 @@ class RightPanelCardEditor(QTextEdit):
             event.accept()
             return
 
-        # Ctrl+B 粗體快捷鍵
+        # Ctrl+B 粗體快捷鍵 (所見即所得)
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_B:
-            self.wrap_selection("**", "**")
+            self.toggle_bold()
             event.accept()
             return
 
-        # Ctrl+I 斜體快捷鍵
+        # Ctrl+I 斜體快捷鍵 (所見即所得)
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_I:
-            self.wrap_selection("*", "*")
+            self.toggle_italic()
             event.accept()
             return
 
         super().keyPressEvent(event)
 
     def wrap_selection(self, prefix: str, suffix: str):
-        """將目前選取文字包裹指定前後標記，若無選取則插入標記並將光標置中"""
-        cursor = self.textCursor()
-        if cursor.hasSelection():
-            text = cursor.selectedText()
-            if text.startswith(prefix) and text.endswith(suffix) and len(text) >= len(prefix) + len(suffix):
-                unwrapped = text[len(prefix):len(text)-len(suffix)]
-                cursor.insertText(unwrapped)
-            else:
-                cursor.insertText(f"{prefix}{text}{suffix}")
+        """相容輔助：將選取文字套用格式"""
+        if prefix == "**":
+            self.toggle_bold()
+        elif prefix == "*":
+            self.toggle_italic()
+        elif prefix == "~~":
+            self.toggle_strike()
         else:
-            pos = cursor.position()
-            cursor.insertText(f"{prefix}{suffix}")
-            cursor.setPosition(pos + len(prefix))
-            self.setTextCursor(cursor)
-        self.setFocus()
+            cursor = self.textCursor()
+            if cursor.hasSelection():
+                text = cursor.selectedText()
+                cursor.insertText(f"{prefix}{text}{suffix}")
+            else:
+                cursor.insertText(f"{prefix}{suffix}")
 
     def toggle_line_prefix(self, prefix: str):
-        """為當前行或選取行增加或移除指定行首前綴（例如標題 ### 或清單 - ）"""
+        """相容輔助：為當前行增加或移除指定行首前綴"""
         cursor = self.textCursor()
         cursor.beginEditBlock()
         start = cursor.selectionStart()
@@ -248,20 +278,20 @@ class RightPanelView(QWidget):
 
         self.btn_format_bold = QPushButton("B")
         self.btn_format_bold.setFont(FontManager.get_font(size=8, weight=QFont.Weight.Bold))
-        self.btn_format_bold.setToolTip("粗體 (Ctrl+B) — **文字**")
+        self.btn_format_bold.setToolTip("粗體 (Ctrl+B)")
         self.btn_format_bold.setFixedWidth(24)
         self.btn_format_bold.setFixedHeight(22)
         self.btn_format_bold.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_format_bold.clicked.connect(lambda: self.card_content_edit.wrap_selection("**", "**"))
+        self.btn_format_bold.clicked.connect(lambda: self.card_content_edit.toggle_bold())
         toolbar_layout.addWidget(self.btn_format_bold)
 
         self.btn_format_italic = QPushButton("I")
         self.btn_format_italic.setFont(FontManager.get_font(size=8, italic=True))
-        self.btn_format_italic.setToolTip("斜體 (Ctrl+I) — *文字*")
+        self.btn_format_italic.setToolTip("斜體 (Ctrl+I)")
         self.btn_format_italic.setFixedWidth(24)
         self.btn_format_italic.setFixedHeight(22)
         self.btn_format_italic.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_format_italic.clicked.connect(lambda: self.card_content_edit.wrap_selection("*", "*"))
+        self.btn_format_italic.clicked.connect(lambda: self.card_content_edit.toggle_italic())
         toolbar_layout.addWidget(self.btn_format_italic)
 
         self.btn_format_header = QPushButton("H")
@@ -284,11 +314,11 @@ class RightPanelView(QWidget):
 
         self.btn_format_strike = QPushButton("~S~")
         self.btn_format_strike.setFont(FontManager.get_font(size=7))
-        self.btn_format_strike.setToolTip("刪除線 — ~~文字~~")
+        self.btn_format_strike.setToolTip("刪除線")
         self.btn_format_strike.setFixedWidth(28)
         self.btn_format_strike.setFixedHeight(22)
         self.btn_format_strike.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_format_strike.clicked.connect(lambda: self.card_content_edit.wrap_selection("~~", "~~"))
+        self.btn_format_strike.clicked.connect(lambda: self.card_content_edit.toggle_strike())
         toolbar_layout.addWidget(self.btn_format_strike)
 
         self.btn_format_ellipsis = QPushButton("……")
@@ -444,7 +474,7 @@ class RightPanelView(QWidget):
         self.current_editing_card_id = card_id
         self.lbl_card_category.setText(f"📁 {category_name}")
         self.card_title_edit.setText(title)
-        self.card_content_edit.setPlainText(content)
+        self.card_content_edit.set_markdown(content)
         # 若當前處於預覽模式，同步更新預覽 HTML
         if self.card_content_stack.currentIndex() == 1:
             self.card_preview_browser.setHtml(markdown_to_html(content))
@@ -454,7 +484,7 @@ class RightPanelView(QWidget):
         """切換卡片內容的編輯與 Markdown 富文本預覽模式"""
         if self.card_content_stack.currentIndex() == 0:
             # 切換到預覽
-            content = self.card_content_edit.toPlainText()
+            content = self.card_content_edit.to_markdown()
             html_content = markdown_to_html(content)
             self.card_preview_browser.setHtml(html_content)
             self.card_content_stack.setCurrentIndex(1)
@@ -517,7 +547,7 @@ class RightPanelView(QWidget):
     def _on_save_card_clicked(self):
         if self.current_editing_card_id:
             title = self.card_title_edit.text()
-            content = self.card_content_edit.toPlainText()
+            content = self.card_content_edit.to_markdown()
             self.signal_card_saved.emit(self.current_editing_card_id, title, content)
 
     # ── 樹狀節點建立輔助 ─────────────────────────────────────────────

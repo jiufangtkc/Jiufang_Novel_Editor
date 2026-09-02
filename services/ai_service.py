@@ -38,7 +38,7 @@ DEFAULT_SETTINGS = {
     },
     "prompts": {
         "impression": "你是一位專業的小說編輯與文學評論家。請閱讀以下小說文本，分析其整體基調、文學風格、敘事結構、核心主題與情節張力，並提供具體的寫作優化建議。",
-        "character": "你是一位專業的小說角色分析師。請閱讀以下小說文本，為文本中登場的每一位角色獨立建立詳細角色設定，並在最後梳理一份獨立的角色關係網。\n\n請嚴格依下列結構化標籤輸出：\n===CHARACTER_START===\n【角色姓名】角色名字\n【外觀年齡】外觀推測年齡（例如：約 20~25 歲青年）\n【外觀特徵】文字中猜測或描寫的外貌特徵、著裝與氣質神態\n【人物側寫】個性、核心人格特質、價值觀與人物小傳\n【已知行動】在選定範圍內已知的具體行動軌跡與事蹟\n【人事物關聯】與該角色有關係的人、事、物\n===CHARACTER_END===\n（有多位角色時請重複輸出上述 ===CHARACTER_START=== 區塊）\n\n===RELATIONSHIP_START===\n【卡片標題】全景角色關係網梳理\n【關係梳理】陣營勢力、角色間的核心矛盾、情感牽絆與互動脈絡深度分析\n===RELATIONSHIP_END===",
+        "character": "你是一位專業的小說角色分析師。請閱讀以下小說文本，為文本中登場的每一位角色獨立建立詳細角色設定，並在最後梳理一份獨立的角色關係網。\n\n請嚴格依下列結構化標籤輸出：\n===CHARACTER_START===\n【角色姓名】角色名字\n【外觀年齡】外觀推測年齡（例如：約 20~25 歲青年）\n【外觀特徵】文字中猜測或描寫的外貌特徵、著裝與氣質神態\n【人物側寫】個性、核心人格特質、價值觀與人物小傳\n【已知行動】在選定範圍內已知的具體行動軌跡與事蹟\n【人事物關聯】與該角色有關係的人、事、物（請使用直觀繁體中文或「⟷」、「➔」表達關聯，嚴禁輸出 LaTeX 語法如 $\\leftrightarrow$、$\\rightarrow$ 等）\n===CHARACTER_END===\n（有多位角色時請重複輸出上述 ===CHARACTER_START=== 區塊）\n\n===RELATIONSHIP_START===\n【卡片標題】全景角色關係網梳理\n【關係梳理】陣營勢力、角色間的核心矛盾、情感牽絆與互動脈絡深度分析（關聯請使用「⟷」、「➔」或文字說明，嚴禁使用 LaTeX 數學符號）\n===RELATIONSHIP_END===",
         "world": "你是一位小說世界觀架構師。請閱讀以下小說文本，分析並提取出文本中涉及的世界觀設定、歷史背景、地理環境、勢力組織、力量體系或特殊術語，並進行系統化的整理。",
         "timeline": "你是一位專業的小說時間線規劃師。請閱讀以下小說文本，梳理出故事發生的時間線，按先後順序提取出關鍵事件、場景轉換及發生的具體時間節點。",
         "chat": "你是一位資深的小說寫作顧問與編輯助手。請以繁體中文與作者深入探討小說情節、人物塑造、世界觀設定、伏筆鋪陳與文字潤飾，提供具創意且具體可行的寫作建議。",
@@ -369,7 +369,13 @@ class AIService:
                 rel_title = title_m.group(1).strip()
                 rel_content = re.sub(r'【卡片標題】\s*[^\n]+\n*', '', rel_content).strip()
 
-            formatted_rel = f"【標籤】#AI角色關係 #關係網\n\n{rel_content}"
+            rel_content = cls.clean_latex_and_symbols(rel_content)
+            # 若 rel_content 已有標籤行則不重複添加
+            if rel_content.startswith("【標籤】"):
+                formatted_rel = rel_content
+            else:
+                formatted_rel = f"【標籤】#AI角色關係 #關係網\n\n{rel_content}"
+
             relationship_card = {
                 "title": rel_title,
                 "content": formatted_rel,
@@ -384,7 +390,12 @@ class AIService:
                 rel_content = rel_m.group(1).strip()
                 if rel_content:
                     rel_title = f"【角色關係網】{scope_title}" if scope_title else "【角色關係網】全景梳理"
-                    formatted_rel = f"【標籤】#AI角色關係 #關係網\n\n{rel_content}"
+                    rel_content = cls.clean_latex_and_symbols(rel_content)
+                    if rel_content.startswith("【標籤】"):
+                        formatted_rel = rel_content
+                    else:
+                        formatted_rel = f"【標籤】#AI角色關係 #關係網\n\n{rel_content}"
+
                     relationship_card = {
                         "title": rel_title,
                         "content": formatted_rel,
@@ -395,6 +406,12 @@ class AIService:
 
         # 若仍無任何角色被解析出，將整篇文本作為一張角色總結卡
         if not characters:
+            clean_summary_text = cls.clean_latex_and_symbols(clean_text)
+            if clean_summary_text.startswith("【標籤】"):
+                formatted_summary = clean_summary_text
+            else:
+                formatted_summary = f"【標籤】#AI角色 #人物設定\n\n{clean_summary_text}"
+
             characters.append({
                 "name": "登場角色總結",
                 "title": f"【角色分析】{scope_title}" if scope_title else "【角色分析】登場人物",
@@ -403,9 +420,9 @@ class AIService:
                 "profile": "詳見內文",
                 "actions": "詳見內文",
                 "relations": "詳見內文",
-                "content": f"【標籤】#AI角色 #人物設定\n\n{clean_text}",
+                "content": formatted_summary,
                 "tags": ["AI角色", "人物設定"],
-                "summary": clean_text.replace('\n', ' ')[:90] + "...",
+                "summary": clean_summary_text.replace('\n', ' ')[:90] + "...",
                 "selected": True
             })
 
@@ -414,6 +431,29 @@ class AIService:
             "relationship_card": relationship_card,
             "raw_text": raw_text
         }
+
+    @classmethod
+    def clean_latex_and_symbols(cls, text: str) -> str:
+        """清理文字中殘留的 LaTeX 數學指令與不友善符號，轉為繁體中文直觀符號"""
+        if not text:
+            return ""
+        import re
+        replacements = [
+            (r'\$\\leftrightarrow\$|\\leftrightarrow|\$<->\$|<->|<-->', ' ⟷ '),
+            (r'\$\\Leftrightarrow\$|\\Leftrightarrow', ' ⟺ '),
+            (r'\$\\rightarrow\$|\\rightarrow|\$\\to\$|\\to|(?<=\s)->|(?<=\s)-->', ' ➔ '),
+            (r'\$\\leftarrow\$|\\leftarrow|(?<=\s)<-|(?<=\s)<--', ' ← '),
+            (r'\$\\Rightarrow\$|\\Rightarrow|(?<=\s)=>|(?<=\s)==>', ' ⇒ '),
+            (r'\$\\Leftarrow\$|\\Leftarrow', ' ⇐ '),
+            (r'\\cdot|\\bullet', ' • '),
+            (r'\\times', ' × '),
+        ]
+        res = text
+        for pat, rep in replacements:
+            res = re.sub(pat, rep, res)
+        # 移除純文字殘留的行內 $ 符號
+        res = re.sub(r'\$([^\$\n]+)\$', r'\1', res)
+        return res.strip()
 
     @classmethod
     def _parse_single_character_block(cls, block_text: str) -> dict:
@@ -428,11 +468,11 @@ class AIService:
             pattern = r'(?:' + '|'.join([re.escape(f'【{n}】') for n in names]) + r')\s*([^\n]+(?:\n(?!【)[^\n]+)*)'
             m = re.search(pattern, clean)
             if m:
-                return m.group(1).strip()
+                return cls.clean_latex_and_symbols(m.group(1).strip())
             # 支援冒號格式
             pattern_colon = r'(?:' + '|'.join([re.escape(n) for n in names]) + r')[：:]\s*([^\n]+(?:\n(?!【)[^\n]+)*)'
             m_col = re.search(pattern_colon, clean)
-            return m_col.group(1).strip() if m_col else ""
+            return cls.clean_latex_and_symbols(m_col.group(1).strip()) if m_col else ""
 
         name = extract_field("角色姓名", ["姓名", "角色名稱", "人物姓名"])
         if not name:
@@ -491,7 +531,7 @@ class AIService:
         def extract_pattern(keywords):
             p = r'(?:' + '|'.join([re.escape(k) for k in keywords]) + r')[：:\s*]+([^\n]+(?:\n(?!\*|\#|\d\.)[^\n]+)*)'
             m = re.search(p, clean)
-            return m.group(1).strip() if m else ""
+            return cls.clean_latex_and_symbols(m.group(1).strip()) if m else ""
 
         age = extract_pattern(["外觀年齡", "年齡", "外貌年齡"]) or "未在選定範圍內具體提及"
         appearance = extract_pattern(["外貌特徵", "外觀特徵", "外貌", "外觀"]) or "未在選定範圍內具體提及"
@@ -500,8 +540,12 @@ class AIService:
         relations = extract_pattern(["人事物關聯", "關係", "人際關係", "關係網"]) or "未在選定範圍內具體提及"
 
         # 若完全無欄位匹配，則保留原文本內容
-        if appearance == profile == actions == relations == "未在選定範圍內具體提及":
-            card_content = f"【標籤】#AI角色 #人物設定 #{name_clean}\n\n{clean}"
+        cleaned_body = cls.clean_latex_and_symbols(clean)
+        # 避免重複標籤
+        if cleaned_body.startswith("【標籤】"):
+            card_content = cleaned_body
+        elif appearance == profile == actions == relations == "未在選定範圍內具體提及":
+            card_content = f"【標籤】#AI角色 #人物設定 #{name_clean}\n\n{cleaned_body}"
         else:
             card_content = (
                 f"【標籤】#AI角色 #人物設定 #{name_clean}\n\n"

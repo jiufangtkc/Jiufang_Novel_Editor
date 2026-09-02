@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 from services.app_settings_service import AppSettingsService
 
 
@@ -21,6 +22,7 @@ class StoragePathDialog(QDialog):
         self.setWindowTitle("存檔路徑設定")
         self.resize(520, 290)
         self.setModal(True)
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self.default_path = AppSettingsService.get_default_storage_path()
         self.current_path = current_path if current_path else self.default_path
@@ -48,30 +50,43 @@ class StoragePathDialog(QDialog):
         header_layout.addWidget(lbl_desc)
         layout.addLayout(header_layout)
 
+        # 取得當前主題色彩
+        theme_name = "default"
+        if self.parent() and hasattr(self.parent(), "current_theme"):
+            theme_name = self.parent().current_theme
+        theme_colors = ThemeManager.get_theme_colors(theme_name)
+        accent = theme_colors.get("accent", "#2b78e4")
+        subtext = theme_colors.get("subtext_color", "#a0aec0")
+        card_bg = theme_colors.get("tree_bg", "#252930")
+        card_border = theme_colors.get("tree_border", "#3c424a")
+        fg = theme_colors.get("main_fg", "#e0e0e0")
+
+        lbl_desc.setStyleSheet(f"color: {subtext}; font-size: 11px;")
+
         # 表單區
         form_frame = QFrame()
-        form_frame.setStyleSheet("""
-            QFrame {
-                background-color: #2b2b2b;
-                border: 1px solid #3c3f41;
+        form_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
                 border-radius: 6px;
                 padding: 10px;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 font-size: 12px;
-                color: #e0e0e0;
-            }
-            QLineEdit {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 1px solid #555555;
+                color: {fg};
+            }}
+            QLineEdit {{
+                background-color: {theme_colors.get('input_bg', '#1e1e1e')};
+                color: {theme_colors.get('input_fg', '#ffffff')};
+                border: 1px solid {theme_colors.get('input_border', '#555555')};
                 border-radius: 4px;
                 padding: 6px 8px;
                 font-size: 12px;
-            }
-            QLineEdit:focus {
-                border: 1px solid #2b78e4;
-            }
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {accent};
+            }}
         """)
         form_layout = QVBoxLayout(form_frame)
         form_layout.setSpacing(8)
@@ -88,17 +103,17 @@ class StoragePathDialog(QDialog):
         path_input_layout.addWidget(self.line_path, 1)
 
         self.btn_browse = QPushButton("瀏覽...")
-        self.btn_browse.setStyleSheet("""
-            QPushButton {
-                background-color: #3c3f41;
-                color: #ffffff;
-                border: 1px solid #555555;
+        self.btn_browse.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme_colors.get('btn_bg', '#3c3f41')};
+                color: {fg};
+                border: 1px solid {theme_colors.get('btn_border', '#555555')};
                 border-radius: 4px;
                 padding: 6px 12px;
-            }
-            QPushButton:hover {
-                background-color: #4c4f51;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {theme_colors.get('btn_hover_bg', '#4c4f51')};
+            }}
         """)
         self.btn_browse.clicked.connect(self._browse_directory)
         path_input_layout.addWidget(self.btn_browse)
@@ -109,17 +124,17 @@ class StoragePathDialog(QDialog):
         btn_reset_layout = QHBoxLayout()
         btn_reset_layout.addStretch()
         self.btn_reset_default = QPushButton("恢復預設路徑")
-        self.btn_reset_default.setStyleSheet("""
-            QPushButton {
+        self.btn_reset_default.setStyleSheet(f"""
+            QPushButton {{
                 background-color: transparent;
-                color: #2b78e4;
+                color: {accent};
                 border: none;
                 font-size: 11px;
                 text-decoration: underline;
-            }
-            QPushButton:hover {
-                color: #5295e8;
-            }
+            }}
+            QPushButton:hover {{
+                opacity: 0.8;
+            }}
         """)
         self.btn_reset_default.clicked.connect(self._reset_to_default)
         btn_reset_layout.addWidget(self.btn_reset_default)
@@ -132,7 +147,7 @@ class StoragePathDialog(QDialog):
             "💡 提示：變更存檔路徑後，系統將自動在該目錄下建立 Story 與 Temp_doc 資料夾，"
             "並將舊路徑中的稿件與暫存檔自動遷移至新目錄。"
         )
-        lbl_hint.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_hint.setStyleSheet(f"color: {subtext}; font-size: 11px;")
         lbl_hint.setWordWrap(True)
         layout.addWidget(lbl_hint)
 
@@ -141,33 +156,33 @@ class StoragePathDialog(QDialog):
         btn_layout.addStretch()
 
         self.btn_cancel = QPushButton("取消")
-        self.btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #3c3f41;
-                color: #e0e0e0;
-                border: 1px solid #555555;
+        self.btn_cancel.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {theme_colors.get('btn_bg', '#3c3f41')};
+                color: {fg};
+                border: 1px solid {theme_colors.get('btn_border', '#555555')};
                 border-radius: 4px;
                 padding: 6px 16px;
-            }
-            QPushButton:hover {
-                background-color: #4c4f51;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {theme_colors.get('btn_hover_bg', '#4c4f51')};
+            }}
         """)
         self.btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(self.btn_cancel)
 
         self.btn_ok = QPushButton("確定變更")
-        self.btn_ok.setStyleSheet("""
-            QPushButton {
-                background-color: #2b78e4;
+        self.btn_ok.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
                 color: #ffffff;
                 border-radius: 4px;
                 padding: 6px 18px;
                 font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #3b88f4;
-            }
+            }}
+            QPushButton:hover {{
+                opacity: 0.9;
+            }}
         """)
         self.btn_ok.clicked.connect(self._on_confirm)
         btn_layout.addWidget(self.btn_ok)

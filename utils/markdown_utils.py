@@ -6,9 +6,26 @@ from PyQt6.QtGui import QTextDocument, QFont, QTextListFormat, QTextBlock
 
 
 def render_markdown_inline(text: str) -> str:
-    """將行內 Markdown 標記轉換為 HTML，完美支援中文 (CJK) 邊界與常用 HTML 標籤"""
+    """將行內 Markdown 標記與 LaTeX 關係指令轉換為 HTML，完美支援中文 (CJK) 邊界與常用 HTML 標籤"""
     if not text:
         return ""
+
+    # 1. 預處理並轉換 LaTeX 數學與關係箭頭指令
+    arrow_replacements = [
+        (r'\$\\leftrightarrow\$|\\leftrightarrow|\$<->\$|<->|<-->', ' ⟷ '),
+        (r'\$\\Leftrightarrow\$|\\Leftrightarrow', ' ⟺ '),
+        (r'\$\\rightarrow\$|\\rightarrow|\$\\to\$|\\to|(?<=\s)->|(?<=\s)-->', ' ➔ '),
+        (r'\$\\leftarrow\$|\\leftarrow|(?<=\s)<-|(?<=\s)<--', ' ← '),
+        (r'\$\\Rightarrow\$|\\Rightarrow|(?<=\s)=>|(?<=\s)==>', ' ⇒ '),
+        (r'\$\\Leftarrow\$|\\Leftarrow', ' ⇐ '),
+        (r'\\cdot|\\bullet', ' • '),
+        (r'\\times', ' × '),
+    ]
+    for pat, rep in arrow_replacements:
+        text = re.sub(pat, rep, text)
+
+    # 移除純文字行內殘留的單個美元符號 (例如 $文字$)
+    text = re.sub(r'\$([^\$\n]+)\$', r'\1', text)
 
     # 保護現有的安全 HTML 標籤
     tag_pattern = r'(</?(?:u|del|s|strike|ins|span|b|i|strong|em|code)(?:\s+[^>]*)?>)'
@@ -36,6 +53,18 @@ def render_markdown_inline(text: str) -> str:
             s = re.sub(r'~~(.+?)~~', r'<del>\1</del>', s, flags=re.DOTALL)
             # 5. 行內代碼 `code`
             s = re.sub(r'`([^`]+)`', r'<code>\1</code>', s)
+            # 6. 標籤膠囊化 (#標籤)
+            s = re.sub(
+                r'(?<!\w)#([^\s#<]+)',
+                r'<span style="color: #61afef; background-color: rgba(97, 175, 239, 0.15); border-radius: 3px; padding: 1px 5px; font-weight: bold;">#\1</span>',
+                s
+            )
+            # 7. 關係箭頭樣式加強
+            s = re.sub(
+                r'([⟷⟺➔←⇒⇐])',
+                r'<span style="color: #61afef; font-weight: bold; padding: 0 4px;">\1</span>',
+                s
+            )
             res_parts.append(s)
 
     return ''.join(res_parts)
@@ -44,20 +73,33 @@ def render_markdown_inline(text: str) -> str:
 def markdown_to_html(md_text: str) -> str:
     """
     將 Markdown 文本轉換為乾淨標準的 HTML，用於 QTextEdit / QTextDocument 富文本渲染。
-    支援標題、清單、水平線、空行保留及所有行內樣式。
+    支援標題、清單、水平線、空行保留、LaTeX 箭頭轉換及所有行內樣式。
     """
     if not md_text:
-        return "<p><br></p>"
+        return '<p style="-qt-paragraph-type:empty;"><br></p>'
 
     # 統一換行字元
     normalized = md_text.replace('\r\n', '\n').replace('\r', '\n')
     lines = normalized.split('\n')
-    html_lines = []
+    
+    # 過濾連續重複的 【標籤】 行
+    deduped_lines = []
+    last_tag_line = None
+    for l in lines:
+        stripped = l.strip()
+        if stripped.startswith("【標籤】"):
+            if stripped == last_tag_line:
+                continue
+            last_tag_line = stripped
+        else:
+            last_tag_line = None
+        deduped_lines.append(l)
 
+    html_lines = ['<style>p, li { margin: 0px; padding: 0px; }</style>']
     in_ul = False
     in_ol = False
 
-    for line in lines:
+    for line in deduped_lines:
         stripped = line.strip()
 
         # 1. 無序清單 (- , * , + )
@@ -108,7 +150,7 @@ def markdown_to_html(md_text: str) -> str:
 
         # 5. 空行與普通段落
         if not stripped:
-            html_lines.append('<p><br></p>')
+            html_lines.append('<p style="-qt-paragraph-type:empty;"><br></p>')
         else:
             html_lines.append(f'<p>{render_markdown_inline(line)}</p>')
 

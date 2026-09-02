@@ -497,7 +497,10 @@ class TreeController:
 
             content = data.get("content", "")
             self.view.editor.blockSignals(True)
-            self.view.editor.setPlainText(content)
+            if hasattr(self.view.editor, "set_markdown"):
+                self.view.editor.set_markdown(content)
+            else:
+                self.view.editor.setPlainText(content)
             self.view.editor.blockSignals(False)
 
             stats = self.mc.stats.analyze_exclusions(self.view.editor.toPlainText())

@@ -46,14 +46,20 @@ class TestAIService(unittest.TestCase):
         self.assertTrue(loaded["ai_continuation_enabled"])
 
     def test_detect_local_models_empty_or_offline(self):
-        # 測試離線或無效 URL 時安全回傳空串列而不崩潰
-        models = AIService.detect_local_models("Ollama", "http://127.0.0.1:99999/api/chat", timeout=1)
-        self.assertIsInstance(models, list)
-        self.assertEqual(len(models), 0)
+        # 測試空 URL
+        self.assertEqual(AIService.detect_local_models("Ollama", ""), [])
 
-        models_lm = AIService.detect_local_models("LM Studio", "http://127.0.0.1:99999/v1/chat/completions", timeout=1)
-        self.assertIsInstance(models_lm, list)
-        self.assertEqual(len(models_lm), 0)
+        # 測試離線或連線異常時安全回傳空串列而不崩潰
+        from unittest.mock import patch
+        import urllib.error
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Connection refused")):
+            models = AIService.detect_local_models("Ollama", "http://127.0.0.1:99999/api/chat", timeout=1)
+            self.assertIsInstance(models, list)
+            self.assertEqual(len(models), 0)
+
+            models_lm = AIService.detect_local_models("LM Studio", "http://127.0.0.1:99999/v1/chat/completions", timeout=1)
+            self.assertIsInstance(models_lm, list)
+            self.assertEqual(len(models_lm), 0)
 
 
 if __name__ == "__main__":

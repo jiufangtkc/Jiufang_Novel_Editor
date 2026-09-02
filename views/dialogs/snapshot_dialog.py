@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QColor
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 from services.database import DatabaseService
 
 
@@ -23,6 +24,7 @@ class SnapshotDialog(QDialog):
         self.setWindowTitle("版本快照管理 (Version Snapshots)")
         self.resize(680, 480)
         self.setModal(True)
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self.init_ui()
         self.refresh_snapshots()
@@ -69,28 +71,38 @@ class SnapshotDialog(QDialog):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background-color: #1e2227;
-                color: #e3e3e3;
-                border: 1px solid #3e4451;
+        theme_name = "default"
+        if self.parent() and hasattr(self.parent(), "current_theme"):
+            theme_name = self.parent().current_theme
+        theme_colors = ThemeManager.get_theme_colors(theme_name)
+        tbl_bg = theme_colors.get("tree_bg", "#1e2227")
+        tbl_fg = theme_colors.get("tree_fg", "#e3e3e3")
+        tbl_border = theme_colors.get("tree_border", "#3e4451")
+        tbl_sel = theme_colors.get("tree_item_selected_bg", "#094771")
+        header_bg = theme_colors.get("header_bg", "#282c34")
+
+        self.table.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {tbl_bg};
+                color: {tbl_fg};
+                border: 1px solid {tbl_border};
                 border-radius: 4px;
-                gridline-color: #2c313a;
-            }
-            QTableWidget::item {
+                gridline-color: {tbl_border};
+            }}
+            QTableWidget::item {{
                 padding: 4px 6px;
-            }
-            QTableWidget::item:selected {
-                background-color: #2b78e4;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {tbl_sel};
                 color: #ffffff;
-            }
-            QHeaderView::section {
-                background-color: #282c34;
-                color: #abb2bf;
+            }}
+            QHeaderView::section {{
+                background-color: {header_bg};
+                color: {tbl_fg};
                 padding: 4px;
-                border: 1px solid #3e4451;
+                border: 1px solid {tbl_border};
                 font-weight: bold;
-            }
+            }}
         """)
         layout.addWidget(self.table, 1)
 

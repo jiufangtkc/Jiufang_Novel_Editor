@@ -47,6 +47,7 @@ class DatabaseService:
                 editor_font_family TEXT,
                 editor_font_size INTEGER,
                 target_word_count INTEGER DEFAULT 100000,
+                daily_target_word_count INTEGER DEFAULT 1000,
                 category_order TEXT DEFAULT NULL,
                 expanded_categories TEXT DEFAULT NULL
             )
@@ -154,9 +155,9 @@ class DatabaseService:
                 title, logline, current_theme,
                 global_font_family, global_font_size,
                 editor_font_family, editor_font_size,
-                target_word_count, category_order,
-                expanded_categories
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                target_word_count, daily_target_word_count,
+                category_order, expanded_categories
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (
                 project.project_info.title,
                 project.project_info.logline,
@@ -166,6 +167,7 @@ class DatabaseService:
                 project.project_info.editor_font_family,
                 project.project_info.editor_font_size,
                 getattr(project.project_info, 'target_word_count', 100000),
+                getattr(project.project_info, 'daily_target_word_count', 1000),
                 category_order_json,
                 expanded_categories_json
             )
@@ -241,6 +243,7 @@ class DatabaseService:
             editor_font_family = p_row['editor_font_family'] if 'editor_font_family' in keys and p_row['editor_font_family'] else "Iansui"
             editor_font_size = p_row['editor_font_size'] if 'editor_font_size' in keys and p_row['editor_font_size'] else 12
             target_word_count = p_row['target_word_count'] if 'target_word_count' in keys and p_row['target_word_count'] is not None else 100000
+            daily_target_word_count = p_row['daily_target_word_count'] if 'daily_target_word_count' in keys and p_row['daily_target_word_count'] is not None else 1000
 
             project.project_info = ProjectInfo(
                 title=p_row['title'],
@@ -249,7 +252,8 @@ class DatabaseService:
                 global_font_size=int(global_font_size),
                 editor_font_family=editor_font_family,
                 editor_font_size=int(editor_font_size),
-                target_word_count=int(target_word_count)
+                target_word_count=int(target_word_count),
+                daily_target_word_count=int(daily_target_word_count)
             )
             project.current_theme = p_row['current_theme']
             # 讀取 category_order（v7 新增欄位）
@@ -392,7 +396,8 @@ class DatabaseService:
                 "global_font_size": project.project_info.global_font_size,
                 "editor_font_family": project.project_info.editor_font_family,
                 "editor_font_size": project.project_info.editor_font_size,
-                "target_word_count": getattr(project.project_info, "target_word_count", 100000)
+                "target_word_count": getattr(project.project_info, "target_word_count", 100000),
+                "daily_target_word_count": getattr(project.project_info, "daily_target_word_count", 1000)
             },
             "current_theme": project.current_theme,
             "tree": [_chapter_to_dict(n) for n in project.tree],
@@ -426,7 +431,8 @@ class DatabaseService:
                 global_font_size=p_info_d.get("global_font_size", 12),
                 editor_font_family=p_info_d.get("editor_font_family", "Iansui"),
                 editor_font_size=p_info_d.get("editor_font_size", 12),
-                target_word_count=p_info_d.get("target_word_count", 100000)
+                target_word_count=p_info_d.get("target_word_count", 100000),
+                daily_target_word_count=p_info_d.get("daily_target_word_count", 1000)
             ),
             current_theme=d.get("current_theme", "default")
         )

@@ -31,6 +31,7 @@ class ProjectInfo:
     editor_font_family: str = "Iansui"
     editor_font_size: int = 12
     target_word_count: int = 100000
+    daily_target_word_count: int = 1000
     expanded_categories: Optional[List[str]] = None
 
 @dataclass

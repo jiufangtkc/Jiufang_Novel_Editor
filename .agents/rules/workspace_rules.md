@@ -19,6 +19,7 @@ trigger: always_on
 
 - **架構總覽**：`.agents/docs/ARCHITECTURE.md`
 - **交接紀錄**：`.agents/docs/HANDOVER.md`（必讀！包含陷阱提示）
+- **測試套件說明**：`.agents/docs/TEST_SUITE.md`（完整自動測試清單與維護規範）
 - **開發規劃**：`.agents/docs/ROADMAP.md`
 - **實施計畫**：`.agents/docs/IMPLEMENTATION_PLAN.md`（Phase 1-16 系統規格與修復紀錄）
 - **最佳化與二期計畫**：`.agents/docs/OPTIMIZATION_PLAN.md`、`.agents/docs/implementation_plan_02.md`
@@ -38,6 +39,7 @@ trigger: always_on
 
 ## 執行後必做
 - **交接紀錄**：`HANDOVER.md`（必做，提醒後面的 agent 必讀！包含已知問題、陷阱等提示）
+- **測試清單維護**：若任務中有新增、修改或刪除測試案例，**必須同步更新** `.agents/docs/TEST_SUITE.md`，維持測試項目與說明的一致性。
 
 ## 🤖 10B 等級中小模型專屬防卡死守則 (Anti-loop Rules for 10B LLMs)
 

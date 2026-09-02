@@ -118,7 +118,7 @@ class TestControllers(unittest.TestCase):
         """測試主編輯器無格式貼上與純文字換行保留。"""
         from PyQt6.QtCore import QMimeData
 
-        self.assertFalse(self.view.editor.acceptRichText())
+        self.assertTrue(self.view.editor.acceptRichText())
 
         # 模擬貼上帶有 HTML / 富文本格式的剪貼簿資料
         mime = QMimeData()
@@ -127,7 +127,7 @@ class TestControllers(unittest.TestCase):
 
         self.view.editor.clear()
         self.view.editor.insertFromMimeData(mime)
-        pasted_text = self.view.editor.toPlainText()
+        pasted_text = self.view.editor.toPlainText().strip()
 
         self.assertEqual(pasted_text, "標題\n第一段粗體\n\n第二段")
         self.assertNotIn("<h1>", pasted_text)

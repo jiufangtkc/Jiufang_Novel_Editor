@@ -63,7 +63,7 @@ class MainController:
 
         # 編輯與寫作追蹤狀態
         self.current_file_item = None
-        self.today_target: int = 1000
+        self.today_target: int = getattr(self.project_info, "daily_target_word_count", 1000)
         self.today_written_count: int = 0
         self.current_file_last_word_count: int = 0
         self.last_known_word_count: int = 0

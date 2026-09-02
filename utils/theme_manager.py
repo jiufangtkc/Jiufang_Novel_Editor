@@ -1,10 +1,11 @@
 import ctypes
+import os
 import re
-from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QIcon, QPen
 from PyQt6.QtCore import Qt, QPoint
 
 BASE_THEME_TEMPLATE = """
-QMainWindow {{
+QMainWindow, QDialog {{
     background-color: {main_bg};
     color: {main_fg};
 }}
@@ -68,7 +69,7 @@ QTreeWidget::item:selected {{
 QTreeWidget::item:hover {{
     background-color: {tree_item_hover_bg};
 }}
-QTextEdit {{
+QTextEdit, QPlainTextEdit {{
     background-color: {editor_bg};
     color: {editor_fg};
     border: 1px solid {editor_border};
@@ -141,6 +142,109 @@ QLineEdit, QComboBox {{
     color: {input_fg};
     border: 1px solid {input_border};
     padding: 2px 4px;
+}}
+QRadioButton {{
+    color: {main_fg};
+    spacing: 8px;
+    background-color: transparent;
+}}
+QRadioButton::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 9px;
+    border: 2px solid {radio_border};
+    background-color: {input_bg};
+}}
+QRadioButton::indicator:hover {{
+    border-color: {accent};
+}}
+QRadioButton::indicator:checked {{
+    border: 2px solid {accent};
+    background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 {accent}, stop:0.48 {accent}, stop:0.52 {input_bg}, stop:1 {input_bg});
+}}
+QRadioButton::indicator:disabled {{
+    border-color: #555555;
+    background-color: #2a2a2a;
+}}
+QCheckBox {{
+    color: {main_fg};
+    spacing: 8px;
+    background-color: transparent;
+}}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 2px solid {checkbox_border};
+    background-color: {input_bg};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {accent};
+}}
+QCheckBox::indicator:checked {{
+    border: 2px solid {accent};
+    background-color: {accent};
+    image: url('{checkbox_check_icon}');
+}}
+QCheckBox::indicator:disabled {{
+    border-color: #555555;
+    background-color: #2a2a2a;
+}}
+QSpinBox, QDoubleSpinBox {{
+    background-color: {input_bg};
+    color: {input_fg};
+    border: 1px solid {input_border};
+    border-radius: 4px;
+    padding: 3px 6px;
+}}
+QSpinBox:focus, QDoubleSpinBox:focus {{
+    border: 1px solid {accent};
+}}
+QGroupBox {{
+    color: {main_fg};
+    border: 1px solid {tab_pane_border};
+    border-radius: 6px;
+    margin-top: 12px;
+    padding-top: 10px;
+    font-weight: bold;
+}}
+QGroupBox::title {{
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 6px;
+    color: {accent};
+}}
+QScrollBar:vertical {{
+    background: {main_bg};
+    width: 10px;
+    margin: 0px;
+}}
+QScrollBar::handle:vertical {{
+    background: {btn_bg};
+    min-height: 20px;
+    border-radius: 5px;
+}}
+QScrollBar::handle:vertical:hover {{
+    background: {btn_hover_bg};
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+    height: 0px;
+}}
+QScrollBar:horizontal {{
+    background: {main_bg};
+    height: 10px;
+    margin: 0px;
+}}
+QScrollBar::handle:horizontal {{
+    background: {btn_bg};
+    min-width: 20px;
+    border-radius: 5px;
+}}
+QScrollBar::handle:horizontal:hover {{
+    background: {btn_hover_bg};
+}}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+    width: 0px;
 }}
 QTableWidget {{
     background-color: {table_bg};
@@ -419,13 +523,54 @@ class ThemeManager:
     }
 
     @staticmethod
-    def get_theme_qss(theme_name):
-        colors = THEME_COLORS.get(theme_name, THEME_COLORS["default"])
-        return BASE_THEME_TEMPLATE.format(**colors)
+    def _get_checkmark_icon_path():
+        icon_path = os.path.abspath("resources/icons/check_white.png").replace("\\", "/")
+        if not os.path.exists(icon_path):
+            os.makedirs(os.path.dirname(icon_path), exist_ok=True)
+            p = QPixmap(16, 16)
+            p.fill(Qt.GlobalColor.transparent)
+            pt = QPainter(p)
+            pt.setRenderHint(QPainter.RenderHint.Antialiasing)
+            pt.setPen(QPen(QColor("#ffffff"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+            pt.drawLine(3, 8, 6, 12)
+            pt.drawLine(6, 12, 13, 4)
+            pt.end()
+            p.save(icon_path)
+        return icon_path
 
     @staticmethod
     def get_theme_colors(theme_name):
-        return THEME_COLORS.get(theme_name, THEME_COLORS["default"])
+        base_colors = THEME_COLORS.get(theme_name, THEME_COLORS["default"])
+        colors = dict(base_colors)
+        if "accent" not in colors:
+            colors["accent"] = colors.get("tab_selected_indicator", "#58a6ff")
+        if "radio_border" not in colors:
+            colors["radio_border"] = "#858d98"
+        if "checkbox_border" not in colors:
+            colors["checkbox_border"] = "#858d98"
+        if "subtext_color" not in colors:
+            colors["subtext_color"] = "#a0aec0"
+        colors["checkbox_check_icon"] = ThemeManager._get_checkmark_icon_path()
+        return colors
+
+    @staticmethod
+    def get_theme_qss(theme_name):
+        colors = ThemeManager.get_theme_colors(theme_name)
+        return BASE_THEME_TEMPLATE.format(**colors)
+
+    @staticmethod
+    def apply_theme_to_dialog(dialog, parent=None):
+        """為對話框自動套用對應主題與縮放樣式。"""
+        theme_name = "default"
+        if parent and hasattr(parent, "current_theme"):
+            theme_name = parent.current_theme
+        elif hasattr(dialog, "parent") and dialog.parent() and hasattr(dialog.parent(), "current_theme"):
+            theme_name = dialog.parent().current_theme
+        
+        scale = getattr(parent, "scale_factor", 1.0) if parent else getattr(dialog, "scale_factor", 1.0)
+        qss = ThemeManager.get_theme_qss(theme_name)
+        scaled_qss = ThemeManager.scale_qss(qss, scale)
+        dialog.setStyleSheet(scaled_qss)
 
     @staticmethod
     def scale_qss(qss_string, scale):

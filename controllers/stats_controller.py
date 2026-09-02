@@ -172,8 +172,10 @@ class StatsController:
         target, ok = QInputDialog.getInt(self.view, "設定今日目標", "請輸入今日寫作目標字數：", value=self.mc.today_target, min=10)
         if ok and target > 0:
             self.mc.today_target = target
+            self.mc.project_info.daily_target_word_count = target
             self.view.progress_bar.setMaximum(self.mc.today_target)
             self.update_status_bar()
+            self.mc.save_temp_doc()
 
     def set_project_target(self):
         curr_target = getattr(self.mc.project_info, "target_word_count", 100000)
@@ -210,7 +212,13 @@ class StatsController:
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.mc.today_written_count = 0
+            today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            for log in self.mc.writing_logs:
+                if log.date == today_str:
+                    log.word_count = 0
+                    break
             self.update_status_bar()
+            self.mc.save_temp_doc()
 
     def on_document_contents_change(self, position, charsRemoved, charsAdded):
         if self.view.editor.signalsBlocked():
@@ -268,18 +276,25 @@ class StatsController:
 
             if duration_secs > 0:
                 date_str = start_time_str.split(" ")[0]
+                today_date_str = now.strftime("%Y-%m-%d")
                 found = False
                 for log in self.mc.writing_logs:
                     if log.date == date_str:
                         log.duration += int(duration_secs)
-                        log.word_count = max(0, log.word_count + words_diff)
+                        target_wc = log.word_count + words_diff
+                        if date_str == today_date_str:
+                            target_wc = max(target_wc, getattr(self.mc, "today_written_count", 0))
+                        log.word_count = max(0, target_wc)
                         found = True
                         break
                 if not found:
+                    initial_wc = words_diff
+                    if date_str == today_date_str:
+                        initial_wc = max(initial_wc, getattr(self.mc, "today_written_count", 0))
                     self.mc.writing_logs.append(WritingLogEntry(
                         date=date_str,
                         duration=int(duration_secs),
-                        word_count=max(0, words_diff)
+                        word_count=max(0, initial_wc)
                     ))
 
                 self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())

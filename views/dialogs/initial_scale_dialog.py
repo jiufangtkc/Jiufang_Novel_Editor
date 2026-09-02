@@ -70,17 +70,7 @@ class InitialScaleDialog(QDialog):
         for idx, (title, scale_val, desc) in enumerate(self.SCALE_OPTIONS):
             btn = QFrame()
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setStyleSheet("""
-                QFrame {
-                    background-color: #2b2b2b;
-                    border: 1px solid #3c3f41;
-                    border-radius: 6px;
-                }
-                QFrame:hover {
-                    background-color: #35383a;
-                    border: 1px solid #4a90e2;
-                }
-            """)
+            
             btn_layout = QHBoxLayout(btn)
             btn_layout.setContentsMargins(14, 8, 14, 8)
             btn_layout.setSpacing(10)
@@ -88,9 +78,22 @@ class InitialScaleDialog(QDialog):
             radio = QRadioButton()
             radio.setChecked(scale_val == 1.0)
             radio.setStyleSheet("""
+                QRadioButton {
+                    background: transparent;
+                }
                 QRadioButton::indicator {
                     width: 16px;
                     height: 16px;
+                    border-radius: 9px;
+                    border: 2px solid #8c939d;
+                    background-color: #202428;
+                }
+                QRadioButton::indicator:hover {
+                    border-color: #58a6ff;
+                }
+                QRadioButton::indicator:checked {
+                    border: 2px solid #58a6ff;
+                    background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 #58a6ff, stop:0.48 #58a6ff, stop:0.52 #202428, stop:1 #202428);
                 }
             """)
             self.button_group.addButton(radio, idx)
@@ -100,11 +103,11 @@ class InitialScaleDialog(QDialog):
             text_layout.setSpacing(2)
             lbl_opt_title = QLabel(title)
             lbl_opt_title.setFont(FontManager.get_font(size=11, weight=QFont.Weight.Bold))
-            lbl_opt_title.setStyleSheet("color: #e0e0e0; background: transparent; border: none;")
+            lbl_opt_title.setStyleSheet("color: #f0f3f6; background: transparent; border: none;")
 
             lbl_opt_desc = QLabel(desc)
             lbl_opt_desc.setFont(FontManager.get_font(size=9))
-            lbl_opt_desc.setStyleSheet("color: #888888; background: transparent; border: none;")
+            lbl_opt_desc.setStyleSheet("color: #a0aec0; background: transparent; border: none;")
 
             text_layout.addWidget(lbl_opt_title)
             text_layout.addWidget(lbl_opt_desc)
@@ -112,6 +115,34 @@ class InitialScaleDialog(QDialog):
             btn_layout.addWidget(radio)
             btn_layout.addLayout(text_layout)
             btn_layout.addStretch()
+
+            def make_style_updater(frame, r):
+                def update_style(checked):
+                    if checked:
+                        frame.setStyleSheet("""
+                            QFrame {
+                                background-color: #222b35;
+                                border: 1.5px solid #58a6ff;
+                                border-radius: 6px;
+                            }
+                        """)
+                    else:
+                        frame.setStyleSheet("""
+                            QFrame {
+                                background-color: #26292e;
+                                border: 1px solid #3c424a;
+                                border-radius: 6px;
+                            }
+                            QFrame:hover {
+                                background-color: #2e333b;
+                                border: 1px solid #58a6ff;
+                            }
+                        """)
+                return update_style
+
+            style_updater = make_style_updater(btn, radio)
+            radio.toggled.connect(style_updater)
+            style_updater(radio.isChecked())
 
             # 點擊整塊卡片時切換選取
             def make_click_handler(r=radio):
@@ -127,7 +158,7 @@ class InitialScaleDialog(QDialog):
         lbl_hint.setWordWrap(True)
         lbl_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_hint.setFont(FontManager.get_font(size=9))
-        lbl_hint.setStyleSheet("color: #777777; margin-top: 2px;")
+        lbl_hint.setStyleSheet("color: #9aa5b5; margin-top: 2px;")
         layout.addWidget(lbl_hint)
 
         # 確認按鈕

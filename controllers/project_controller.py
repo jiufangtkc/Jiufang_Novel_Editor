@@ -78,6 +78,7 @@ class ProjectController:
         self.view.lbl_current_file.setText("請選擇左側文件進行編輯")
 
         self.mc.file_word_stats.clear()
+        self.mc.today_target = getattr(self.mc.project_info, 'daily_target_word_count', 1000)
         self.mc.today_written_count = 0
         self.mc.current_file_last_word_count = 0
         self.mc.writing_logs = []
@@ -154,6 +155,7 @@ class ProjectController:
                 editor_font_family=self.mc.editor_font_family,
                 editor_font_size=self.mc.editor_font_size,
                 target_word_count=getattr(self.mc.project_info, 'target_word_count', 100000),
+                daily_target_word_count=getattr(self.mc.project_info, 'daily_target_word_count', 1000),
                 expanded_categories=getattr(self.mc.project_info, 'expanded_categories', None)
             ),
             current_theme=self.view.current_theme
@@ -323,7 +325,10 @@ class ProjectController:
         self.view.lbl_current_file.setText("請選擇左側文件進行編輯")
 
         self.mc.file_word_stats.clear()
-        self.mc.today_written_count = 0
+        self.mc.today_target = getattr(project.project_info, 'daily_target_word_count', 1000)
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        today_log = next((l for l in self.mc.writing_logs if l.date == today_str), None)
+        self.mc.today_written_count = today_log.word_count if today_log else 0
         self.mc.current_file_last_word_count = 0
 
         def deserialize_chapter_node(node: ChapterNode, parent_item=None):
@@ -408,6 +413,7 @@ class ProjectController:
             self.mc.tree.on_tree_item_clicked(first_file, 0)
 
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+        self.mc.update_status_bar()
 
     def get_project_data(self) -> dict:
         """導出專案資料字典（供相容性需求使用）。"""

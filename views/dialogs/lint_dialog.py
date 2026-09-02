@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QPoint
 from PyQt6.QtGui import QFont, QColor, QTextCursor
 
 from utils.font_manager import FontManager
+from utils.theme_manager import ThemeManager
 from services.lint_service import LintService, LintIssue
 from views.dialogs.lint_whitelist_dialog import LintWhitelistDialog
 
@@ -21,6 +22,7 @@ class LintDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("文風與贅詞檢查")
         self.resize(780, 520)
+        ThemeManager.apply_theme_to_dialog(self, parent)
         self.get_text_func = get_text_func
         self.settings = LintService.load_settings()
         self.current_issues: List[LintIssue] = []
@@ -95,7 +97,7 @@ class LintDialog(QDialog):
 
         self.lbl_stats = QLabel("掃描完成：共發現 0 處修飾建議")
         self.lbl_stats.setFont(FontManager.get_font(size=9))
-        self.lbl_stats.setStyleSheet("color: #888888;")
+        self.lbl_stats.setStyleSheet("color: #a0aec0;")
 
         filter_bar.addWidget(lbl_filter)
         filter_bar.addWidget(self.combo_filter)
@@ -128,7 +130,7 @@ class LintDialog(QDialog):
         bottom_bar = QHBoxLayout()
         tip_lbl = QLabel("※ 點擊列表項目可立即在主編輯器中選取並定位該文字。")
         tip_lbl.setFont(FontManager.get_font(size=9))
-        tip_lbl.setStyleSheet("color: #888888;")
+        tip_lbl.setStyleSheet("color: #a0aec0;")
         bottom_bar.addWidget(tip_lbl)
         bottom_bar.addStretch()
 

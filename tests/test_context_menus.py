@@ -151,9 +151,9 @@ class TestContextMenus(unittest.TestCase):
         card = CardNode(title="魔法設定", content="火球術：耗費 10 點魔力。")
         self.mc.project_cards["world"] = [card]
 
-        self.mc.card.copy_card_content(card.id, "world")
-        clipboard_text = QApplication.clipboard().text()
-        self.assertEqual(clipboard_text, "火球術：耗費 10 點魔力。")
+        with patch.object(QApplication.clipboard(), "setText") as mock_set:
+            self.mc.card.copy_card_content(card.id, "world")
+            mock_set.assert_called_once_with("火球術：耗費 10 點魔力。")
 
     def test_card_move_up_and_down(self):
         """測試卡片同層排序上移與下移。"""

@@ -65,7 +65,7 @@ class StartupDialog(QDialog):
         lbl_title.setStyleSheet("color: #ffffff;")
         
         lbl_desc = QLabel(description)
-        lbl_desc.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_desc.setStyleSheet("color: #a0aec0; font-size: 11px;")
 
         card_layout.addWidget(lbl_title)
         card_layout.addWidget(lbl_desc)

@@ -67,7 +67,7 @@ class AIScopeDialog(QDialog):
                 width: {int(16 * sf)}px;
                 height: {int(16 * sf)}px;
                 border-radius: {int(8 * sf)}px;
-                border: 2px solid #5c6370;
+                border: 2px solid #8c939d;
                 background-color: #1e2227;
             }}
             QRadioButton::indicator:hover {{
@@ -75,7 +75,7 @@ class AIScopeDialog(QDialog):
             }}
             QRadioButton::indicator:checked {{
                 border: 2px solid #61afef;
-                background-color: #61afef;
+                background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, stop:0 #61afef, stop:0.48 #61afef, stop:0.52 #1e2227, stop:1 #1e2227);
             }}
         """)
         mode_layout = QVBoxLayout(mode_box)

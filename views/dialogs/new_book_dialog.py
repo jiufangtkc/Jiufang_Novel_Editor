@@ -24,6 +24,7 @@ from PyQt6.QtCore import (
     Qt, QThread, pyqtSignal, QSize, QPoint, QVariantAnimation, QTimer,
     pyqtProperty, QPropertyAnimation
 )
+from utils.theme_manager import ThemeManager
 
 class NewBookDialog(QDialog):
     def __init__(self, parent=None):
@@ -31,6 +32,7 @@ class NewBookDialog(QDialog):
         self.setWindowTitle("開啟新書")
         self.setModal(True)
         self.resize(400, 150)
+        ThemeManager.apply_theme_to_dialog(self, parent)
 
         layout = QFormLayout(self)
         self.title_input = QLineEdit()
