@@ -17,6 +17,7 @@ venv.bak/
 # 專案打包產物
 build/
 dist/
+pre-release/
 *.exe
 Output/
 /*.spec
