@@ -68,6 +68,7 @@ class MainController:
         self.current_file_last_word_count: int = 0
         self.last_known_word_count: int = 0
         self.active_session: Optional[dict] = None
+        self.is_dirty: bool = False
 
         # 寫作閒置檢測計時器
         self.writing_timer = QTimer(self.view)
@@ -176,7 +177,7 @@ class MainController:
         # 設定自動儲存計時器
         self.auto_save_timer = QTimer(self.view)
         self.auto_save_timer.setInterval(self.autosave_interval_minutes * 60 * 1000)
-        self.auto_save_timer.timeout.connect(self.save_temp_doc)
+        self.auto_save_timer.timeout.connect(lambda: self.save_temp_doc(from_timer=True))
         self.auto_save_timer.start()
 
     def _handle_startup_choice(self):
@@ -342,6 +343,12 @@ class MainController:
     # 轉發方法（轉發至子控制器，維持介面 100% 相容性）
     # =========================================================================
 
+    def mark_dirty(self, dirty: bool = True):
+        """標記專案是否有未儲存的變更，並連動更新視窗標題與相關標籤。"""
+        if getattr(self, "is_dirty", False) != dirty:
+            self.is_dirty = dirty
+            self.update_project_labels()
+
     def update_project_labels(self):
         self.project.update_project_labels()
 
@@ -351,14 +358,14 @@ class MainController:
     def save_current_editor_content(self):
         self.editor.save_current_editor_content()
 
-    def save_temp_doc(self):
-        self.project.save_temp_doc()
+    def save_temp_doc(self, from_timer: bool = False):
+        self.project.save_temp_doc(from_timer=from_timer)
 
-    def save_project(self):
-        self.project.save_project()
+    def save_project(self, silent: bool = False) -> bool:
+        return self.project.save_project(silent=silent)
 
-    def save_project_as(self):
-        self.project.save_project_as()
+    def save_project_as(self) -> bool:
+        return self.project.save_project_as()
 
     def load_project(self):
         self.project.load_project()

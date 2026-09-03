@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
 > **最後更新**：2026-09-03  
-> **測試總數**：156 項自動化測試（26 個測試模組）  
+> **測試總數**：165 項自動化測試（27 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,7 +11,7 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 156 項測試
+# 執行全部 165 項測試
 C:\Python314\python.exe -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
@@ -278,6 +278,21 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 - `test_snapshot_dialog_theme_awareness`：驗證快照視窗表格樣式與主題色整合。
 - `test_scene_metadata_dialog_init`：驗證場景屬性視窗支援 QPlainTextEdit。
 - `test_dialogs_across_all_themes`：驗證所有 6 種主題皆能透過 apply_theme_to_dialog 正確套用於對話框。
+
+---
+
+### 3.9 稿件未儲存防護與關閉確認（9 項）
+
+#### `test_unsaved_changes.py` (9 項)
+- `test_initial_state_clean`：測試全新專案初始化後，未存檔狀態為 False 且視窗標題不含星號。
+- `test_editor_text_change_marks_dirty`：測試在編輯器內輸入文字，觸發 mark_dirty(True) 且視窗標題帶星號。
+- `test_save_project_clears_dirty`：測試執行正式存檔成功後，is_dirty 恢復為 False 且星號消失。
+- `test_tree_node_change_marks_dirty`：測試章節樹重新命名或結構異動時，會自動標記 is_dirty。
+- `test_on_close_event_when_clean`：測試無未儲存變更時，關閉事件直接 accept，不彈出對話框。
+- `test_on_close_event_save_choice`：測試有變更時關閉，作家選擇「儲存」，執行存檔並 accept 關閉。
+- `test_on_close_event_discard_choice`：測試有變更時關閉，作家選擇「不儲存」，不執行正式存檔且不更新 temp_doc，直接 accept 關閉。
+- `test_on_close_event_cancel_choice`：測試有變更時關閉，作家選擇「取消」，呼叫 ignore 取消關閉，留在編輯器。
+- `test_on_close_event_save_failed_ignores_close`：測試有變更時選擇儲存，但存檔失敗時，呼叫 ignore 阻止關閉以保護資料。
 
 ---
 

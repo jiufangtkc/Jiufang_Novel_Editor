@@ -42,6 +42,7 @@ class EditorController:
             if item_id:
                 self.mc.file_word_stats[item_id] = stats
 
+        self.mc.mark_dirty(True)
         self.mc.update_status_bar()
 
     def change_font(self, font):

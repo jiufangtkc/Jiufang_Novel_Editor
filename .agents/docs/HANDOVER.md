@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-03，成功發布首個公開測試預發布版（v0.1.0-beta）至 GitHub Releases，包含 Setup 安裝版與綠色免安裝 Zip 雙版本，全套 156 項單元測試維持 100% 通過。
+> 最後更新：2026-09-03，發布預發布版「v0.1.1-beta」（新增「稿件未儲存關閉防護功能」與關閉確認提示），包含雙版本安裝檔與綠色便攜包上傳，全套 165 項單元測試維持 100% 通過。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -143,7 +143,30 @@
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (發布首個公開測試預發布版：v0.1.0-beta 至 GitHub Releases)**：
+- **本次完成事項 (發布 v0.1.1-beta 測試預發布版與稿件未存檔關閉防護機制，全套 165 項單元測試 100% 綠燈)**：
+  1. **未儲存狀態機制與標題星號連動**：
+     - `controllers/main_controller.py`：新增 `self.is_dirty` 狀態屬性與 `mark_dirty(dirty: bool)` 方法。
+     - `controllers/project_controller.py`：`update_project_labels` 於未存檔時在視窗標題自動標註 `*`（例如 `*{書名} - 九方小說編輯器`），已存檔時移除星號。
+  2. **全面變更事件與存檔清空覆蓋**：
+     - `EditorController.on_editor_text_changed` 編輯器打字/修改內文時觸發 `mark_dirty(True)`。
+     - `ProjectController.edit_project_title` / `edit_logline` 變更書名與大綱時觸發 `mark_dirty(True)`。
+     - `ProjectController.save_temp_doc` 擴充 `from_timer: bool = False` 參數，非計時器之目錄樹、卡片等所有實質結構異動觸發暫存時自動標記 `mark_dirty(True)`，定時器暫存則不誤標記。
+     - 正式存檔 `save_project`（支援 `silent` 參數）、`save_project_as`、專案載入 `load_project_data`、新開專案 `_reset_project_state` 完成時自動重設 `mark_dirty(False)`。
+  3. **關閉事件攔截與確認對話框**：
+     - `ProjectController.on_close_event`：若稿件未存檔且處於使用者互動模式，彈出「**稿件尚未存檔**」對話框。
+     - 提供「儲存(&S)」、「不儲存(&D)」、「取消」三選項：
+       - 【儲存】：執行 `save_project(silent=True)`，成功後關閉程式，失敗則阻止關閉。
+       - 【不儲存】：放棄變更直接關閉，不覆寫暫存檔，正常儲存偏好設定。
+       - 【取消】：呼叫 `event.ignore()` 中止關閉，留在編輯器。
+  4. **測試套件擴充與文檔維護**：
+     - 新增 `tests/test_unsaved_changes.py`（9 項測試），涵蓋全新狀態、輸入標記、存檔重設、章節異動標記、三鍵選擇與存檔失敗防護。
+     - 全套 165 項測試 100% 通過（`pytest tests/` 165 passed in 18.19s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md`。
+  5. **版本發布與 Git 忽略規則強化**：
+     - `.gitignore`：除 `pre-release/` 外，同步加入 `pre-realease/` 等拼寫相容忽略規則，徹底杜絕二進位發布檔推送到 GitHub 遠端儲存庫。
+     - GitHub Pre-release：發布 `v0.1.1-beta`，並上傳 Windows 安裝程式（Setup.exe）與免安裝綠色包（.zip）雙版本資產。
+
+- **前次完成事項 (發布首個公開測試預發布版：v0.1.0-beta 至 GitHub Releases)**：
   1. **Git 忽略規則與文件更新**：
      - `.gitignore`：加入 `pre-release/` 目錄，防範大型打包安裝二進位檔案誤提交至 Git 歷史。
      - `README.md`：同步使用者更新之錯字修正並提交推送到 `origin/main`。
@@ -155,34 +178,11 @@
      - `Jiufang_Novel_Editor_0.1.0-Beta.zip`（約 48.7 MB，免安裝免解壓綠色便攜包）。
      - 發布網址：https://github.com/jiufangtkc/Jiufang_Novel_Editor/releases/tag/v0.1.0-beta。
 
-- **前次完成事項 (Phase 31：全軟體視圖與工具介面縮放一致性全面適配，全套 156 項測試 100% 綠燈)**：
-  1. **對話框縮放中樞架構**：
-     - `utils/theme_manager.py`：`apply_theme_to_dialog` 自動計算並注入 `dialog.scale_factor = scale`，並將對話框預設字型統一設為 `FontManager.get_font(size=int(9 * scale))`，使未手動硬編碼字級的對話框預設享有使用者設定縮放比例。
-  2. **核心檢視與儀表板動態縮放**：
-     - `views/components/outline_view.py`：大綱總覽模式支援 `update_scale(scale)`，動態縮放樹狀清單字級、欄寬（280/100/90）、圖示與搜尋按鈕。
-     - `views/components/writing_chart_view.py` & `writing_log_dashboard.py`：創作日誌儀表板及趨勢圖、熱力圖、章節長條圖全面動態以 `scale_factor` 繪製邊距、標籤與文字，4 張指標卡片動態自適應。
-     - `views/components/find_replace_bar.py`：尋找與取代列實作 `update_scale(scale)`，即時隨介面縮放調整按鈕、計數器與輸入框字級。
-     - `controllers/theme_controller.py`：在 `set_ui_scale` 中統一連動 `outline_view`、`writing_log_dashboard` 與 `find_replace_bar`。
-  3. **所有對話框與懸浮工具全面適配 scale_factor**：
-     - `lint_dialog.py` & `lint_whitelist_dialog.py`：贅詞檢查與白名單對話框，視窗大小、表格、核選鈕與各設定分頁依 scale 等比放大。
-     - `global_search_dialog.py`：全文檢索對話框，視窗、輸入列與結果表格字級/欄寬依 scale 放大。
-     - `ai_chat_dialog.py`、`ai_proofread_dialog.py`、`ai_settings_dialog.py`、`ai_expansion_dialog.py`、`ai_preview_dialog.py`：AI 系列對話框全面支援視窗尺寸與字級縮放。
-     - `export_scope_dialog.py`、`snapshot_dialog.py`、`word_count_settings_dialog.py`、`autosave_settings_dialog.py`、`storage_path_dialog.py`、`new_book_dialog.py`、`scene_metadata_dialog.py`、`startup_dialog.py`：系統設定與專案對話框全面適配。
-     - `ai_floating_hud.py`：AI 背景懸浮工具列支援 scale_factor 動態縮放。
-  4. **全專案單元測試驗證**：
-     - 全套 156 項測試 100% 通過（`pytest tests/` 156 passed in 34.77s）。
-     - 同步更新本交接文件。
-
-- **前次完成事項 (選單優化與結構防護：移除「設定」選單重複之「AI 助手設定」項目，全套 156 項測試 100% 綠燈)**：
-  1. `views/components/menu_builder.py`：移除「設定(&S)」選單中多餘重複的 `window.settings_menu.addAction(window.action_ai_settings)`，AI 相關設定與提取功能統一收納於「✨ AI 助手(&A)」選單。
-  2. `tests/test_window_settings.py`：新增 `test_menu_structure_ai_settings_exclusive_to_ai_menu` 單元測試，嚴格驗證「AI 助手設定」專屬於「AI 助手」選單，且「設定」選單中不重複包含該項目與相關關鍵字。
-  3. 單元測試驗證：全套 156 項測試 100% 通過（`pytest tests/` 156 passed）。
-  4. 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
 - **當前任務狀態**：
   1. Python 3.14 已透過目錄聯結（Directory Junction）統一固定於 `C:\Python314`，並已將 `C:\Python314` 與 `C:\Python314\Scripts` 加入使用者環境變數 `Path`。
   2. 專案 `.venv\pyvenv.cfg` 之 `home` 與 `executable` 已固定指向 `C:\Python314`。
   3. 打包工具 `.agents\build\build.bat` 經雙重驗證打包順暢，成功產出 `dist\Jiufang_Novel_Editor\Jiufang_Novel_Editor.exe`，且打包後自動清理臨時 spec 檔以維護根目錄整潔。
-  4. 全套 156 項測試維持 100% 通過。
+  4. 全套 165 項測試維持 100% 通過。
 - **下一個 Agent 的任務指引**：
   1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
   2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。

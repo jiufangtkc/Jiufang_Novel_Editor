@@ -18,6 +18,7 @@ venv.bak/
 build/
 dist/
 pre-release/
+pre-realease/
 *.exe
 Output/
 /*.spec

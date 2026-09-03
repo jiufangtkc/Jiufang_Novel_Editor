@@ -35,12 +35,18 @@ class ProjectController:
         logline = self.mc.project_info.logline.strip() if self.mc.project_info.logline else ""
         self.view.lbl_project_logline.setText(logline if logline else '點擊輸入一句話大綱(logline)')
 
+        # 視窗標題連動未存檔星號標記
+        display_title = title if title else "未命名專案"
+        dirty_mark = " *" if getattr(self.mc, "is_dirty", False) else ""
+        self.view.setWindowTitle(f"{display_title}{dirty_mark} - 九方小說編輯器")
+
     def edit_project_title(self, event):
         curr_title = self.mc.project_info.title if self.mc.project_info.title not in ("請點擊輸入書名", "請點擊兩下輸入書名", "點擊此處輸入書名") else ""
         new_title, ok = QInputDialog.getText(self.view, "修改書名", "請輸入新的書名:", text=curr_title)
         if ok and new_title.strip():
             new_title = new_title.strip()
             self.mc.project_info.title = new_title
+            self.mc.mark_dirty(True)
             self.update_project_labels()
 
     def edit_logline(self, event):
@@ -48,6 +54,7 @@ class ProjectController:
         new_logline, ok = QInputDialog.getText(self.view, "修改 Logline", "請輸入新的 Logline:", text=curr_logline)
         if ok:
             self.mc.project_info.logline = new_logline.strip()
+            self.mc.mark_dirty(True)
             self.update_project_labels()
 
     def _reset_project_state(self, title: str, logline: str):
@@ -104,6 +111,7 @@ class ProjectController:
         self.mc.update_status_bar()
         self.view.tree_widget.setCurrentItem(scene_item)
         self.mc.tree.on_tree_item_clicked(scene_item, 0)
+        self.mc.mark_dirty(False)
 
     def new_book(self):
         dialog = NewBookDialog(self.view)
@@ -126,9 +134,59 @@ class ProjectController:
         """清理資料夾內超出數量上限之檔案（委派至 AutosaveController）。"""
         return self.mc.autosave.clean_files_limit(folder_path, limit)
 
+    def prompt_save_changes_dialog(self) -> str:
+        """彈出稿件尚未存檔對話框，回傳使用者選擇 ('save', 'discard', 'cancel')。"""
+        msg_box = QMessageBox(self.view)
+        msg_box.setWindowTitle("稿件尚未存檔")
+        msg_box.setText("當前稿件已有變更但尚未存檔，是否要在結束程式前儲存？")
+        msg_box.setIcon(QMessageBox.Icon.Question)
+
+        btn_save = msg_box.addButton("儲存(&S)", QMessageBox.ButtonRole.AcceptRole)
+        btn_discard = msg_box.addButton("不儲存(&D)", QMessageBox.ButtonRole.DestructiveRole)
+        btn_cancel = msg_box.addButton("取消", QMessageBox.ButtonRole.RejectRole)
+        msg_box.setDefaultButton(btn_save)
+
+        msg_box.exec()
+        clicked_button = msg_box.clickedButton()
+
+        if clicked_button == btn_save:
+            return "save"
+        elif clicked_button == btn_discard:
+            return "discard"
+        else:
+            return "cancel"
+
     def on_close_event(self, event):
+        # 1. 確保當前編輯器中的內文已同步
+        self.mc.save_current_editor_content()
+
+        # 2. 稿件有變更且尚未存檔時提示確認（互動模式下提示，防範單元測試環境阻塞）
+        if getattr(self.mc, "is_dirty", False) and getattr(self.mc, "interactive_startup", False):
+            choice = self.prompt_save_changes_dialog()
+
+            if choice == "save":
+                # 執行正式存檔
+                success = self.save_project(silent=True)
+                if not success:
+                    # 存檔失敗，取消關閉，保護使用者稿件
+                    if hasattr(event, "ignore"):
+                        event.ignore()
+                    return
+            elif choice == "discard":
+                # 放棄變更，直接關閉，不進行任何存檔或覆寫暫存
+                pass
+            else:
+                # 點擊「取消」或關閉對話框
+                if hasattr(event, "ignore"):
+                    event.ignore()
+                return
+
+        # 3. 正常結束流程與偏好設定保存
         self.mc.flush_active_writing_session()
-        self.save_temp_doc()
+        # 只有在非放棄存檔時（即已存檔或無變更），才更新 temp_doc
+        if not getattr(self.mc, "is_dirty", False):
+            self.save_temp_doc()
+
         # 儲存介面調整的大小與偏好設定，並標記正常退出
         settings = AppSettingsService.extract_from_window(self.view)
         settings["autosave_interval_minutes"] = getattr(self.mc, "autosave_interval_minutes", 10)
@@ -139,7 +197,8 @@ class ProjectController:
             settings["last_project_path"] = self.current_project_path
         self.mc.app_settings.update(settings)
         AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
-        event.accept()
+        if hasattr(event, "accept"):
+            event.accept()
 
     def _build_jne_project(self) -> JneProject:
         """從 UI 與共享狀態建構 JneProject dataclass。"""
@@ -413,6 +472,7 @@ class ProjectController:
             self.mc.tree.on_tree_item_clicked(first_file, 0)
 
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+        self.mc.mark_dirty(False)
         self.mc.update_status_bar()
 
     def get_project_data(self) -> dict:
@@ -604,11 +664,13 @@ class ProjectController:
             QMessageBox.critical(self.view, "錯誤", f"讀取暫存檔失敗: {e}")
             return False
 
-    def save_temp_doc(self):
+    def save_temp_doc(self, from_timer: bool = False):
         """暫存使用 SQLite .db 格式（委派至 AutosaveController）。"""
+        if not from_timer:
+            self.mc.mark_dirty(True)
         self.mc.autosave.save_temp_doc()
 
-    def save_project(self):
+    def save_project(self, silent: bool = False) -> bool:
         """正式存檔為 SQLite .db 格式"""
         self.mc.flush_active_writing_session()
         try:
@@ -633,12 +695,16 @@ class ProjectController:
             self.mc.app_settings["last_project_path"] = file_path
             AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
             self.clean_files_limit(book_dir, limit=100)
-            self.save_temp_doc()
-            QMessageBox.information(self.view, "成功", f"稿件已成功儲存至：\n{file_path}")
+            self.save_temp_doc(from_timer=True)
+            self.mc.mark_dirty(False)
+            if not silent:
+                QMessageBox.information(self.view, "成功", f"稿件已成功儲存至：\n{file_path}")
+            return True
         except Exception as e:
             QMessageBox.critical(self.view, "錯誤", f"儲存時發生錯誤: {e}")
+            return False
 
-    def save_project_as(self):
+    def save_project_as(self) -> bool:
         """另存新檔：採用 SQLite .db 格式"""
         self.mc.flush_active_writing_session()
         story_dir = self.mc.get_story_dir()
@@ -648,7 +714,7 @@ class ProjectController:
             "SQLite 資料庫 (*.db)"
         )
         if not file_path:
-            return
+            return False
         if not file_path.lower().endswith('.db'):
             file_path += '.db'
         project = self._build_jne_project()
@@ -657,9 +723,12 @@ class ProjectController:
             self.current_project_path = file_path
             self.mc.app_settings["last_project_path"] = file_path
             AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
+            self.mc.mark_dirty(False)
             QMessageBox.information(self.view, "成功", f"專案另存成功！\n{file_path}")
+            return True
         except Exception as e:
             QMessageBox.critical(self.view, "錯誤", f"另存時發生錯誤: {e}")
+            return False
 
     def load_project(self):
         """讀取專案：採用 SQLite .db 格式，預設開啟 Story 目錄"""
