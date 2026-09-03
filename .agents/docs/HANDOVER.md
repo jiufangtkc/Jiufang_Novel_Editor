@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-03，全介面與工具縮放一致性全面適配（大綱模式、創作儀表板、文風檢查、AI 系列對話框、系統設定對話框等全數連動 scale_factor），全部 156 項單元測試全數通過。
+> 最後更新：2026-09-03，成功發布首個公開測試預發布版（v0.1.0-beta）至 GitHub Releases，包含 Setup 安裝版與綠色免安裝 Zip 雙版本，全套 156 項單元測試維持 100% 通過。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -143,7 +143,19 @@
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (Phase 31：全軟體視圖與工具介面縮放一致性全面適配，全套 156 項測試 100% 綠燈)**：
+- **本次完成事項 (發布首個公開測試預發布版：v0.1.0-beta 至 GitHub Releases)**：
+  1. **Git 忽略規則與文件更新**：
+     - `.gitignore`：加入 `pre-release/` 目錄，防範大型打包安裝二進位檔案誤提交至 Git 歷史。
+     - `README.md`：同步使用者更新之錯字修正並提交推送到 `origin/main`。
+  2. **版本標籤與 GitHub Release 建立**：
+     - 建立 Annotated Tag `v0.1.0-beta` 並推送到 GitHub 遠端儲存庫。
+     - 透過 GitHub API 自動建立 Pre-release（標記 `prerelease: true`）：`九方小說編輯器 v0.1.0-Beta (測試預發布版)`。
+  3. **雙版本資產上傳（Release Assets）**：
+     - `Jiufang_Novel_Editor_0.1.0-Beta-Setup.exe`（約 35.8 MB，Inno Setup 自動安裝檔）。
+     - `Jiufang_Novel_Editor_0.1.0-Beta.zip`（約 48.7 MB，免安裝免解壓綠色便攜包）。
+     - 發布網址：https://github.com/jiufangtkc/Jiufang_Novel_Editor/releases/tag/v0.1.0-beta。
+
+- **前次完成事項 (Phase 31：全軟體視圖與工具介面縮放一致性全面適配，全套 156 項測試 100% 綠燈)**：
   1. **對話框縮放中樞架構**：
      - `utils/theme_manager.py`：`apply_theme_to_dialog` 自動計算並注入 `dialog.scale_factor = scale`，並將對話框預設字型統一設為 `FontManager.get_font(size=int(9 * scale))`，使未手動硬編碼字級的對話框預設享有使用者設定縮放比例。
   2. **核心檢視與儀表板動態縮放**：
