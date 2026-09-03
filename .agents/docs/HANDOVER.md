@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-03，發布預發布版「v0.1.1-beta」（新增「稿件未儲存關閉防護功能」與關閉確認提示），包含雙版本安裝檔與綠色便攜包上傳，全套 165 項單元測試維持 100% 通過。
+> 最後更新：2026-09-03，實作「快速存檔安靜存檔」與「依書名單一存檔覆寫規則」（Ctrl+S 不彈窗，檔名不再帶時間戳，除非另存新檔否則維持原檔名覆寫），全套 171 項單元測試維持 100% 通過。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -143,7 +143,23 @@
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (發布 v0.1.1-beta 測試預發布版與稿件未存檔關閉防護機制，全套 165 項單元測試 100% 綠燈)**：
+- **本次完成事項 (實作快速存檔安靜存檔與依書名單一存檔覆寫規則，全套 171 項單元測試 100% 綠燈)**：
+  1. **快速存檔安靜存檔 (Quiet / Silent Save)**：
+     - `controllers/project_controller.py`：`save_project(self, silent: bool = True)` 預設改為安靜存檔，不彈出 `QMessageBox.information` 對話框打斷寫作。
+     - 狀態列反饋：儲存成功時於狀態列顯示 `稿件已儲存至 {檔名}` 3 秒，既溫和安靜又具備明確安全感；若儲存失敗依然保留 `QMessageBox.critical` 錯誤通知。
+     - `controllers/main_controller.py`：選單與快捷鍵 Ctrl+S 動作綁定 `action_save_project.triggered.connect(lambda: self.project.save_project(silent=True))`，解決 Qt triggered 訊號傳入 checked=False 的潛在覆蓋問題。
+  2. **存檔規則與檔名管理改進（單一存檔不膨脹）**：
+     - 存檔不再加上日期與時間（移除 `now_str = datetime.datetime.now().strftime(...)` 產生新檔的行為）。
+     - 若已有開啟或已存檔路徑（`self.current_project_path`），一般存檔時直接覆寫該路徑（本來的檔案名稱），不再重複產生大量歷史檔案。
+     - 新專案首次存檔時依照書名命名（如 `Story/{書名}/{書名}.db`）；若後續在編輯器修改書名，除非使用者主動執行「另存新檔」，否則依然維持本來的檔案名稱進行覆寫。
+     - 「另存新檔」（`save_project_as`）提供書名作為預設檔名建議，另存成功後更新 `current_project_path`，後續存檔便持續使用另存後的新檔名。
+     - `_reset_project_state` 新增重設 `self.current_project_path = ""`，防範開新專案時誤用前一專案路徑。
+  3. **測試套件擴充與文檔維護**：
+     - 新增 `tests/test_save_rules.py`（6 項測試），完整覆蓋安靜存檔無對話框、狀態列提示、檔名不含時間戳、連續存檔覆寫原檔、改書名仍沿用原檔名、另存新檔後更新路徑與 Ctrl+S 觸發等行為。
+     - 全套 171 項測試 100% 通過（`pytest tests/` 171 passed in 16.64s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
+
+- **前次完成事項 (發布 v0.1.1-beta 測試預發布版與稿件未存檔關閉防護機制，全套 165 項單元測試 100% 綠燈)**：
   1. **未儲存狀態機制與標題星號連動**：
      - `controllers/main_controller.py`：新增 `self.is_dirty` 狀態屬性與 `mark_dirty(dirty: bool)` 方法。
      - `controllers/project_controller.py`：`update_project_labels` 於未存檔時在視窗標題自動標註 `*`（例如 `*{書名} - 九方小說編輯器`），已存檔時移除星號。
@@ -158,31 +174,15 @@
        - 【儲存】：執行 `save_project(silent=True)`，成功後關閉程式，失敗則阻止關閉。
        - 【不儲存】：放棄變更直接關閉，不覆寫暫存檔，正常儲存偏好設定。
        - 【取消】：呼叫 `event.ignore()` 中止關閉，留在編輯器。
-  4. **測試套件擴充與文檔維護**：
-     - 新增 `tests/test_unsaved_changes.py`（9 項測試），涵蓋全新狀態、輸入標記、存檔重設、章節異動標記、三鍵選擇與存檔失敗防護。
-     - 全套 165 項測試 100% 通過（`pytest tests/` 165 passed in 18.19s）。
-     - 同步更新 `.agents/docs/TEST_SUITE.md`。
-  5. **版本發布與 Git 忽略規則強化**：
+  4. **版本發布與 Git 忽略規則強化**：
      - `.gitignore`：除 `pre-release/` 外，同步加入 `pre-realease/` 等拼寫相容忽略規則，徹底杜絕二進位發布檔推送到 GitHub 遠端儲存庫。
      - GitHub Pre-release：發布 `v0.1.1-beta`，並上傳 Windows 安裝程式（Setup.exe）與免安裝綠色包（.zip）雙版本資產。
-
-- **前次完成事項 (發布首個公開測試預發布版：v0.1.0-beta 至 GitHub Releases)**：
-  1. **Git 忽略規則與文件更新**：
-     - `.gitignore`：加入 `pre-release/` 目錄，防範大型打包安裝二進位檔案誤提交至 Git 歷史。
-     - `README.md`：同步使用者更新之錯字修正並提交推送到 `origin/main`。
-  2. **版本標籤與 GitHub Release 建立**：
-     - 建立 Annotated Tag `v0.1.0-beta` 並推送到 GitHub 遠端儲存庫。
-     - 透過 GitHub API 自動建立 Pre-release（標記 `prerelease: true`）：`九方小說編輯器 v0.1.0-Beta (測試預發布版)`。
-  3. **雙版本資產上傳（Release Assets）**：
-     - `Jiufang_Novel_Editor_0.1.0-Beta-Setup.exe`（約 35.8 MB，Inno Setup 自動安裝檔）。
-     - `Jiufang_Novel_Editor_0.1.0-Beta.zip`（約 48.7 MB，免安裝免解壓綠色便攜包）。
-     - 發布網址：https://github.com/jiufangtkc/Jiufang_Novel_Editor/releases/tag/v0.1.0-beta。
 
 - **當前任務狀態**：
   1. Python 3.14 已透過目錄聯結（Directory Junction）統一固定於 `C:\Python314`，並已將 `C:\Python314` 與 `C:\Python314\Scripts` 加入使用者環境變數 `Path`。
   2. 專案 `.venv\pyvenv.cfg` 之 `home` 與 `executable` 已固定指向 `C:\Python314`。
   3. 打包工具 `.agents\build\build.bat` 經雙重驗證打包順暢，成功產出 `dist\Jiufang_Novel_Editor\Jiufang_Novel_Editor.exe`，且打包後自動清理臨時 spec 檔以維護根目錄整潔。
-  4. 全套 165 項測試維持 100% 通過。
+  4. 全套 171 項測試維持 100% 通過。
 - **下一個 Agent 的任務指引**：
   1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
   2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。

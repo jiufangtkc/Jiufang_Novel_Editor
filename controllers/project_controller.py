@@ -77,6 +77,7 @@ class ProjectController:
         self.mc.card.clear_cards_ui()
         self.update_project_labels()
         self.mc.current_file_item = None
+        self.current_project_path = ""
         self.view.tree_widget.clear()
         self.view.editor.clear()
 
@@ -670,8 +671,8 @@ class ProjectController:
             self.mc.mark_dirty(True)
         self.mc.autosave.save_temp_doc()
 
-    def save_project(self, silent: bool = False) -> bool:
-        """正式存檔為 SQLite .db 格式"""
+    def save_project(self, silent: bool = True) -> bool:
+        """正式存檔為 SQLite .db 格式。除非另存新檔，否則使用現有檔名，或依書名命名存檔（不再附帶時間戳），預設安靜存檔。"""
         self.mc.flush_active_writing_session()
         try:
             story_dir = self.mc.get_story_dir()
@@ -680,23 +681,33 @@ class ProjectController:
             book_title = self.mc.project_info.title.strip() if self.mc.project_info.title else ""
             if not book_title:
                 book_title = "未命名專案"
-
             clean_title = re.sub(r'[\/\\\:\*\?\"\'<>\|]', '_', book_title)
-            book_dir = os.path.join(story_dir, clean_title)
-            os.makedirs(book_dir, exist_ok=True)
+
+            # 若已有開啟或已儲存之專案路徑，使用本來的檔案名稱；否則依書名命名存檔
+            if hasattr(self, 'current_project_path') and self.current_project_path:
+                file_path = self.current_project_path
+                parent_dir = os.path.dirname(file_path)
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+            else:
+                book_dir = os.path.join(story_dir, clean_title)
+                os.makedirs(book_dir, exist_ok=True)
+                file_name = f"{clean_title}.db"
+                file_path = os.path.join(book_dir, file_name)
 
             project = self._build_jne_project()
-            now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            file_name = f"{clean_title}_{now_str}.db"
-            file_path = os.path.join(book_dir, file_name)
-
             DatabaseService.save_project(project, file_path)
             self.current_project_path = file_path
             self.mc.app_settings["last_project_path"] = file_path
             AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
+            book_dir = os.path.dirname(file_path)
             self.clean_files_limit(book_dir, limit=100)
             self.save_temp_doc(from_timer=True)
             self.mc.mark_dirty(False)
+
+            if hasattr(self.view, 'statusBar') and self.view.statusBar():
+                self.view.statusBar().showMessage(f"稿件已儲存至 {os.path.basename(file_path)}", 3000)
+
             if not silent:
                 QMessageBox.information(self.view, "成功", f"稿件已成功儲存至：\n{file_path}")
             return True
@@ -709,8 +720,15 @@ class ProjectController:
         self.mc.flush_active_writing_session()
         story_dir = self.mc.get_story_dir()
         os.makedirs(story_dir, exist_ok=True)
+
+        book_title = self.mc.project_info.title.strip() if self.mc.project_info.title else ""
+        if not book_title:
+            book_title = "未命名專案"
+        clean_title = re.sub(r'[\/\\\:\*\?\"\'<>\|]', '_', book_title)
+        default_name = os.path.join(story_dir, f"{clean_title}.db")
+
         file_path, _ = QFileDialog.getSaveFileName(
-            self.view, "另存新檔", story_dir,
+            self.view, "另存新檔", default_name,
             "SQLite 資料庫 (*.db)"
         )
         if not file_path:
@@ -724,6 +742,8 @@ class ProjectController:
             self.mc.app_settings["last_project_path"] = file_path
             AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
             self.mc.mark_dirty(False)
+            if hasattr(self.view, 'statusBar') and self.view.statusBar():
+                self.view.statusBar().showMessage(f"專案已另存至 {os.path.basename(file_path)}", 3000)
             QMessageBox.information(self.view, "成功", f"專案另存成功！\n{file_path}")
             return True
         except Exception as e:

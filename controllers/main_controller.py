@@ -287,7 +287,7 @@ class MainController:
 
         # 選單動作 (Menus)
         self.view.action_new_book.triggered.connect(self.project.new_book)
-        self.view.action_save_project.triggered.connect(self.project.save_project)
+        self.view.action_save_project.triggered.connect(lambda: self.project.save_project(silent=True))
         self.view.action_save_project_as.triggered.connect(self.project.save_project_as)
         self.view.action_export.triggered.connect(lambda: self.export_single_document())
         if hasattr(self.view, "action_load_latest_project"):
@@ -361,7 +361,7 @@ class MainController:
     def save_temp_doc(self, from_timer: bool = False):
         self.project.save_temp_doc(from_timer=from_timer)
 
-    def save_project(self, silent: bool = False) -> bool:
+    def save_project(self, silent: bool = True) -> bool:
         return self.project.save_project(silent=silent)
 
     def save_project_as(self) -> bool:

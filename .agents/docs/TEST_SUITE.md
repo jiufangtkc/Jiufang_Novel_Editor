@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
 > **最後更新**：2026-09-03  
-> **測試總數**：165 項自動化測試（27 個測試模組）  
+> **測試總數**：171 項自動化測試（28 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,7 +11,7 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 165 項測試
+# 執行全部 171 項測試
 C:\Python314\python.exe -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
@@ -33,7 +33,7 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 | **1. AI 輔助與長文本分析** | `test_ai_character_extraction.py`<br>`test_ai_chat.py`<br>`test_ai_continuation.py`<br>`test_ai_service.py`<br>`test_long_text_analyzer.py` | 23 | 結構化角色提取、LaTeX 清理、章節內文提取、AI 聊天面板、智慧續寫、長文本滑動視窗分析與中斷機制 |
 | **2. 編輯器與右側資料卡片** | `test_controllers.py`<br>`test_right_panel_split.py`<br>`test_card_detail_dialog.py` | 23 | 9 大子控制器協同、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
 | **3. 章節樹與三層結構（幕）** | `test_context_menus.py`<br>`test_scene.py` | 18 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
-| **4. 資料庫、備份與路徑移轉** | `test_database.py`<br>`test_daily_progress_sync.py`<br>`test_backup.py`<br>`test_snapshot.py`<br>`test_tree_expansion_persistence.py`<br>`test_storage_path.py` | 25 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移與安全驗證 |
+| **4. 資料庫、備份與路徑移轉** | `test_database.py`<br>`test_daily_progress_sync.py`<br>`test_backup.py`<br>`test_snapshot.py`<br>`test_tree_expansion_persistence.py`<br>`test_storage_path.py`<br>`test_save_rules.py` | 31 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則 |
 | **5. 自動存檔與崩潰恢復** | `test_autosave_and_startup.py` | 9 | 啟動導引視窗（新建/開啟/最新）、異常退出崩潰自動恢復（Crash Recovery）、暫存檔配額清理與自動存檔週期 |
 | **6. 審校、統計與寫作日誌** | `test_phase12.py`<br>`test_stats_settings.py` | 17 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、全書字數目標進度條 |
 | **7. 視窗設定、大綱與匯出** | `test_window_settings.py`<br>`test_focus_and_outline.py`<br>`test_markdown_converter.py`<br>`test_export.py`<br>`test_search.py` | 31 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT) |
@@ -141,7 +141,7 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 
 ---
 
-### 3.4 專案儲存、快照、備份與自訂路徑（25 項）
+### 3.4 專案儲存、快照、備份與自訂路徑（31 項）
 
 #### `test_database.py` (1 項)
 - `test_save_and_load_project`：測試 SQLite 資料庫儲存專案並重新完整載入。
@@ -177,6 +177,14 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 - `test_storage_migration_service_ensure_directories`：測試自動補齊新目錄之 `Story` 與 `Temp_doc` 資料夾。
 - `test_storage_migration_service_is_valid_writable_dir`：測試目錄存在性與寫入權限檢查。
 - `test_storage_path_dialog_ui`：測試自訂儲存路徑對話框介面操作與重設預設值。
+
+#### `test_save_rules.py` (6 項)
+- `test_quiet_save_no_dialog`：測試快速存檔 (Ctrl+S) 預設為安靜存檔，不彈出對話框干擾，僅於狀態列顯示存檔提示。
+- `test_save_filename_uses_book_title_without_timestamp`：測試初次存檔依照書名命名（如 `{書名}.db`），檔名不再附加日期與時間戳。
+- `test_consecutive_save_overwrites_original_file`：測試連續存檔時使用本來的檔案名稱進行覆寫，不會在資料夾內累積多個時間戳重複檔案。
+- `test_save_retains_original_filename_even_if_book_title_changed`：測試存檔規則：除非使用者「另存新檔」，否則存檔時使用本來的檔案名稱（即使修改書名亦不重新命名）。
+- `test_save_project_as_updates_current_path_and_subsequent_saves`：測試另存新檔成功後更新當前路徑，後續存檔自動沿用另存後的檔案名稱。
+- `test_ctrl_s_action_triggers_quiet_save`：測試透過快速鍵 Ctrl+S 所綁定之 `action_save_project` 觸發時為安靜存檔。
 
 ---
 
