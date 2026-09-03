@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QDialogButtonBox, QFrame
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from utils.theme_manager import ThemeManager
 
 
@@ -28,11 +29,12 @@ class SceneMetadataDialog(QDialog):
                  scene_location: str = ""):
         super().__init__(parent)
         self.setWindowTitle("場景屬性")
-        self.setMinimumWidth(460)
+        ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.setMinimumWidth(int(460 * self.scale_factor))
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint
         )
-        ThemeManager.apply_theme_to_dialog(self, parent)
 
         self._init_ui(scene_name, scene_summary, scene_pov, scene_location)
 
@@ -42,13 +44,15 @@ class SceneMetadataDialog(QDialog):
 
     def _init_ui(self, scene_name: str, scene_summary: str,
                  scene_pov: str, scene_location: str):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(int(12 * sf))
+        layout.setContentsMargins(int(20 * sf), int(20 * sf), int(20 * sf), int(16 * sf))
 
         # 場景名稱（唯讀標題）
         title_lbl = QLabel(f"🎬 場景：{scene_name}")
-        title_lbl.setStyleSheet("font-weight: bold; font-size: 14px;")
+        from utils.font_manager import FontManager
+        title_lbl.setFont(FontManager.get_font(size=int(12 * sf), weight=QFont.Weight.Bold))
         layout.addWidget(title_lbl)
 
         # 分隔線

@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-03，完成 Phase 27「Markdown 所見即所得空行雙倍行高根除（精確單行高度還原）」，全部 144 項單元測試全數通過。
+> 最後更新：2026-09-03，全介面與工具縮放一致性全面適配（大綱模式、創作儀表板、文風檢查、AI 系列對話框、系統設定對話框等全數連動 scale_factor），全部 156 項單元測試全數通過。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -134,24 +134,48 @@
 ### 陷阱 14：Antigravity Agent 執行測試與背景工作機制
 - 專案全套測試數量達 154 項，完整執行需耗時約 17 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須使用 `manage_task` 追蹤狀態直至 `DONE` 並讀取日誌回報結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
 
+### 陷阱 15：Windows 虛擬環境搬移與 PyInstaller Launcher 陷阱
+- 在 Windows 上，若專案或 `.venv` 資料夾從其他磁碟機（例如 C 槽搬移至 D 槽）或使用者目錄搬家，`.venv\Scripts\*.exe`（如 `pyinstaller.exe`）為二進位 wrapper，內部寫死了原建立時的絕對路徑，直接執行會拋出 `Fatal error in launcher: Unable to create process using ...`。
+- **解法**：呼叫工具時請一律使用 `.venv\Scripts\python.exe -m PyInstaller`（以 Python 直譯器直接掛載模組），並確認 `.venv\pyvenv.cfg` 中的 `home` 與 `executable` 指向系統實際存在的 Python 安裝目錄。此外，打包後若在專案根目錄產生臨時的 `Jiufang_Novel_Editor.spec`，應立即清除以維持根目錄整潔規範。
+
 ---
+
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (Phase 29：修復測試套件剪貼簿 OLE 重試卡頓與網路 Socket 阻塞問題，恢復全套 154 項自動化測試 100% 綠燈)**：
-  1. **排查測試卡頓與未回報的根本原因**：
-     - **背景工作盲點**：`python -m pytest tests/` 跑全套 154 項測試需要約 17 秒，超過 tool 的 10 秒上限後會自動切入 Background Task，上個 Agent 未使用 `manage_task` 監控完成狀態就中斷，導致使用者端看似卡死。
-     - **Socket Timeout 阻塞**：`tests/test_ai_service.py` 中的 `test_detect_local_models_empty_or_offline` 直接向 99999 port 發送真實網路連線，造成每次執行固定卡住 2 秒多。
-     - **Windows OLE 剪貼簿衝突**：`tests/test_context_menus.py` 中的 `test_card_copy_content` 直接呼叫 Windows 剪貼簿，觸發 COM error `0x800401d0: OpenClipboard 失敗`，Qt 連續重試 6 次造成嚴重延遲並導致測試失敗。
-  2. **測試套件全面優化與修復**：
-     - `tests/test_context_menus.py`：使用 `patch.object(QApplication.clipboard(), "setText")` 精準驗證卡片內文拷貝，徹底杜絕 Windows 剪貼簿 OLE 衝突與重試延遲。
-     - `tests/test_ai_service.py`：使用 `patch("urllib.request.urlopen")` 模擬離線/連線異常，消除真實 socket 連線超時，該測試耗時由 2.03s 降至 0.09s，同時補齊空 URL 邊界案例。
-  3. **測試與文件同步**：
-     - 全套 **154 項單元測試 100% 通過**（`pytest tests/` 154 passed in 17s）。
-     - 同步更新 `.agents/docs/TEST_SUITE.md` 與 `.agents/docs/HANDOVER.md`。
+- **本次完成事項 (Phase 31：全軟體視圖與工具介面縮放一致性全面適配，全套 156 項測試 100% 綠燈)**：
+  1. **對話框縮放中樞架構**：
+     - `utils/theme_manager.py`：`apply_theme_to_dialog` 自動計算並注入 `dialog.scale_factor = scale`，並將對話框預設字型統一設為 `FontManager.get_font(size=int(9 * scale))`，使未手動硬編碼字級的對話框預設享有使用者設定縮放比例。
+  2. **核心檢視與儀表板動態縮放**：
+     - `views/components/outline_view.py`：大綱總覽模式支援 `update_scale(scale)`，動態縮放樹狀清單字級、欄寬（280/100/90）、圖示與搜尋按鈕。
+     - `views/components/writing_chart_view.py` & `writing_log_dashboard.py`：創作日誌儀表板及趨勢圖、熱力圖、章節長條圖全面動態以 `scale_factor` 繪製邊距、標籤與文字，4 張指標卡片動態自適應。
+     - `views/components/find_replace_bar.py`：尋找與取代列實作 `update_scale(scale)`，即時隨介面縮放調整按鈕、計數器與輸入框字級。
+     - `controllers/theme_controller.py`：在 `set_ui_scale` 中統一連動 `outline_view`、`writing_log_dashboard` 與 `find_replace_bar`。
+  3. **所有對話框與懸浮工具全面適配 scale_factor**：
+     - `lint_dialog.py` & `lint_whitelist_dialog.py`：贅詞檢查與白名單對話框，視窗大小、表格、核選鈕與各設定分頁依 scale 等比放大。
+     - `global_search_dialog.py`：全文檢索對話框，視窗、輸入列與結果表格字級/欄寬依 scale 放大。
+     - `ai_chat_dialog.py`、`ai_proofread_dialog.py`、`ai_settings_dialog.py`、`ai_expansion_dialog.py`、`ai_preview_dialog.py`：AI 系列對話框全面支援視窗尺寸與字級縮放。
+     - `export_scope_dialog.py`、`snapshot_dialog.py`、`word_count_settings_dialog.py`、`autosave_settings_dialog.py`、`storage_path_dialog.py`、`new_book_dialog.py`、`scene_metadata_dialog.py`、`startup_dialog.py`：系統設定與專案對話框全面適配。
+     - `ai_floating_hud.py`：AI 背景懸浮工具列支援 scale_factor 動態縮放。
+  4. **全專案單元測試驗證**：
+     - 全套 156 項測試 100% 通過（`pytest tests/` 156 passed in 34.77s）。
+     - 同步更新本交接文件。
+
+- **前次完成事項 (選單優化與結構防護：移除「設定」選單重複之「AI 助手設定」項目，全套 156 項測試 100% 綠燈)**：
+  1. `views/components/menu_builder.py`：移除「設定(&S)」選單中多餘重複的 `window.settings_menu.addAction(window.action_ai_settings)`，AI 相關設定與提取功能統一收納於「✨ AI 助手(&A)」選單。
+  2. `tests/test_window_settings.py`：新增 `test_menu_structure_ai_settings_exclusive_to_ai_menu` 單元測試，嚴格驗證「AI 助手設定」專屬於「AI 助手」選單，且「設定」選單中不重複包含該項目與相關關鍵字。
+  3. 單元測試驗證：全套 156 項測試 100% 通過（`pytest tests/` 156 passed）。
+  4. 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
 - **當前任務狀態**：
-  1. 自動化測試套件完全無阻礙、無衝突，全套 154 項單元測試均可在 17 秒內乾淨且穩定通過。
+  1. Python 3.14 已透過目錄聯結（Directory Junction）統一固定於 `C:\Python314`，並已將 `C:\Python314` 與 `C:\Python314\Scripts` 加入使用者環境變數 `Path`。
+  2. 專案 `.venv\pyvenv.cfg` 之 `home` 與 `executable` 已固定指向 `C:\Python314`。
+  3. 打包工具 `.agents\build\build.bat` 經雙重驗證打包順暢，成功產出 `dist\Jiufang_Novel_Editor\Jiufang_Novel_Editor.exe`，且打包後自動清理臨時 spec 檔以維護根目錄整潔。
+  4. 全套 156 項測試維持 100% 通過。
 - **下一個 Agent 的任務指引**：
-  1. 執行 `pytest tests/` 時請注意其耗時約 17 秒，若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
-  2. 編寫涉及系統級服務（剪貼簿、網路請求）的單元測試時，請嚴格遵守 Mock 原則。
-  3. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
+  1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
+  2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。
+
+  2. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
+  3. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
+  4. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
+

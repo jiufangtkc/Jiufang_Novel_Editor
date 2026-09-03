@@ -19,9 +19,10 @@ class WordCountSettingsDialog(QDialog):
     def __init__(self, parent=None, count_half_alnum_and_sym: bool = False, count_full_space: bool = False):
         super().__init__(parent)
         self.setWindowTitle("字數統計規則設定")
-        self.resize(460, 320)
-        self.setModal(True)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(460 * self.scale_factor), int(320 * self.scale_factor))
+        self.setModal(True)
 
         self.count_half_alnum_and_sym = count_half_alnum_and_sym
         self.count_full_space = count_full_space
@@ -29,19 +30,21 @@ class WordCountSettingsDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 22, 22, 22)
-        layout.setSpacing(16)
+        layout.setContentsMargins(int(22 * sf), int(22 * sf), int(22 * sf), int(22 * sf))
+        layout.setSpacing(int(16 * sf))
 
         # 頂部標題與說明
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(4)
+        header_layout.setSpacing(int(4 * sf))
         lbl_title = QLabel("📊 字數統計規則設定")
-        lbl_title.setFont(FontManager.get_font(size=12, weight=QFont.Weight.Bold))
+        lbl_title.setFont(FontManager.get_font(size=int(12 * sf), weight=QFont.Weight.Bold))
         header_layout.addWidget(lbl_title)
 
         lbl_desc = QLabel("設定編輯器底部與專案統計字數時的計算與排除條件。")
-        lbl_desc.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_desc.setFont(FontManager.get_font(size=int(9 * sf)))
+        lbl_desc.setStyleSheet("color: #888888;")
         lbl_desc.setWordWrap(True)
         header_layout.addWidget(lbl_desc)
         layout.addLayout(header_layout)

@@ -17,9 +17,10 @@ class AutosaveSettingsDialog(QDialog):
     def __init__(self, parent=None, interval_minutes: int = 10, max_files: int = 100):
         super().__init__(parent)
         self.setWindowTitle("暫存與自動存檔設定")
-        self.resize(420, 260)
-        self.setModal(True)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(420 * self.scale_factor), int(260 * self.scale_factor))
+        self.setModal(True)
 
         self.interval_minutes = interval_minutes
         self.max_files = max_files
@@ -27,19 +28,21 @@ class AutosaveSettingsDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(int(20 * sf), int(20 * sf), int(20 * sf), int(20 * sf))
+        layout.setSpacing(int(16 * sf))
 
         # 頂部標題與說明
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(4)
+        header_layout.setSpacing(int(4 * sf))
         lbl_title = QLabel("💾 暫存檔與自動備份設定")
-        lbl_title.setFont(FontManager.get_font(size=11, weight=QFont.Weight.Bold))
+        lbl_title.setFont(FontManager.get_font(size=int(11 * sf), weight=QFont.Weight.Bold))
         header_layout.addWidget(lbl_title)
 
         lbl_desc = QLabel("設定系統自動儲存暫存檔的頻率與硬碟保留的歷史檔案數量。")
-        lbl_desc.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_desc.setFont(FontManager.get_font(size=int(9 * sf)))
+        lbl_desc.setStyleSheet("color: #888888;")
         lbl_desc.setWordWrap(True)
         header_layout.addWidget(lbl_desc)
         layout.addLayout(header_layout)

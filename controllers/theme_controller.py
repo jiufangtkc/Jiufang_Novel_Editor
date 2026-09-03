@@ -301,6 +301,15 @@ class ThemeController:
         for card in self.view.findChildren(CardWidget):
             card.update_scale(scale)
 
+        if hasattr(self.view, "outline_view") and hasattr(self.view.outline_view, "update_scale"):
+            self.view.outline_view.update_scale(scale)
+
+        if hasattr(self.view, "writing_log_dashboard") and hasattr(self.view.writing_log_dashboard, "update_scale"):
+            self.view.writing_log_dashboard.update_scale(scale)
+
+        if hasattr(self.view, "find_replace_bar") and hasattr(self.view.find_replace_bar, "update_scale"):
+            self.view.find_replace_bar.update_scale(scale)
+
         self.apply_theme(self.view.current_theme)
 
         self.update_icons()

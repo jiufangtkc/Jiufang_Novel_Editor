@@ -267,6 +267,18 @@ class TestWindowSettings(unittest.TestCase):
         self.assertEqual(saved["scale_factor"], 2.0)
         view.close()
 
+    def test_menu_structure_ai_settings_exclusive_to_ai_menu(self):
+        """測試選單結構：AI 助手設定專屬於「AI 助手」選單，不應重複出現在「設定」選單中"""
+        view = MainWindow()
+        # 驗證 AI 助手選單中存在 action_ai_settings
+        self.assertIn(view.action_ai_settings, view.ai_menu.actions())
+        # 驗證 設定選單中不包含 action_ai_settings
+        self.assertNotIn(view.action_ai_settings, view.settings_menu.actions())
+        # 驗證 設定選單中各項目均不含 AI 助手關鍵字
+        for act in view.settings_menu.actions():
+            self.assertNotIn("AI 助手", act.text())
+        view.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,9 +20,10 @@ class StoragePathDialog(QDialog):
     def __init__(self, parent=None, current_path: str = ""):
         super().__init__(parent)
         self.setWindowTitle("存檔路徑設定")
-        self.resize(520, 290)
-        self.setModal(True)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(520 * self.scale_factor), int(290 * self.scale_factor))
+        self.setModal(True)
 
         self.default_path = AppSettingsService.get_default_storage_path()
         self.current_path = current_path if current_path else self.default_path
@@ -30,22 +31,24 @@ class StoragePathDialog(QDialog):
         self.init_ui()
 
     def init_ui(self):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(14)
+        layout.setContentsMargins(int(20 * sf), int(20 * sf), int(20 * sf), int(20 * sf))
+        layout.setSpacing(int(14 * sf))
 
         # 頂部標題與說明
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(4)
+        header_layout.setSpacing(int(4 * sf))
         lbl_title = QLabel("📁 稿件與暫存檔存檔路徑設定")
-        lbl_title.setFont(FontManager.get_font(size=11, weight=QFont.Weight.Bold))
+        lbl_title.setFont(FontManager.get_font(size=int(11 * sf), weight=QFont.Weight.Bold))
         header_layout.addWidget(lbl_title)
 
         lbl_desc = QLabel(
             "設定稿件 (.db) 與自動暫存檔的儲存根目錄。\n"
             "您可以選擇 Dropbox、OneDrive 等同步資料夾，輕鬆實現多裝置雲端自動同步。"
         )
-        lbl_desc.setStyleSheet("color: #888888; font-size: 11px;")
+        lbl_desc.setFont(FontManager.get_font(size=int(9 * sf)))
+        lbl_desc.setStyleSheet("color: #888888;")
         lbl_desc.setWordWrap(True)
         header_layout.addWidget(lbl_desc)
         layout.addLayout(header_layout)
@@ -144,8 +147,8 @@ class StoragePathDialog(QDialog):
 
         # 提示文字
         lbl_hint = QLabel(
-            "💡 提示：變更存檔路徑後，系統將自動在該目錄下建立 Story 與 Temp_doc 資料夾，"
-            "並將舊路徑中的稿件與暫存檔自動遷移至新目錄。"
+            "💡 提示：變更存檔路徑後，系統將自動在該目錄下建立 Story、Temp_doc 與 Export 資料夾，"
+            "並將舊路徑中的稿件、暫存檔與匯出檔案自動遷移至新目錄。"
         )
         lbl_hint.setStyleSheet(f"color: {subtext}; font-size: 11px;")
         lbl_hint.setWordWrap(True)

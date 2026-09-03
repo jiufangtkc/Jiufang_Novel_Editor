@@ -22,28 +22,30 @@ class SnapshotDialog(QDialog):
         super().__init__(parent)
         self.db_path = db_path
         self.setWindowTitle("版本快照管理 (Version Snapshots)")
-        self.resize(680, 480)
-        self.setModal(True)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(680 * self.scale_factor), int(480 * self.scale_factor))
+        self.setModal(True)
 
         self.init_ui()
         self.refresh_snapshots()
 
     def init_ui(self):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(int(16 * sf), int(16 * sf), int(16 * sf), int(16 * sf))
+        layout.setSpacing(int(12 * sf))
 
         # 頂部說明列
         top_layout = QHBoxLayout()
         lbl_hint = QLabel("📚 專案版本歷史快照：")
-        lbl_hint.setFont(FontManager.get_font(size=11, weight=QFont.Weight.Bold))
+        lbl_hint.setFont(FontManager.get_font(size=int(11 * sf), weight=QFont.Weight.Bold))
         top_layout.addWidget(lbl_hint)
 
         top_layout.addStretch()
 
         self.btn_create = QPushButton("📸 建立當前快照...")
-        self.btn_create.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.btn_create.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.btn_create.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_create.setStyleSheet("""
             QPushButton {
@@ -61,6 +63,8 @@ class SnapshotDialog(QDialog):
 
         # 快照表格
         self.table = QTableWidget()
+        self.table.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.table.horizontalHeader().setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["建立時間", "快照名稱", "字數", "備註說明"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -108,10 +112,10 @@ class SnapshotDialog(QDialog):
 
         # 操作按鈕列
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(8)
+        btn_layout.setSpacing(int(8 * sf))
 
         self.btn_restore = QPushButton("🔄 還原至選取快照")
-        self.btn_restore.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.btn_restore.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.btn_restore.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_restore.setStyleSheet("""
             QPushButton {
@@ -129,7 +133,7 @@ class SnapshotDialog(QDialog):
         btn_layout.addWidget(self.btn_restore)
 
         self.btn_delete = QPushButton("🗑️ 刪除快照")
-        self.btn_delete.setFont(FontManager.get_font(size=9))
+        self.btn_delete.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_delete.setStyleSheet("""
             QPushButton {
@@ -148,7 +152,7 @@ class SnapshotDialog(QDialog):
         btn_layout.addStretch()
 
         self.btn_close = QPushButton("關閉")
-        self.btn_close.setFont(FontManager.get_font(size=9))
+        self.btn_close.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_close.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_close)

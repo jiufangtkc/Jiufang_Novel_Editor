@@ -12,7 +12,8 @@ class AIPreviewDialog(QDialog):
     def __init__(self, parent=None, result_data=None):
         super().__init__(parent)
         self.setWindowTitle("AI 分析結果審核與卡片建立")
-        self.resize(650, 600)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
+        self.resize(int(650 * self.scale_factor), int(600 * self.scale_factor))
         self.setModal(True)
         if parent:
             self.setStyleSheet(parent.styleSheet())
@@ -22,54 +23,68 @@ class AIPreviewDialog(QDialog):
         self._load_data()
 
     def _init_ui(self):
+        sf = self.scale_factor
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(int(15 * sf), int(15 * sf), int(15 * sf), int(15 * sf))
+        main_layout.setSpacing(int(10 * sf))
 
         # 頂部提示
         lbl_hint = QLabel("審核與編輯 AI 分析結果，確認無誤後可一鍵加入右側資料集：")
-        lbl_hint.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        lbl_hint.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         main_layout.addWidget(lbl_hint)
 
         form_layout = QFormLayout()
-        form_layout.setSpacing(8)
+        form_layout.setSpacing(int(8 * sf))
 
         # 標題
         self.input_title = QLineEdit()
-        form_layout.addRow("卡片標題:", self.input_title)
+        self.input_title.setFont(FontManager.get_font(size=int(9 * sf)))
+        lbl_card_title = QLabel("卡片標題:")
+        lbl_card_title.setFont(FontManager.get_font(size=int(9 * sf)))
+        form_layout.addRow(lbl_card_title, self.input_title)
 
         # 分類選擇
         self.combo_category = QComboBox()
+        self.combo_category.setFont(FontManager.get_font(size=int(9 * sf)))
         self.combo_category.addItem("本書綱要", "summary")
         self.combo_category.addItem("角色設定", "character")
         self.combo_category.addItem("世界觀", "world")
         self.combo_category.addItem("時間軸", "timeline")
-        form_layout.addRow("卡片分類:", self.combo_category)
+        lbl_card_cat = QLabel("卡片分類:")
+        lbl_card_cat.setFont(FontManager.get_font(size=int(9 * sf)))
+        form_layout.addRow(lbl_card_cat, self.combo_category)
 
         # 標籤
         self.input_tags = QLineEdit()
+        self.input_tags.setFont(FontManager.get_font(size=int(9 * sf)))
         self.input_tags.setPlaceholderText("請以逗號或空格分隔標籤")
-        form_layout.addRow("卡片標籤:", self.input_tags)
+        lbl_card_tags = QLabel("卡片標籤:")
+        lbl_card_tags.setFont(FontManager.get_font(size=int(9 * sf)))
+        form_layout.addRow(lbl_card_tags, self.input_tags)
 
         # 一句話簡述
         self.input_summary = QLineEdit()
-        form_layout.addRow("卡片簡述:", self.input_summary)
+        self.input_summary.setFont(FontManager.get_font(size=int(9 * sf)))
+        lbl_card_sum = QLabel("卡片簡述:")
+        lbl_card_sum.setFont(FontManager.get_font(size=int(9 * sf)))
+        form_layout.addRow(lbl_card_sum, self.input_summary)
 
         main_layout.addLayout(form_layout)
 
         # 內文編輯區
         lbl_content = QLabel("詳細分析內容:")
-        lbl_content.setFont(FontManager.get_font(size=9))
+        lbl_content.setFont(FontManager.get_font(size=int(9 * sf)))
         main_layout.addWidget(lbl_content)
 
         self.text_content = QTextEdit()
-        self.text_content.setFont(FontManager.get_font(size=10))
+        self.text_content.setFont(FontManager.get_font(size=int(10 * sf)))
         main_layout.addWidget(self.text_content, 1)
 
         # 底部按鈕列
         btn_layout = QHBoxLayout()
 
         self.btn_copy = QPushButton("📋 複製內容")
+        self.btn_copy.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_copy.clicked.connect(self._copy_to_clipboard)
         btn_layout.addWidget(self.btn_copy)
 
@@ -88,10 +103,12 @@ class AIPreviewDialog(QDialog):
                 background-color: #1177bb;
             }
         """)
+        self.btn_create_card.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.btn_create_card.clicked.connect(self.accept)
         btn_layout.addWidget(self.btn_create_card)
 
         self.btn_cancel = QPushButton("關閉")
+        self.btn_cancel.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(self.btn_cancel)
 

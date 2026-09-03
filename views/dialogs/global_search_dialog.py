@@ -17,7 +17,8 @@ class GlobalSearchDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("跨章節全文搜尋 (Ctrl+Shift+F)")
-        self.resize(750, 480)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
+        self.resize(int(750 * self.scale_factor), int(480 * self.scale_factor))
         self.init_ui()
 
     def init_ui(self):
@@ -105,9 +106,10 @@ class GlobalSearchDialog(QDialog):
         top_row = QHBoxLayout()
         top_row.setSpacing(6)
 
+        sf = self.scale_factor
         self.input_search = QLineEdit()
         self.input_search.setPlaceholderText("輸入要在全文/所有章節中搜尋的文字...")
-        self.input_search.setFont(FontManager.get_font(size=11))
+        self.input_search.setFont(FontManager.get_font(size=int(11 * sf)))
         self.input_search.returnPressed.connect(self._trigger_search)
 
         self.btn_match_case = QToolButton()
@@ -126,7 +128,7 @@ class GlobalSearchDialog(QDialog):
         self.btn_regex.setToolTip("正規表達式 (Regular Expression)")
 
         self.btn_search = QPushButton("搜尋全文")
-        self.btn_search.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        self.btn_search.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         self.btn_search.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_search.clicked.connect(self._trigger_search)
 
@@ -139,6 +141,8 @@ class GlobalSearchDialog(QDialog):
 
         # 結果表格
         self.results_table = QTableWidget(0, 3)
+        self.results_table.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.results_table.horizontalHeader().setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.results_table.setHorizontalHeaderLabels(["章節路徑", "行號", "相符內容預覽"])
         self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.results_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -146,16 +150,19 @@ class GlobalSearchDialog(QDialog):
         self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.results_table.setColumnWidth(0, 180)
+        self.results_table.setColumnWidth(0, int(180 * sf))
         self.results_table.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self.results_table, 1)
 
         # 底部狀態列與動作
         bottom_row = QHBoxLayout()
         self.lbl_status = QLabel("請輸入關鍵字並點擊「搜尋全文」")
+        self.lbl_status.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_jump = QPushButton("跳轉至目標 (Enter)")
+        self.btn_jump.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_jump.clicked.connect(self._jump_to_selected)
         self.btn_close = QPushButton("關閉 (Esc)")
+        self.btn_close.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_close.clicked.connect(self.reject)
 
         bottom_row.addWidget(self.lbl_status, 1)

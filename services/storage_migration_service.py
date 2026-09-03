@@ -9,21 +9,23 @@ class StorageMigrationService:
     """負責管理專案存檔路徑的目錄初始化、權限校驗與歷史稿件/暫存檔遷移。"""
 
     @classmethod
-    def ensure_storage_directories(cls, storage_path: str) -> Tuple[str, str]:
-        """在指定儲存路徑下建立 Story 與 Temp_doc 資料夾。
+    def ensure_storage_directories(cls, storage_path: str) -> Tuple[str, str, str]:
+        """在指定儲存路徑下建立 Story、Temp_doc 與 Export 資料夾。
         
-        回傳 (story_dir, temp_dir) 路徑元組。
+        回傳 (story_dir, temp_dir, export_dir) 路徑元組。
         """
         if not os.path.exists(storage_path):
             os.makedirs(storage_path, exist_ok=True)
 
         story_dir = os.path.join(storage_path, "Story")
         temp_dir = os.path.join(storage_path, "Temp_doc")
+        export_dir = os.path.join(storage_path, "Export")
 
         os.makedirs(story_dir, exist_ok=True)
         os.makedirs(temp_dir, exist_ok=True)
+        os.makedirs(export_dir, exist_ok=True)
 
-        return story_dir, temp_dir
+        return story_dir, temp_dir, export_dir
 
     @classmethod
     def is_valid_writable_dir(cls, dir_path: str) -> bool:
@@ -44,13 +46,14 @@ class StorageMigrationService:
 
     @classmethod
     def migrate_storage_data(cls, old_storage_path: str, new_storage_path: str) -> Dict[str, Any]:
-        """將舊存檔路徑下的 Story 與 Temp_doc 檔案安全遷移（複製）至新存檔路徑。
+        """將舊存檔路徑下的 Story、Temp_doc 與 Export 檔案安全遷移（複製）至新存檔路徑。
         
         回傳包含遷移統計與錯誤清單的 dict。
         """
         result = {
             "story_files_copied": 0,
             "temp_files_copied": 0,
+            "export_files_copied": 0,
             "errors": []
         }
 
@@ -65,7 +68,7 @@ class StorageMigrationService:
             return result
 
         # 確保新目錄存在
-        new_story_dir, new_temp_dir = cls.ensure_storage_directories(new_abs)
+        new_story_dir, new_temp_dir, new_export_dir = cls.ensure_storage_directories(new_abs)
 
         # 1. 遷移 Story 目錄（檢查 Story 與小寫 story）
         old_story_candidates = [
@@ -84,6 +87,29 @@ class StorageMigrationService:
             count, errs = cls._copy_directory_tree(old_temp, new_temp_dir)
             result["temp_files_copied"] += count
             result["errors"].extend(errs)
+
+        # 3. 遷移 Export 目錄（檢查 Export 與小寫 export）
+        old_export_candidates = [
+            os.path.join(old_abs, "Export"),
+            os.path.join(old_abs, "export")
+        ]
+        export_found = False
+        for old_export in old_export_candidates:
+            if os.path.exists(old_export) and os.path.isdir(old_export):
+                export_found = True
+                count, errs = cls._copy_directory_tree(old_export, new_export_dir)
+                result["export_files_copied"] += count
+                result["errors"].extend(errs)
+
+        # 容錯機制：若舊路徑下無 Export 目錄，檢查系統預設 AppData 目錄是否存在 Export
+        if not export_found:
+            default_storage = AppSettingsService.get_default_storage_path()
+            if os.path.abspath(default_storage).lower() != new_abs.lower():
+                default_export = os.path.join(default_storage, "Export")
+                if os.path.exists(default_export) and os.path.isdir(default_export):
+                    count, errs = cls._copy_directory_tree(default_export, new_export_dir)
+                    result["export_files_copied"] += count
+                    result["errors"].extend(errs)
 
         return result
 

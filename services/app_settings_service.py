@@ -73,6 +73,18 @@ class AppSettingsService:
         """取得指定儲存目錄下的 Temp_doc 暫存資料夾路徑。"""
         return os.path.join(storage_path, "Temp_doc")
 
+    @classmethod
+    def get_export_dir(cls, storage_path: str) -> str:
+        """取得指定儲存目錄下的 Export 匯出資料夾路徑（相容舊有小寫 export 目錄）。"""
+        if os.path.exists(storage_path) and os.path.isdir(storage_path):
+            try:
+                entries = os.listdir(storage_path)
+                if "export" in entries and "Export" not in entries:
+                    return os.path.join(storage_path, "export")
+            except Exception:
+                pass
+        return os.path.join(storage_path, "Export")
+
     @staticmethod
     def get_settings_file_path(app_dir: Optional[str] = None) -> str:
         if not app_dir:

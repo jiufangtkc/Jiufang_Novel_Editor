@@ -462,3 +462,7 @@ class MainController:
         """取得當前生效之 Temp_doc 暫存檔目錄路徑。"""
         return AppSettingsService.get_temp_dir(self.get_storage_path())
 
+    def get_export_dir(self) -> str:
+        """取得當前生效之 Export 匯出目錄路徑。"""
+        return AppSettingsService.get_export_dir(self.get_storage_path())
+

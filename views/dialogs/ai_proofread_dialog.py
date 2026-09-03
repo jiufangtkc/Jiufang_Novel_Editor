@@ -22,27 +22,33 @@ class AIProofreadDialog(QDialog):
         super().__init__(parent)
         self.target_text = target_text
         self.setWindowTitle("🔎 AI 校稿列表")
-        self.resize(850, 650)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
+        self.resize(int(850 * self.scale_factor), int(650 * self.scale_factor))
         # 設定為非強制性視窗，讓使用者可以點擊並同時在編輯器操作
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint)
         self.setup_ui()
 
     def setup_ui(self):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(int(10 * sf))
+        layout.setContentsMargins(int(16 * sf), int(16 * sf), int(16 * sf), int(16 * sf))
         
         # --- 設定區塊 ---
         setting_group = QVBoxLayout()
         lbl_info = QLabel("請選擇您希望 AI 校稿執行的檢查項目：")
-        lbl_info.setStyleSheet("font-weight: bold; font-size: 14px;")
+        from utils.font_manager import FontManager
+        lbl_info.setFont(FontManager.get_font(size=int(11 * sf), weight=QFont.Weight.Bold))
         setting_group.addWidget(lbl_info)
         
         self.cb_typo = QCheckBox("尋找錯字、漏字與別字")
+        self.cb_typo.setFont(FontManager.get_font(size=int(9 * sf)))
         self.cb_typo.setChecked(True)
         self.cb_usage = QCheckBox("檢查錯誤用典與用詞")
+        self.cb_usage.setFont(FontManager.get_font(size=int(9 * sf)))
         self.cb_usage.setChecked(True)
         self.cb_suggestion = QCheckBox("段落改寫建議")
+        self.cb_suggestion.setFont(FontManager.get_font(size=int(9 * sf)))
         self.cb_suggestion.setChecked(True)
         
         setting_group.addWidget(self.cb_typo)
@@ -52,7 +58,9 @@ class AIProofreadDialog(QDialog):
         # 範圍選擇
         scope_layout = QHBoxLayout()
         lbl_scope = QLabel("掃描範圍：")
+        lbl_scope.setFont(FontManager.get_font(size=int(9 * sf)))
         self.combo_scope = QComboBox()
+        self.combo_scope.setFont(FontManager.get_font(size=int(9 * sf)))
         self.combo_scope.addItems(["目前章節", "目前選取文字", "全書全文"])
         if self.target_text and len(self.target_text) > 0 and self.target_text != "【請先開啟一個章節進行寫作】":
              # 簡單判斷是否有選取
@@ -70,7 +78,8 @@ class AIProofreadDialog(QDialog):
         btn_layout = QHBoxLayout()
         self.btn_start = QPushButton("開始校稿")
         self.btn_start.setObjectName("btn_start")
-        self.btn_start.setMinimumHeight(32)
+        self.btn_start.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
+        self.btn_start.setMinimumHeight(int(32 * sf))
         self.btn_start.clicked.connect(self.on_start_clicked)
         
         btn_layout.addStretch()
@@ -80,6 +89,7 @@ class AIProofreadDialog(QDialog):
         
         # --- 結果顯示區塊 (TabWidget) ---
         self.tabs = QTabWidget()
+        self.tabs.setFont(FontManager.get_font(size=int(9 * sf)))
         
         self.tab_typo = QWidget()
         self.tab_usage = QWidget()
@@ -100,6 +110,10 @@ class AIProofreadDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 0)
         
         table = QTableWidget(0, 6)
+        sf = self.scale_factor
+        from utils.font_manager import FontManager
+        table.setFont(FontManager.get_font(size=int(9 * sf)))
+        table.horizontalHeader().setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         table.setHorizontalHeaderLabels(["狀態", "章節", "原文", "建議", "理由", "操作"])
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)

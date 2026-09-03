@@ -128,7 +128,6 @@ class MenuBuilder:
         window.settings_menu.addAction(window.action_autosave_settings)
         window.settings_menu.addAction(window.action_storage_path_settings)
         window.settings_menu.addAction(window.action_word_count_settings)
-        window.settings_menu.addAction(window.action_ai_settings)
         window.settings_menu.addSeparator()
         
         window.theme_menu = window.settings_menu.addMenu("主題切換(&T)")

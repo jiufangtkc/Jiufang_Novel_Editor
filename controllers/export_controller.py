@@ -46,7 +46,7 @@ class ExportController:
         merge_mode = dialog.is_merge_mode()
 
         # 準備預設目錄
-        default_dir = os.path.join(self.mc.app_dir, "Export")
+        default_dir = self.mc.get_export_dir()
         os.makedirs(default_dir, exist_ok=True)
         now_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 

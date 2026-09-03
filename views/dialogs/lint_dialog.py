@@ -21,8 +21,9 @@ class LintDialog(QDialog):
     def __init__(self, parent=None, get_text_func=None):
         super().__init__(parent)
         self.setWindowTitle("文風與贅詞檢查")
-        self.resize(780, 520)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(780 * self.scale_factor), int(520 * self.scale_factor))
         self.get_text_func = get_text_func
         self.settings = LintService.load_settings()
         self.current_issues: List[LintIssue] = []
@@ -32,13 +33,14 @@ class LintDialog(QDialog):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
+        sf = self.scale_factor
+        layout.setContentsMargins(int(15 * sf), int(15 * sf), int(15 * sf), int(15 * sf))
+        layout.setSpacing(int(10 * sf))
 
         # 頂部：總開關與說明
         top_bar = QHBoxLayout()
         self.chk_master = QCheckBox("啟用文風與贅詞檢查引擎")
-        self.chk_master.setFont(FontManager.get_font(size=11, weight=QFont.Weight.Bold))
+        self.chk_master.setFont(FontManager.get_font(size=int(11 * sf), weight=QFont.Weight.Bold))
         self.chk_master.setChecked(self.settings.get("enabled", True))
         self.chk_master.toggled.connect(self.on_master_toggle)
         top_bar.addWidget(self.chk_master)
@@ -46,12 +48,12 @@ class LintDialog(QDialog):
         top_bar.addStretch()
 
         self.btn_manage_whitelist = QPushButton("📚 詞彙庫與白名單管理...")
-        self.btn_manage_whitelist.setFont(FontManager.get_font(size=9))
+        self.btn_manage_whitelist.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_manage_whitelist.clicked.connect(self.open_whitelist_manager)
         top_bar.addWidget(self.btn_manage_whitelist)
 
         self.btn_rescan = QPushButton("🔄 重新掃描")
-        self.btn_rescan.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.btn_rescan.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.btn_rescan.clicked.connect(self.rescan)
         top_bar.addWidget(self.btn_rescan)
 
@@ -59,22 +61,26 @@ class LintDialog(QDialog):
 
         # 次頂部：細項規則開關
         rules_bar = QHBoxLayout()
-        rules_bar.setSpacing(15)
+        rules_bar.setSpacing(int(15 * sf))
 
         rules = self.settings.get("rules", {})
         self.chk_redundant = QCheckBox("公文與冗贅片語")
+        self.chk_redundant.setFont(FontManager.get_font(size=int(9 * sf)))
         self.chk_redundant.setChecked(rules.get("redundant_phrase", True))
         self.chk_redundant.toggled.connect(self.on_rule_toggle)
 
         self.chk_particle = QCheckBox("虛詞過密偵測")
+        self.chk_particle.setFont(FontManager.get_font(size=int(9 * sf)))
         self.chk_particle.setChecked(rules.get("high_density_particle", True))
         self.chk_particle.toggled.connect(self.on_rule_toggle)
 
         self.chk_passive = QCheckBox("被動語態弱句")
+        self.chk_passive.setFont(FontManager.get_font(size=int(9 * sf)))
         self.chk_passive.setChecked(rules.get("passive_voice", True))
         self.chk_passive.toggled.connect(self.on_rule_toggle)
 
         self.chk_dup = QCheckBox("相鄰重複用詞")
+        self.chk_dup.setFont(FontManager.get_font(size=int(9 * sf)))
         self.chk_dup.setChecked(rules.get("duplicate_words", True))
         self.chk_dup.toggled.connect(self.on_rule_toggle)
 
@@ -89,14 +95,14 @@ class LintDialog(QDialog):
         # 篩選列與統計
         filter_bar = QHBoxLayout()
         lbl_filter = QLabel("篩選分類：")
-        lbl_filter.setFont(FontManager.get_font(size=9))
+        lbl_filter.setFont(FontManager.get_font(size=int(9 * sf)))
         self.combo_filter = QComboBox()
-        self.combo_filter.setFont(FontManager.get_font(size=9))
+        self.combo_filter.setFont(FontManager.get_font(size=int(9 * sf)))
         self.combo_filter.addItems(["全部分類", "公文/冗贅片語", "虛詞過密", "被動語態", "相鄰重複用詞"])
         self.combo_filter.currentIndexChanged.connect(self.apply_filter)
 
         self.lbl_stats = QLabel("掃描完成：共發現 0 處修飾建議")
-        self.lbl_stats.setFont(FontManager.get_font(size=9))
+        self.lbl_stats.setFont(FontManager.get_font(size=int(9 * sf)))
         self.lbl_stats.setStyleSheet("color: #a0aec0;")
 
         filter_bar.addWidget(lbl_filter)
@@ -108,7 +114,8 @@ class LintDialog(QDialog):
 
         # 問題列表 Table
         self.table = QTableWidget()
-        self.table.setFont(FontManager.get_font(size=9))
+        self.table.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.table.horizontalHeader().setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["行號", "分類", "標記文字 / 片段", "說明與修改建議"])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -129,13 +136,13 @@ class LintDialog(QDialog):
         # 底部列
         bottom_bar = QHBoxLayout()
         tip_lbl = QLabel("※ 點擊列表項目可立即在主編輯器中選取並定位該文字。")
-        tip_lbl.setFont(FontManager.get_font(size=9))
+        tip_lbl.setFont(FontManager.get_font(size=int(9 * sf)))
         tip_lbl.setStyleSheet("color: #a0aec0;")
         bottom_bar.addWidget(tip_lbl)
         bottom_bar.addStretch()
 
         btn_close = QPushButton("關閉")
-        btn_close.setFont(FontManager.get_font(size=9))
+        btn_close.setFont(FontManager.get_font(size=int(9 * sf)))
         btn_close.clicked.connect(self.accept)
         bottom_bar.addWidget(btn_close)
 

@@ -53,6 +53,21 @@ class MetricCard(QFrame):
         self.lbl_val.setText(value)
         self.lbl_sub.setText(sub_text)
 
+    def update_scale(self, scale: float):
+        self.lbl_title.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.lbl_val.setFont(FontManager.get_font(size=int(14 * scale), weight=QFont.Weight.Bold))
+        self.lbl_sub.setFont(FontManager.get_font(size=int(8 * scale)))
+        pad = int(10 * scale)
+        rad = int(6 * scale)
+        self.setStyleSheet(f"""
+            MetricCard {{
+                background-color: #252526;
+                border: 1px solid #333333;
+                border-radius: {rad}px;
+                padding: {pad}px;
+            }}
+        """)
+
 
 class WritingLogDashboard(QWidget):
     """創作日誌與數據儀表板，支援指標卡片、圖表多視圖切換與 AI 介入度分析。"""
@@ -60,8 +75,11 @@ class WritingLogDashboard(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
+        self.scale_factor = getattr(main_window, "scale_factor", 1.0) if main_window else 1.0
         self.logs = []
         self.init_ui()
+        if self.scale_factor != 1.0:
+            self.update_scale(self.scale_factor)
 
     def minimumSizeHint(self):
         return QSize(300, 300)
@@ -115,9 +133,9 @@ class WritingLogDashboard(QWidget):
         mode_layout = QHBoxLayout()
         mode_layout.setSpacing(8)
 
-        lbl_chart_mode = QLabel("圖表視圖：")
-        lbl_chart_mode.setFont(FontManager.get_font(size=9))
-        mode_layout.addWidget(lbl_chart_mode)
+        self.lbl_chart_mode = QLabel("圖表視圖：")
+        self.lbl_chart_mode.setFont(FontManager.get_font(size=9))
+        mode_layout.addWidget(self.lbl_chart_mode)
 
         self.btn_mode_trend = QPushButton("📈 近期趨勢")
         self.btn_mode_heatmap = QPushButton("📅 打卡熱力圖")
@@ -336,3 +354,31 @@ class WritingLogDashboard(QWidget):
 
     def close_dashboard(self):
         self.main_window.center_stack.setCurrentIndex(0)
+
+    def update_scale(self, scale: float):
+        """依據縮放比例更新儀表板字型、卡片大小與圖表/表格尺寸。"""
+        self.scale_factor = scale
+        self.lbl_title.setFont(FontManager.get_font(size=int(16 * scale), weight=QFont.Weight.Bold))
+        self.btn_share.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.btn_export.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.btn_close.setFont(FontManager.get_font(size=int(9 * scale)))
+
+        self.card_duration.update_scale(scale)
+        self.card_total_words.update_scale(scale)
+        self.card_avg_words.update_scale(scale)
+        self.card_ai_ratio.update_scale(scale)
+
+        if hasattr(self, "lbl_chart_mode"):
+            self.lbl_chart_mode.setFont(FontManager.get_font(size=int(9 * scale)))
+        for btn in (self.btn_mode_trend, self.btn_mode_heatmap, self.btn_mode_chapters, self.btn_mode_ai):
+            btn.setFont(FontManager.get_font(size=int(9 * scale)))
+
+        if hasattr(self, "chart_view"):
+            self.chart_view.set_scale(scale)
+            self.chart_view.setMinimumHeight(int(180 * scale))
+
+        if hasattr(self, "table"):
+            self.table.setFont(FontManager.get_font(size=int(9 * scale)))
+            self.table.horizontalHeader().setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
+            self.table.setFixedHeight(int(180 * scale))
+

@@ -49,8 +49,9 @@ class AIChatDialog(QDialog):
         self.last_assistant_reply = ""
 
         self.setWindowTitle("✨ AI 對話助手")
-        self.resize(720, 680)
-        self.setMinimumSize(540, 480)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
+        self.resize(int(720 * self.scale_factor), int(680 * self.scale_factor))
+        self.setMinimumSize(int(540 * self.scale_factor), int(480 * self.scale_factor))
         if parent:
             self.setStyleSheet(parent.styleSheet())
 
@@ -62,17 +63,19 @@ class AIChatDialog(QDialog):
         QShortcut(QKeySequence("Ctrl+Enter"), self, self._on_send_clicked)
 
     def _init_ui(self):
+        sf = self.scale_factor
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(10)
-        main_layout.setContentsMargins(12, 12, 12, 12)
+        main_layout.setSpacing(int(10 * sf))
+        main_layout.setContentsMargins(int(12 * sf), int(12 * sf), int(12 * sf), int(12 * sf))
 
         # 頂部狀態列
         top_bar = QHBoxLayout()
         self.lbl_provider_info = QLabel("✨ AI 對話助手")
-        self.lbl_provider_info.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        self.lbl_provider_info.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         top_bar.addWidget(self.lbl_provider_info, 1)
 
         self.btn_clear = QPushButton("🗑️ 清空對話")
+        self.btn_clear.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_clear.clicked.connect(self._clear_chat)
         top_bar.addWidget(self.btn_clear)
 
@@ -88,11 +91,12 @@ class AIChatDialog(QDialog):
 
             self.chk_include_context = QCheckBox("📌 附帶引用上下文（選取的文本）")
             self.chk_include_context.setChecked(True)
-            self.chk_include_context.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+            self.chk_include_context.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
             ctx_layout.addWidget(self.chk_include_context)
 
             self.lbl_context_preview = QLabel(self.initial_context[:200] + ("..." if len(self.initial_context) > 200 else ""))
-            self.lbl_context_preview.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+            self.lbl_context_preview.setFont(FontManager.get_font(size=int(9 * sf)))
+            self.lbl_context_preview.setStyleSheet("color: #aaaaaa;")
             self.lbl_context_preview.setWordWrap(True)
             ctx_layout.addWidget(self.lbl_context_preview)
 
@@ -103,7 +107,7 @@ class AIChatDialog(QDialog):
         # 對話紀錄顯示區 (HTML/Markdown 呈現)
         self.chat_history_edit = QTextEdit()
         self.chat_history_edit.setReadOnly(True)
-        self.chat_history_edit.setFont(FontManager.get_font(size=10))
+        self.chat_history_edit.setFont(FontManager.get_font(size=int(10 * sf)))
         self.chat_history_edit.setStyleSheet("background-color: rgba(0, 0, 0, 0.2); border: 1px solid #444; border-radius: 6px; padding: 8px;")
         main_layout.addWidget(self.chat_history_edit, 1)
 
@@ -112,40 +116,45 @@ class AIChatDialog(QDialog):
 
         # 輸入區
         input_container = QVBoxLayout()
-        input_container.setSpacing(6)
+        input_container.setSpacing(int(6 * sf))
 
         self.input_edit = AIChatInputEdit()
-        self.input_edit.setFont(FontManager.get_font(size=10))
+        self.input_edit.setFont(FontManager.get_font(size=int(10 * sf)))
         self.input_edit.setPlaceholderText("輸入訊息或寫作問題... (按 Ctrl+Enter 發送)")
-        self.input_edit.setMaximumHeight(90)
+        self.input_edit.setMaximumHeight(int(90 * sf))
         self.input_edit.signal_send_requested.connect(self._on_send_clicked)
         input_container.addWidget(self.input_edit)
 
         # 按鈕列
         btn_layout = QHBoxLayout()
         self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet("color: #ffa500; font-size: 11px;")
+        self.lbl_status.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.lbl_status.setStyleSheet("color: #ffa500;")
         btn_layout.addWidget(self.lbl_status, 1)
 
         self.btn_insert = QPushButton("📝 插入編輯器")
+        self.btn_insert.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_insert.setToolTip("將最新回覆插入至當前章節編輯器")
         self.btn_insert.setEnabled(False)
         self.btn_insert.clicked.connect(self._insert_to_editor)
         btn_layout.addWidget(self.btn_insert)
 
         self.btn_save_card = QPushButton("🃏 存為卡片")
+        self.btn_save_card.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_save_card.setToolTip("將最新回覆新增為資料集卡片")
         self.btn_save_card.setEnabled(False)
         self.btn_save_card.clicked.connect(self._save_as_card)
         btn_layout.addWidget(self.btn_save_card)
 
         self.btn_copy = QPushButton("📋 複製回覆")
+        self.btn_copy.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_copy.setToolTip("複製最新 AI 回覆內容")
         self.btn_copy.setEnabled(False)
         self.btn_copy.clicked.connect(self._copy_last_reply)
         btn_layout.addWidget(self.btn_copy)
 
         self.btn_send = QPushButton("發送 (Ctrl+Enter)")
+        self.btn_send.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.btn_send.setDefault(True)
         self.btn_send.clicked.connect(self._on_send_clicked)
         btn_layout.addWidget(self.btn_send)

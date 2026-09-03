@@ -568,6 +568,9 @@ class ThemeManager:
             theme_name = dialog.parent().current_theme
         
         scale = getattr(parent, "scale_factor", 1.0) if parent else getattr(dialog, "scale_factor", 1.0)
+        dialog.scale_factor = scale
+        from utils.font_manager import FontManager
+        dialog.setFont(FontManager.get_font(size=int(9 * scale)))
         qss = ThemeManager.get_theme_qss(theme_name)
         scaled_qss = ThemeManager.scale_qss(qss, scale)
         dialog.setStyleSheet(scaled_qss)

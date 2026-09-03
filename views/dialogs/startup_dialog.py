@@ -22,7 +22,17 @@ class StartupDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("九方小說編輯器 — 歡迎")
-        self.setFixedSize(500, 470)
+        scale = 1.0
+        if parent and hasattr(parent, "scale_factor"):
+            scale = parent.scale_factor
+        else:
+            try:
+                from services.app_settings_service import AppSettingsService
+                scale = AppSettingsService.get_ui_scale()
+            except Exception:
+                scale = 1.0
+        self.scale_factor = scale
+        self.setFixedSize(int(500 * scale), int(470 * scale))
         self.setModal(True)
         self.setStyleSheet("""
             QDialog {
@@ -37,59 +47,63 @@ class StartupDialog(QDialog):
 
     def _create_card_button(self, icon_title: str, description: str) -> QPushButton:
         """輔助建立一致風格的選項卡片按鈕。"""
+        sf = self.scale_factor
         btn = QPushButton()
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedHeight(68)
-        btn.setStyleSheet("""
-            QPushButton {
+        btn.setFixedHeight(int(68 * sf))
+        btn.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #2b2b2b;
                 border: 1px solid #3c3f41;
-                border-radius: 8px;
+                border-radius: {int(8 * sf)}px;
                 text-align: left;
-                padding-left: 18px;
-            }
-            QPushButton:hover {
+                padding-left: {int(18 * sf)}px;
+            }}
+            QPushButton:hover {{
                 background-color: #35383a;
                 border: 1px solid #2b78e4;
-            }
-            QPushButton:pressed {
+            }}
+            QPushButton:pressed {{
                 background-color: #232526;
-            }
+            }}
         """)
         card_layout = QVBoxLayout(btn)
-        card_layout.setContentsMargins(12, 8, 12, 8)
-        card_layout.setSpacing(2)
+        card_layout.setContentsMargins(int(12 * sf), int(8 * sf), int(12 * sf), int(8 * sf))
+        card_layout.setSpacing(int(2 * sf))
 
         lbl_title = QLabel(icon_title)
-        lbl_title.setFont(FontManager.get_font(size=12, weight=QFont.Weight.Bold))
+        lbl_title.setFont(FontManager.get_font(size=int(12 * sf), weight=QFont.Weight.Bold))
         lbl_title.setStyleSheet("color: #ffffff;")
         
         lbl_desc = QLabel(description)
-        lbl_desc.setStyleSheet("color: #a0aec0; font-size: 11px;")
+        lbl_desc.setFont(FontManager.get_font(size=int(9 * sf)))
+        lbl_desc.setStyleSheet("color: #a0aec0;")
 
         card_layout.addWidget(lbl_title)
         card_layout.addWidget(lbl_desc)
         return btn
 
     def init_ui(self):
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 22, 24, 22)
-        layout.setSpacing(14)
+        layout.setContentsMargins(int(24 * sf), int(22 * sf), int(24 * sf), int(22 * sf))
+        layout.setSpacing(int(14 * sf))
 
         # 頂部歡迎標題
         header_layout = QVBoxLayout()
-        header_layout.setSpacing(4)
+        header_layout.setSpacing(int(4 * sf))
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         lbl_title = QLabel("九方小說編輯器")
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_title.setFont(FontManager.get_font(size=16, weight=QFont.Weight.Bold))
+        lbl_title.setFont(FontManager.get_font(size=int(16 * sf), weight=QFont.Weight.Bold))
         lbl_title.setStyleSheet("color: #ffffff; letter-spacing: 2px;")
         header_layout.addWidget(lbl_title)
 
         lbl_subtitle = QLabel("專為長篇小說創作者打造的沉浸式寫作工具")
         lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_subtitle.setStyleSheet("color: #999999; font-size: 12px;")
+        lbl_subtitle.setFont(FontManager.get_font(size=int(10 * sf)))
+        lbl_subtitle.setStyleSheet("color: #999999;")
         header_layout.addWidget(lbl_subtitle)
 
         layout.addLayout(header_layout)

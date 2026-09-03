@@ -30,6 +30,11 @@ class WritingChartView(QWidget):
         # 主題色彩
         self.theme_color = QColor("#69f0ae")
         self.glow_color = QColor("#00e676")
+        self.scale_factor = 1.0
+
+    def set_scale(self, scale: float):
+        self.scale_factor = scale
+        self.update()
 
     def set_mode(self, mode: str):
         self.mode = mode
@@ -82,10 +87,10 @@ class WritingChartView(QWidget):
         w = self.width()
         h = self.height()
 
-        left_pad = 60
-        right_pad = 30
-        top_pad = 30
-        bottom_pad = 40
+        left_pad = int(60 * self.scale_factor)
+        right_pad = int(30 * self.scale_factor)
+        top_pad = int(30 * self.scale_factor)
+        bottom_pad = int(40 * self.scale_factor)
 
         graph_w = w - left_pad - right_pad
         graph_h = h - top_pad - bottom_pad
@@ -102,7 +107,7 @@ class WritingChartView(QWidget):
 
         if not self.values or len(self.values) == 0:
             painter.setPen(text_pen)
-            painter.setFont(FontManager.get_font(size=10))
+            painter.setFont(FontManager.get_font(size=int(10 * self.scale_factor)))
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "尚無寫作字數數據")
             return
 
@@ -113,7 +118,7 @@ class WritingChartView(QWidget):
             max_val = int(max_val * 1.2)
 
         # Y 軸刻度與格線
-        painter.setFont(FontManager.get_font(size=8))
+        painter.setFont(FontManager.get_font(size=int(8 * self.scale_factor)))
         for i in range(5):
             val = int(max_val * i / 4)
             y = top_pad + graph_h - int(i * graph_h / 4)
@@ -186,12 +191,12 @@ class WritingChartView(QWidget):
         h = self.height()
         self.heatmap_rects.clear()
 
-        painter.setFont(FontManager.get_font(size=9))
+        painter.setFont(FontManager.get_font(size=int(9 * self.scale_factor)))
         text_pen = QPen(QColor(170, 170, 170))
 
         # 標題
         painter.setPen(text_pen)
-        painter.drawText(20, 20, 300, 20, Qt.AlignmentFlag.AlignLeft, "📅 寫作打卡熱力圖（近 24 週）")
+        painter.drawText(int(20 * self.scale_factor), int(20 * self.scale_factor), int(300 * self.scale_factor), int(20 * self.scale_factor), Qt.AlignmentFlag.AlignLeft, "📅 寫作打卡熱力圖（近 24 週）")
 
         # 建立日期與字數查找表
         date_map = {d: v for d, v in zip(self.dates, self.values)}
@@ -214,7 +219,7 @@ class WritingChartView(QWidget):
 
         # 繪製星期標籤 (Mon, Wed, Fri)
         day_labels = ["一", "二", "三", "四", "五", "六", "日"]
-        painter.setFont(FontManager.get_font(size=8))
+        painter.setFont(FontManager.get_font(size=int(8 * self.scale_factor)))
         for day_idx in [0, 2, 4]:
             painter.setPen(text_pen)
             painter.drawText(10, start_y + day_idx * (box_size + spacing) + box_size - 2, 30, 16, Qt.AlignmentFlag.AlignRight, day_labels[day_idx])

@@ -76,6 +76,17 @@ class TestExportFormats(unittest.TestCase):
         self.assertTrue(os.path.exists(epub_path))
         self.assertTrue(os.path.getsize(epub_path) > 500)
 
+    def test_export_default_dir_follows_storage_path(self):
+        """測試匯出預設目錄正確跟隨 mc.get_export_dir()。"""
+        export_dir = self.mc.get_export_dir()
+        self.assertTrue(os.path.exists(export_dir))
+        self.assertEqual(os.path.basename(export_dir), "Export")
+        # 測試變更自訂存檔路徑後，匯出目錄連動改變
+        custom_storage = os.path.join(self.temp_dir.name, "CustomStoryRoot")
+        self.mc.app_settings["storage_path"] = custom_storage
+        new_export_dir = self.mc.get_export_dir()
+        self.assertEqual(new_export_dir, os.path.join(custom_storage, "Export"))
+
 
 if __name__ == "__main__":
     unittest.main()

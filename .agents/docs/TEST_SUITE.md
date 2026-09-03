@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
 > **最後更新**：2026-09-03  
-> **測試總數**：154 項自動化測試（26 個測試模組）  
+> **測試總數**：156 項自動化測試（26 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,7 +11,7 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 154 項測試
+# 執行全部 156 項測試
 C:\Python314\python.exe -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
@@ -36,7 +36,7 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 | **4. 資料庫、備份與路徑移轉** | `test_database.py`<br>`test_daily_progress_sync.py`<br>`test_backup.py`<br>`test_snapshot.py`<br>`test_tree_expansion_persistence.py`<br>`test_storage_path.py` | 25 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移與安全驗證 |
 | **5. 自動存檔與崩潰恢復** | `test_autosave_and_startup.py` | 9 | 啟動導引視窗（新建/開啟/最新）、異常退出崩潰自動恢復（Crash Recovery）、暫存檔配額清理與自動存檔週期 |
 | **6. 審校、統計與寫作日誌** | `test_phase12.py`<br>`test_stats_settings.py` | 17 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、全書字數目標進度條 |
-| **7. 視窗設定、大綱與匯出** | `test_window_settings.py`<br>`test_focus_and_outline.py`<br>`test_markdown_converter.py`<br>`test_export.py`<br>`test_search.py` | 29 | 初次啟動縮放導引、1:2:2 版面記憶、沉浸全螢幕專注模式、大綱即時檢索、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT) |
+| **7. 視窗設定、大綱與匯出** | `test_window_settings.py`<br>`test_focus_and_outline.py`<br>`test_markdown_converter.py`<br>`test_export.py`<br>`test_search.py` | 31 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT) |
 | **8. 主題樣式與對話框色彩** | `test_theme_dialogs.py` | 10 | 全 6 種主題之彈出視窗高對比度 Token、按鈕/核取/單選指示器渲染、所有對話框主題色彩套用相容 |
 
 ---
@@ -220,14 +220,15 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 
 ---
 
-### 3.7 視窗設定、大綱檢視、搜尋與匯出（28 項）
+### 3.7 視窗設定、大綱檢視、搜尋與匯出（31 項）
 
-#### `test_window_settings.py` (9 項)
+#### `test_window_settings.py` (10 項)
 - `test_app_settings_service_load_save`：測試 AppSettingsService 設定讀取與儲存。
 - `test_apply_and_extract_settings`：測試 MainWindow 與 AppSettingsService 之間視窗幾何尺寸的套用與提取。
 - `test_close_event_persists_settings`：測試視窗關閉事件觸發介面狀態持久化。
 - `test_default_layout_ratios`：測試預設三欄比例為 1:2:2（左側 20%、編輯 40%、右側 40%）。
 - `test_first_launch_initial_scale_dialog`：測試首次乾淨啟動彈出縮放設定視窗並正確儲存。
+- `test_menu_structure_ai_settings_exclusive_to_ai_menu`：測試選單結構防護，驗證「AI 助手設定」專屬於「AI 助手」選單，且絕對不重複出現在「設定」選單中。
 - `test_reset_project_state_preserves_scale`：測試開啟新專案時不將縮放比例重設為 1.0。
 - `test_subsequent_launch_preserves_scale_without_dialog`：測試非首次啟動時直接套用已存比例且不彈出導引視窗。
 - `test_theme_set_ui_scale_persists_settings`：測試 ThemeController.set_ui_scale 即時寫入 app_settings.json。
@@ -248,11 +249,12 @@ C:\Python314\python.exe -m pytest tests/ -k "test_scene"
 - `test_render_to_docx`：測試排版渲染為 Word (.docx) 段落結構。
 - `test_markdown_to_html_empty_line_style`：測試富文本編輯器空行使用 `-qt-paragraph-type:empty` 樣式消除雙倍行高並確保 round-trip 無損還原。
 
-#### `test_export.py` (4 項)
+#### `test_export.py` (5 項)
 - `test_export_docx`：測試匯出為 Word (.docx) 文件。
 - `test_export_epub`：測試匯出為標準 EPUB 電子書。
 - `test_export_md`：測試匯出為 Markdown (.md) 文件。
 - `test_export_txt`：測試匯出為純文字檔 (.txt)。
+- `test_export_default_dir_follows_storage_path`：測試匯出預設目錄正確跟隨 `mc.get_export_dir()` 與自訂存檔路徑連動。
 
 #### `test_search.py` (5 項)
 - `test_find_in_editor_and_navigation`：測試編輯器內關鍵字搜尋與上一個/下一個導航。

@@ -31,8 +31,9 @@ class NewBookDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("開啟新書")
         self.setModal(True)
-        self.resize(400, 150)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(400 * self.scale_factor), int(150 * self.scale_factor))
 
         layout = QFormLayout(self)
         self.title_input = QLineEdit()

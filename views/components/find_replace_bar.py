@@ -36,6 +36,7 @@ class FindReplaceBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.is_replace_mode = False
         self.init_ui()
 
@@ -91,13 +92,14 @@ class FindReplaceBar(QWidget):
 
         # 1. 尋找列
         find_row = QWidget()
+        sf = self.scale_factor
         find_layout = QHBoxLayout(find_row)
         find_layout.setContentsMargins(0, 0, 0, 0)
-        find_layout.setSpacing(6)
+        find_layout.setSpacing(int(6 * sf))
 
         self.input_find = CustomLineEdit()
         self.input_find.setPlaceholderText("尋找...")
-        self.input_find.setFont(FontManager.get_font(size=10))
+        self.input_find.setFont(FontManager.get_font(size=int(10 * sf)))
         self.input_find.textChanged.connect(self.signal_text_changed.emit)
         self.input_find.signal_return_pressed.connect(self._on_find_return_pressed)
         self.input_find.signal_escape_pressed.connect(self.close_bar)
@@ -105,39 +107,46 @@ class FindReplaceBar(QWidget):
         # 比對選項按鈕
         self.btn_match_case = QToolButton()
         self.btn_match_case.setText("Aa")
+        self.btn_match_case.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_match_case.setCheckable(True)
         self.btn_match_case.setToolTip("區分大小寫 (Match Case)")
         self.btn_match_case.toggled.connect(self._on_option_toggled)
 
         self.btn_whole_word = QToolButton()
         self.btn_whole_word.setText("\\b")
+        self.btn_whole_word.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_whole_word.setCheckable(True)
         self.btn_whole_word.setToolTip("全字相符 (Whole Word)")
         self.btn_whole_word.toggled.connect(self._on_option_toggled)
 
         self.btn_regex = QToolButton()
         self.btn_regex.setText(".*")
+        self.btn_regex.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_regex.setCheckable(True)
         self.btn_regex.setToolTip("正規表達式 (Regular Expression)")
         self.btn_regex.toggled.connect(self._on_option_toggled)
 
         # 結果計數
         self.lbl_match_count = QLabel("")
-        self.lbl_match_count.setFixedWidth(70)
+        self.lbl_match_count.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.lbl_match_count.setFixedWidth(int(70 * sf))
         self.lbl_match_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # 導航按鈕
         self.btn_prev = QPushButton("▲ 上一個")
+        self.btn_prev.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_prev.setToolTip("找上一個 (Shift+F3)")
         self.btn_prev.clicked.connect(self.signal_find_prev.emit)
 
         self.btn_next = QPushButton("▼ 下一個")
+        self.btn_next.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_next.setToolTip("找下一個 (F3)")
         self.btn_next.clicked.connect(self.signal_find_next.emit)
 
         # 關閉按鈕
         self.btn_close = QPushButton("✕")
-        self.btn_close.setFixedWidth(24)
+        self.btn_close.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_close.setFixedWidth(int(24 * sf))
         self.btn_close.setToolTip("關閉 (Esc)")
         self.btn_close.clicked.connect(self.close_bar)
 
@@ -155,19 +164,21 @@ class FindReplaceBar(QWidget):
         self.replace_row = QWidget()
         replace_layout = QHBoxLayout(self.replace_row)
         replace_layout.setContentsMargins(0, 0, 0, 0)
-        replace_layout.setSpacing(6)
+        replace_layout.setSpacing(int(6 * sf))
 
         self.input_replace = CustomLineEdit()
         self.input_replace.setPlaceholderText("取代為...")
-        self.input_replace.setFont(FontManager.get_font(size=10))
+        self.input_replace.setFont(FontManager.get_font(size=int(10 * sf)))
         self.input_replace.signal_return_pressed.connect(lambda _: self.signal_replace.emit())
         self.input_replace.signal_escape_pressed.connect(self.close_bar)
 
         self.btn_replace = QPushButton("取代")
+        self.btn_replace.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_replace.setToolTip("取代目前相符項目")
         self.btn_replace.clicked.connect(self.signal_replace.emit)
 
         self.btn_replace_all = QPushButton("全部取代")
+        self.btn_replace_all.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_replace_all.setToolTip("取代當前文件內所有相符項目")
         self.btn_replace_all.clicked.connect(self.signal_replace_all.emit)
 
@@ -237,3 +248,21 @@ class FindReplaceBar(QWidget):
 
     def is_regex(self) -> bool:
         return self.btn_regex.isChecked()
+
+    def update_scale(self, scale: float):
+        """介面縮放改變時動態更新字級與寬度尺寸。"""
+        self.scale_factor = scale
+        sf = scale
+        self.input_find.setFont(FontManager.get_font(size=int(10 * sf)))
+        self.btn_match_case.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_whole_word.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_regex.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.lbl_match_count.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.lbl_match_count.setFixedWidth(int(70 * sf))
+        self.btn_prev.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_next.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_close.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_close.setFixedWidth(int(24 * sf))
+        self.input_replace.setFont(FontManager.get_font(size=int(10 * sf)))
+        self.btn_replace.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.btn_replace_all.setFont(FontManager.get_font(size=int(9 * sf)))

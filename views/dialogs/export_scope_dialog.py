@@ -18,19 +18,21 @@ class ExportScopeDialog(QDialog):
         self.parent_win = parent
         self.default_title = default_title
         self.setWindowTitle("匯出作品與格式設定")
-        self.resize(480, 580)
-        self.setModal(True)
         ThemeManager.apply_theme_to_dialog(self, parent)
+        self.scale_factor = getattr(self, "scale_factor", 1.0)
+        self.resize(int(480 * self.scale_factor), int(580 * self.scale_factor))
+        self.setModal(True)
 
         self._ensure_checkbox_icons()
 
+        sf = self.scale_factor
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
+        layout.setContentsMargins(int(18 * sf), int(18 * sf), int(18 * sf), int(18 * sf))
+        layout.setSpacing(int(12 * sf))
 
         # 頂部說明
         lbl_hint = QLabel("請勾選欲匯出的文件與章節：")
-        lbl_hint.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        lbl_hint.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         layout.addWidget(lbl_hint)
 
         # 樹狀目錄
@@ -88,16 +90,16 @@ class ExportScopeDialog(QDialog):
 
         # 快速選取按鈕列
         select_btn_layout = QHBoxLayout()
-        select_btn_layout.setSpacing(8)
+        select_btn_layout.setSpacing(int(8 * sf))
 
         self.btn_select_all = QPushButton("☑ 全選")
-        self.btn_select_all.setFont(FontManager.get_font(size=9))
+        self.btn_select_all.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_select_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_select_all.clicked.connect(self.select_all_items)
         select_btn_layout.addWidget(self.btn_select_all)
 
         self.btn_deselect_all = QPushButton("☐ 全不選")
-        self.btn_deselect_all.setFont(FontManager.get_font(size=9))
+        self.btn_deselect_all.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_deselect_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_deselect_all.clicked.connect(self.deselect_all_items)
         select_btn_layout.addWidget(self.btn_deselect_all)
@@ -114,13 +116,13 @@ class ExportScopeDialog(QDialog):
 
         # 匯出格式選擇列
         format_layout = QHBoxLayout()
-        format_layout.setSpacing(10)
+        format_layout.setSpacing(int(10 * sf))
         lbl_format = QLabel("匯出格式：")
-        lbl_format.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        lbl_format.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         format_layout.addWidget(lbl_format)
 
         self.combo_format = QComboBox()
-        self.combo_format.setFont(FontManager.get_font(size=10))
+        self.combo_format.setFont(FontManager.get_font(size=int(10 * sf)))
         self.combo_format.addItems([
             "Word 文件 (*.docx)",
             "純文字檔案 (*.txt)",
@@ -132,18 +134,18 @@ class ExportScopeDialog(QDialog):
 
         # 匯出選項
         self.chk_include_title = QCheckBox("包含文件名稱作為章節標題")
-        self.chk_include_title.setFont(FontManager.get_font(size=9))
+        self.chk_include_title.setFont(FontManager.get_font(size=int(9 * sf)))
         self.chk_include_title.setChecked(True)
         layout.addWidget(self.chk_include_title)
 
         # 匯出模式（合併 or 獨立檔案）
         mode_layout = QHBoxLayout()
-        mode_layout.setSpacing(15)
+        mode_layout.setSpacing(int(15 * sf))
         self.radio_merge = QRadioButton("合併為單一檔案")
-        self.radio_merge.setFont(FontManager.get_font(size=9))
+        self.radio_merge.setFont(FontManager.get_font(size=int(9 * sf)))
         self.radio_merge.setChecked(True)
         self.radio_separate = QRadioButton("按章節分割為多個檔案")
-        self.radio_separate.setFont(FontManager.get_font(size=9))
+        self.radio_separate.setFont(FontManager.get_font(size=int(9 * sf)))
 
         self.export_mode_group = QButtonGroup(self)
         self.export_mode_group.addButton(self.radio_merge)
@@ -184,7 +186,7 @@ class ExportScopeDialog(QDialog):
         btn_layout.addStretch()
 
         self.btn_export = QPushButton("選擇儲存位置並匯出...")
-        self.btn_export.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        self.btn_export.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         self.btn_export.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_export.setStyleSheet("""
             QPushButton {
@@ -201,7 +203,7 @@ class ExportScopeDialog(QDialog):
         btn_layout.addWidget(self.btn_export)
 
         self.btn_cancel = QPushButton("取消")
-        self.btn_cancel.setFont(FontManager.get_font(size=10))
+        self.btn_cancel.setFont(FontManager.get_font(size=int(10 * sf)))
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cancel.clicked.connect(self.reject)
         btn_layout.addWidget(self.btn_cancel)

@@ -51,7 +51,9 @@ class AISettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("AI 助手設定")
-        self.resize(580, 580)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
+        self.resize(int(580 * self.scale_factor), int(580 * self.scale_factor))
+        self.setFont(FontManager.get_font(size=int(9 * self.scale_factor)))
         self.setModal(True)
         if parent:
             self.setStyleSheet(parent.styleSheet())
@@ -64,13 +66,14 @@ class AISettingsDialog(QDialog):
         self._load_values()
 
     def _init_ui(self):
+        sf = self.scale_factor
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(12)
+        main_layout.setSpacing(int(12 * sf))
 
         # Provider 選擇
         header_layout = QHBoxLayout()
         lbl_provider = QLabel("AI 服務供應商 (Provider):")
-        lbl_provider.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        lbl_provider.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.combo_provider = QComboBox()
         self.combo_provider.addItems(["OpenAI", "Google", "Anthropic", "Grok", "Ollama", "LM Studio"])
         self.combo_provider.currentTextChanged.connect(self._on_provider_changed)
@@ -152,7 +155,7 @@ class AISettingsDialog(QDialog):
         box_layout.setSpacing(8)
 
         self.chk_continuation = QCheckBox("啟用 AI 智慧擴寫功能（預設關閉）")
-        self.chk_continuation.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.chk_continuation.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.chk_continuation.clicked.connect(self._on_continuation_clicked)
         box_layout.addWidget(self.chk_continuation)
 

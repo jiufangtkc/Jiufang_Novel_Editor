@@ -20,7 +20,10 @@ class OutlineView(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.init_ui()
+        if self.scale_factor != 1.0:
+            self.update_scale(self.scale_factor)
 
     def minimumSizeHint(self):
         from PyQt6.QtCore import QSize
@@ -55,9 +58,9 @@ class OutlineView(QWidget):
         """)
         header_layout.addWidget(self.btn_back)
 
-        lbl_title = QLabel("大綱模式 (Outline View)")
-        lbl_title.setFont(FontManager.get_font(size=13, weight=QFont.Weight.Bold))
-        header_layout.addWidget(lbl_title)
+        self.lbl_title = QLabel("大綱模式 (Outline View)")
+        self.lbl_title.setFont(FontManager.get_font(size=13, weight=QFont.Weight.Bold))
+        header_layout.addWidget(self.lbl_title)
 
         header_layout.addSpacing(15)
 
@@ -170,8 +173,10 @@ class OutlineView(QWidget):
         }
         return mark_map.get(mark_str, ("草稿", "#888888"))
 
-    def populate_from_tree(self, source_tree: QTreeWidget, folder_color="#e5c07b", file_color="#dcdcdc", scale_factor=1.0):
+    def populate_from_tree(self, source_tree: QTreeWidget, folder_color="#e5c07b", file_color="#dcdcdc", scale_factor=None):
         """從主視窗的章節樹同步數據並建構大綱視圖。"""
+        if scale_factor is None:
+            scale_factor = self.scale_factor
         self.tree_widget.clear()
         
         folder_count = 0
@@ -319,3 +324,37 @@ class OutlineView(QWidget):
             mark_menu.addAction(act)
 
         menu.exec(self.tree_widget.viewport().mapToGlobal(pos))
+
+    def update_scale(self, scale: float):
+        """依據縮放比例動態調整文字大小、欄寬、縮排與圖示。"""
+        self.scale_factor = scale
+        self.btn_back.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
+        self.lbl_title.setFont(FontManager.get_font(size=int(13 * scale), weight=QFont.Weight.Bold))
+        self.search_input.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.search_input.setFixedWidth(int(240 * scale))
+        self.btn_expand_all.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.btn_collapse_all.setFont(FontManager.get_font(size=int(9 * scale)))
+        self.lbl_stats.setFont(FontManager.get_font(size=int(9 * scale)))
+
+        self.tree_widget.setFont(FontManager.get_font(size=int(10 * scale)))
+        self.tree_widget.header().setFont(FontManager.get_font(size=int(10 * scale), weight=QFont.Weight.Bold))
+        self.tree_widget.setIndentation(int(20 * scale))
+        self.tree_widget.setColumnWidth(0, int(280 * scale))
+        self.tree_widget.setColumnWidth(1, int(100 * scale))
+        self.tree_widget.setColumnWidth(2, int(90 * scale))
+
+        def _update_icons(item):
+            data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+            ntype = data.get("type", "file")
+            if ntype == "folder":
+                item.setIcon(0, create_custom_icon("folder", "#e5c07b", scale))
+            elif ntype == "scene":
+                item.setIcon(0, create_custom_icon("folder", "#4fa6ff", scale))
+            else:
+                item.setIcon(0, create_custom_icon("file", "#dcdcdc", scale))
+            for i in range(item.childCount()):
+                _update_icons(item.child(i))
+
+        for i in range(self.tree_widget.topLevelItemCount()):
+            _update_icons(self.tree_widget.topLevelItem(i))
+

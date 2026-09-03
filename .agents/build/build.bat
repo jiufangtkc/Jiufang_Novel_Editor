@@ -12,12 +12,13 @@ if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 
 echo 正在執行 PyInstaller 打包...
-if exist .venv\Scripts\pyinstaller.exe (
-    .venv\Scripts\pyinstaller.exe --noconfirm --noconsole --name "Jiufang_Novel_Editor" --icon "resources/icons/app_icon.ico" --add-data "resources;resources" --exclude-module pytest main.py
+if exist .venv\Scripts\python.exe (
+    .venv\Scripts\python.exe -m PyInstaller --noconfirm --noconsole --name "Jiufang_Novel_Editor" --icon "resources/icons/app_icon.ico" --add-data "resources;resources" --exclude-module pytest main.py
 ) else (
-    pyinstaller --noconfirm --noconsole --name "Jiufang_Novel_Editor" --icon "resources/icons/app_icon.ico" --add-data "resources;resources" --exclude-module pytest main.py
+    python -m PyInstaller --noconfirm --noconsole --name "Jiufang_Novel_Editor" --icon "resources/icons/app_icon.ico" --add-data "resources;resources" --exclude-module pytest main.py
 )
 
+if exist Jiufang_Novel_Editor.spec del /f /q Jiufang_Novel_Editor.spec
 if %ERRORLEVEL% equ 0 (
     echo ============================================================
     echo 打包完成！輸出資料夾: dist\Jiufang_Novel_Editor

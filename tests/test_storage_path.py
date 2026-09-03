@@ -40,28 +40,37 @@ class TestStoragePath(unittest.TestCase):
         path = AppSettingsService.get_current_storage_path(settings, app_dir=self.app_dir)
         self.assertEqual(path, os.path.abspath(custom_path))
 
-        # 3. get_story_dir 與 get_temp_dir
+        # 3. get_story_dir、get_temp_dir 與 get_export_dir
         story_dir = AppSettingsService.get_story_dir(custom_path)
         temp_dir = AppSettingsService.get_temp_dir(custom_path)
+        export_dir = AppSettingsService.get_export_dir(custom_path)
         self.assertEqual(story_dir, os.path.join(custom_path, "Story"))
         self.assertEqual(temp_dir, os.path.join(custom_path, "Temp_doc"))
+        self.assertEqual(export_dir, os.path.join(custom_path, "Export"))
 
-        # 4. 相容已存在的小寫 story 目錄
+        # 4. 相容已存在的小寫 story 與 export 目錄
         lower_story = os.path.join(custom_path, "story")
         os.makedirs(lower_story, exist_ok=True)
         self.assertEqual(AppSettingsService.get_story_dir(custom_path), lower_story)
 
+        lower_export = os.path.join(custom_path, "export")
+        os.makedirs(lower_export, exist_ok=True)
+        self.assertEqual(AppSettingsService.get_export_dir(custom_path), lower_export)
+
     def test_storage_migration_service_ensure_directories(self):
-        """測試 StorageMigrationService.ensure_storage_directories 能自動建立 Story 與 Temp_doc。"""
+        """測試 StorageMigrationService.ensure_storage_directories 能自動建立 Story、Temp_doc 與 Export。"""
         target = os.path.join(self.temp_dir.name, "MyDropbox")
-        story_dir, temp_dir = StorageMigrationService.ensure_storage_directories(target)
+        story_dir, temp_dir, export_dir = StorageMigrationService.ensure_storage_directories(target)
 
         self.assertTrue(os.path.exists(story_dir))
         self.assertTrue(os.path.exists(temp_dir))
+        self.assertTrue(os.path.exists(export_dir))
         self.assertTrue(os.path.isdir(story_dir))
         self.assertTrue(os.path.isdir(temp_dir))
+        self.assertTrue(os.path.isdir(export_dir))
         self.assertEqual(os.path.basename(story_dir), "Story")
         self.assertEqual(os.path.basename(temp_dir), "Temp_doc")
+        self.assertEqual(os.path.basename(export_dir), "Export")
 
     def test_storage_migration_service_is_valid_writable_dir(self):
         """測試目錄可寫入性檢測。"""
@@ -70,12 +79,12 @@ class TestStoragePath(unittest.TestCase):
         self.assertFalse(StorageMigrationService.is_valid_writable_dir(""))
 
     def test_storage_migration_service_data_migration(self):
-        """測試將舊目錄之稿件與暫存檔完整遷移至新目錄。"""
+        """測試將舊目錄之稿件、暫存檔與匯出檔完整遷移至新目錄。"""
         old_root = os.path.join(self.temp_dir.name, "OldRoot")
         new_root = os.path.join(self.temp_dir.name, "NewRoot")
 
         # 建立舊目錄與假資料
-        old_story, old_temp = StorageMigrationService.ensure_storage_directories(old_root)
+        old_story, old_temp, old_export = StorageMigrationService.ensure_storage_directories(old_root)
         book1_dir = os.path.join(old_story, "仙俠修真傳")
         os.makedirs(book1_dir, exist_ok=True)
         file1 = os.path.join(book1_dir, "仙俠修真傳_20260831.db")
@@ -86,19 +95,28 @@ class TestStoragePath(unittest.TestCase):
         with open(temp_file1, "w", encoding="utf-8") as f:
             f.write("dummy temp content 1")
 
+        export_file1 = os.path.join(old_export, "仙俠修真傳_全集.docx")
+        with open(export_file1, "w", encoding="utf-8") as f:
+            f.write("dummy docx content 1")
+
         # 執行遷移
         result = StorageMigrationService.migrate_storage_data(old_root, new_root)
         self.assertEqual(result["story_files_copied"], 1)
         self.assertEqual(result["temp_files_copied"], 1)
+        self.assertEqual(result["export_files_copied"], 1)
         self.assertEqual(len(result["errors"]), 0)
 
         # 驗證新路徑檔案存在且內容正確
         new_file1 = os.path.join(new_root, "Story", "仙俠修真傳", "仙俠修真傳_20260831.db")
         new_temp_file1 = os.path.join(new_root, "Temp_doc", "temp_20260831_120000.db")
+        new_export_file1 = os.path.join(new_root, "Export", "仙俠修真傳_全集.docx")
         self.assertTrue(os.path.exists(new_file1))
         self.assertTrue(os.path.exists(new_temp_file1))
+        self.assertTrue(os.path.exists(new_export_file1))
         with open(new_file1, "r", encoding="utf-8") as f:
             self.assertEqual(f.read(), "dummy db content 1")
+        with open(new_export_file1, "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "dummy docx content 1")
 
     def test_storage_path_dialog_ui(self):
         """測試 StoragePathDialog 介面操作與預設還原。"""
@@ -122,12 +140,17 @@ class TestStoragePath(unittest.TestCase):
             old_path = mc.get_storage_path()
             self.assertTrue(os.path.exists(mc.get_story_dir()))
             self.assertTrue(os.path.exists(mc.get_temp_dir()))
+            self.assertTrue(os.path.exists(mc.get_export_dir()))
 
-            # 模擬先存一個稿件
+            # 模擬先存一個稿件與一個匯出檔
             mc.project_info.title = "星際冒險"
             mc.project.save_project()
             orig_saved_path = mc.project.current_project_path
             self.assertTrue(os.path.exists(orig_saved_path))
+
+            old_export_file = os.path.join(mc.get_export_dir(), "星際冒險_草稿.txt")
+            with open(old_export_file, "w", encoding="utf-8") as f:
+                f.write("星際冒險草稿內容")
 
             # 模擬使用者開啟 StoragePathDialog 並選取新路徑
             new_storage = os.path.join(self.temp_dir.name, "OneDrive_Novel")
@@ -141,12 +164,20 @@ class TestStoragePath(unittest.TestCase):
             # 驗證存檔路徑已更新
             self.assertEqual(mc.app_settings.get("storage_path"), os.path.abspath(new_storage))
             self.assertEqual(mc.get_storage_path(), os.path.abspath(new_storage))
+            self.assertEqual(mc.get_export_dir(), os.path.join(os.path.abspath(new_storage), "Export"))
             self.assertTrue(os.path.exists(os.path.join(new_storage, "Story")))
             self.assertTrue(os.path.exists(os.path.join(new_storage, "Temp_doc")))
+            self.assertTrue(os.path.exists(os.path.join(new_storage, "Export")))
 
             # 驗證原稿件已遷移至新目錄
             migrated_file = os.path.join(new_storage, "Story", "星際冒險", os.path.basename(orig_saved_path))
             self.assertTrue(os.path.exists(migrated_file))
+
+            # 驗證匯出檔案已遷移至新目錄
+            migrated_export_file = os.path.join(new_storage, "Export", "星際冒險_草稿.txt")
+            self.assertTrue(os.path.exists(migrated_export_file))
+            with open(migrated_export_file, "r", encoding="utf-8") as f:
+                self.assertEqual(f.read(), "星際冒險草稿內容")
 
             # 驗證 current_project_path 自動重定位
             self.assertEqual(mc.project.current_project_path, migrated_file)

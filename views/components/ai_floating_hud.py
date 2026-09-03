@@ -16,6 +16,7 @@ class AIFloatingHUD(QWidget):
 
     def __init__(self, parent=None, title="✨ AI 正在工作中"):
         super().__init__(parent)
+        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.setWindowFlags(
             Qt.WindowType.Tool |
             Qt.WindowType.WindowStaysOnTopHint |
@@ -36,42 +37,43 @@ class AIFloatingHUD(QWidget):
         self.apply_style()
 
     def init_ui(self):
+        sf = self.scale_factor
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(8, 8, 8, 8)
+        self.main_layout.setContentsMargins(int(8 * sf), int(8 * sf), int(8 * sf), int(8 * sf))
 
         # 核心 HUD 卡片容器
         self.hud_container = QWidget(self)
         self.hud_container.setObjectName("HUDContainer")
         container_layout = QVBoxLayout(self.hud_container)
-        container_layout.setContentsMargins(12, 10, 12, 10)
-        container_layout.setSpacing(8)
+        container_layout.setContentsMargins(int(12 * sf), int(10 * sf), int(12 * sf), int(10 * sf))
+        container_layout.setSpacing(int(8 * sf))
 
         # 1. 頂部標題與按鈕列 (支援拖曳)
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(6)
+        header_layout.setSpacing(int(6 * sf))
 
         self.lbl_dot = QLabel("🟢")
-        self.lbl_dot.setFont(FontManager.get_font(size=8))
+        self.lbl_dot.setFont(FontManager.get_font(size=int(8 * sf)))
         header_layout.addWidget(self.lbl_dot)
 
         self.lbl_title = QLabel(self.title_text)
-        self.lbl_title.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.lbl_title.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         header_layout.addWidget(self.lbl_title, 1)
 
         self.lbl_time = QLabel("00:00")
-        self.lbl_time.setFont(FontManager.get_font(size=8))
+        self.lbl_time.setFont(FontManager.get_font(size=int(8 * sf)))
         self.lbl_time.setStyleSheet("color: #4fc1ff; font-weight: bold;")
         header_layout.addWidget(self.lbl_time)
 
         self.btn_toggle_collapse = QPushButton("–")
-        self.btn_toggle_collapse.setFixedSize(18, 18)
+        self.btn_toggle_collapse.setFixedSize(int(18 * sf), int(18 * sf))
         self.btn_toggle_collapse.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_collapse.setToolTip("收折 / 展開")
         self.btn_toggle_collapse.clicked.connect(self.toggle_collapse)
         header_layout.addWidget(self.btn_toggle_collapse)
 
         self.btn_cancel = QPushButton("✕")
-        self.btn_cancel.setFixedSize(18, 18)
+        self.btn_cancel.setFixedSize(int(18 * sf), int(18 * sf))
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cancel.setToolTip("取消此 AI 任務")
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
@@ -82,18 +84,18 @@ class AIFloatingHUD(QWidget):
         # 2. 進度內容區 (可收折)
         self.content_widget = QWidget()
         content_layout = QVBoxLayout(self.content_widget)
-        content_layout.setContentsMargins(0, 4, 0, 0)
-        content_layout.setSpacing(6)
+        content_layout.setContentsMargins(0, int(4 * sf), 0, 0)
+        content_layout.setSpacing(int(6 * sf))
 
         # 階段文字
         self.lbl_status = QLabel("正在啟動背景任務...")
-        self.lbl_status.setFont(FontManager.get_font(size=9))
+        self.lbl_status.setFont(FontManager.get_font(size=int(9 * sf)))
         self.lbl_status.setWordWrap(True)
         content_layout.addWidget(self.lbl_status)
 
         # 進度條
         self.progress_bar = QProgressBar()
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setFixedHeight(int(6 * sf))
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setRange(0, 0)  # 預設為 busy 循環模式
         content_layout.addWidget(self.progress_bar)
@@ -103,12 +105,12 @@ class AIFloatingHUD(QWidget):
 
         # 添加陰影
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(16)
+        shadow.setBlurRadius(int(16 * sf))
         shadow.setColor(QColor(0, 0, 0, 180))
-        shadow.setOffset(0, 4)
+        shadow.setOffset(0, int(4 * sf))
         self.hud_container.setGraphicsEffect(shadow)
 
-        self.resize(320, 120)
+        self.resize(int(320 * sf), int(120 * sf))
 
     def apply_style(self):
         self.setStyleSheet("""

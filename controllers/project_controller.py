@@ -472,7 +472,7 @@ class ProjectController:
             reply = QMessageBox.question(
                 self.view,
                 "確認變更存檔路徑",
-                f"即將將存檔路徑變更為：\n{new_path_abs}\n\n是否將原路徑中的現有稿件與暫存檔一併遷移至新路徑？\n\n（建議選擇『是』以保持資料完整與同步）",
+                f"即將將存檔路徑變更為：\n{new_path_abs}\n\n是否將原路徑中的現有稿件、暫存檔與匯出檔案一併遷移至新路徑？\n\n（建議選擇『是』以保持資料完整與同步）",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Yes
             )
@@ -482,10 +482,12 @@ class ProjectController:
 
             story_copied = 0
             temp_copied = 0
+            export_copied = 0
             if reply == QMessageBox.StandardButton.Yes:
                 migration = StorageMigrationService.migrate_storage_data(old_path_abs, new_path_abs)
                 story_copied = migration.get("story_files_copied", 0)
                 temp_copied = migration.get("temp_files_copied", 0)
+                export_copied = migration.get("export_files_copied", 0)
             else:
                 StorageMigrationService.ensure_storage_directories(new_path_abs)
 
@@ -503,11 +505,12 @@ class ProjectController:
                     AppSettingsService.save_settings(self.mc.app_settings, self.mc.app_dir)
 
             msg = f"存檔路徑已成功變更至：\n{new_path_abs}\n\n"
-            msg += f"• 已自動建立 Story 與 Temp_doc 資料夾\n"
+            msg += f"• 已自動建立 Story、Temp_doc 與 Export 資料夾\n"
             if reply == QMessageBox.StandardButton.Yes:
                 msg += f"• 稿件檔案遷移：{story_copied} 個\n"
                 msg += f"• 暫存檔案遷移：{temp_copied} 個\n"
-            msg += "後續所有稿件儲存與自動暫存將自動寫入新路徑。"
+                msg += f"• 匯出檔案遷移：{export_copied} 個\n"
+            msg += "後續所有稿件儲存、自動暫存與匯出成果將自動寫入新路徑。"
 
             QMessageBox.information(self.view, "存檔路徑設定成功", msg)
 
