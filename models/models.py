@@ -122,6 +122,9 @@ class WritingLogEntry:
     ai_continuation_count: int = 0    # AI 續寫次數
     ai_continuation_chars: int = 0    # AI 續寫字數
     ai_chat_count: int = 0            # AI 對話次數
+    ai_details: Dict[str, int] = field(default_factory=dict)  # AI 細部功能面向次數 (例: chat, character, proofread 等)
+    paste_large_count: int = 0        # 大量貼上文字次數（短時間超過300字）
+    delete_large_count: int = 0       # 大量刪除文字次數（短時間超過300字）
 
 
 @dataclass
@@ -149,7 +152,7 @@ class JneProject:
 
 @dataclass
 class CompactState:
-    """HRCI 滾動壓縮狀態物件（雙軌索引資料結構）"""
+    """HRCI 捲動壓縮狀態物件（雙軌索引資料結構）"""
     characters: Dict[str, str] = field(default_factory=dict)       # 人物名稱: 特徵/當前狀態
     world_elements: Dict[str, str] = field(default_factory=dict)   # 世界觀名詞/設定: 說明
     timeline_events: List[str] = field(default_factory=list)       # 已發生的關鍵事件節點
@@ -194,7 +197,7 @@ class ChunkAnalysisResult:
 
 @dataclass
 class LongTextAnalysisResult:
-    """長文滾動分析的完整彙整成果"""
+    """長文捲動分析的完整彙整成果"""
     task_type: str
     total_chunks: int
     total_chars: int

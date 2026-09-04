@@ -98,13 +98,13 @@ class TestDailyProgressSync(unittest.TestCase):
         self.assertEqual(loaded.project_info.title, "v9舊檔")
         self.assertEqual(loaded.project_info.daily_target_word_count, 1000)
 
-        # 檢查 schema_version 是否為 10
+        # 檢查 schema_version 是否已成功升級至最新版本 (>= 10)
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT MAX(version) FROM schema_version")
         v = cursor.fetchone()[0]
         conn.close()
-        self.assertEqual(v, 10)
+        self.assertEqual(v, DatabaseService.CURRENT_SCHEMA_VERSION)
 
     def test_load_project_restores_today_target_and_progress(self):
         """驗證跨設備載入專案時，能自動還原當日目標與今日已寫字數進度。"""

@@ -44,7 +44,7 @@ class TestPhase12(unittest.TestCase):
         self.assertEqual(log.ai_continuation_chars, 450)
 
     def test_database_writing_logs_migration_and_persistence(self):
-        """驗證 SQLite writing_logs 自動 Migration 與 AI 介入度資料完整保存與還原。"""
+        """驗證 SQLite writing_logs 自動 Migration 與 AI 介入度資料完整儲存與還原。"""
         # 先建立一個不含 AI 欄位的舊版 SQLite 表
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()

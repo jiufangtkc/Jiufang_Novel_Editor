@@ -107,6 +107,8 @@ class AIController:
                 
         self.reload_proofread_results()
         self.proofread_dialog.finish_proofreading()
+        if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
+            self.mc.stats.record_ai_activity(chat_count=1, feature_key="proofread")
         
     def handle_proofread_status_change(self, result_id: str, new_status: str):
         from services.database import DatabaseService
@@ -143,7 +145,7 @@ class AIController:
         dlg.signal_insert_to_editor.connect(self.insert_text_to_editor)
         dlg.signal_save_as_card.connect(lambda title, content: self.add_card_from_ai("summary", title, content))
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
-            self.mc.stats.record_ai_activity(chat_count=1)
+            self.mc.stats.record_ai_activity(chat_count=1, feature_key="chat")
         dlg.exec()
 
     def insert_text_to_editor(self, text: str):
@@ -235,10 +237,9 @@ class AIController:
             self.ai_floating_hud.finish("✅ 分析完成！")
         self.mc.update_status_bar()
 
-        if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
-            self.mc.stats.record_ai_activity(chat_count=1)
-
         task_type = result_data.get("task_type", "")
+        if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
+            self.mc.stats.record_ai_activity(chat_count=1, feature_key=task_type)
         if task_type == "character":
             # 角色提取：開啟多角色卡與關係卡審核對話框
             dlg = AICharacterReviewDialog(self.view, result_data)
@@ -345,7 +346,7 @@ class AIController:
     def _on_expansion_finished(self, full_text: str):
         self.ai_task_overlay.finish_task()
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
-            self.mc.stats.record_ai_activity(continuation_count=1, continuation_chars=len(full_text))
+            self.mc.stats.record_ai_activity(continuation_count=1, continuation_chars=len(full_text), feature_key="continuation")
             self.mc.update_status_bar()
 
     def _on_expansion_error(self, err_msg: str):
@@ -378,7 +379,7 @@ class AIController:
         self.mc.card.rebuild_card_tree()
         self.mc.save_temp_doc()
 
-        # 在樹狀導航中選中並滾動到新卡片
+        # 在樹狀導航中選取並捲動到新卡片
         new_item = self.mc.card._find_tree_item_by_id(new_card.id)
         if new_item:
             self.mc.card.card_tree.scrollToItem(new_item)

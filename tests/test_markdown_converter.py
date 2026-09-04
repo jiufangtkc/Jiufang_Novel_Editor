@@ -15,7 +15,7 @@ def test_parse_inline_tokens_plain():
 
 
 def test_parse_inline_tokens_mixed():
-    text = "主角說道：**「別過來！」**他心中*暗自震驚*，甚至~~有些猶豫~~與`代碼`。"
+    text = "主角說道：**「別過來！」**他心中*暗自震驚*，甚至~~有些猶豫~~與`程式碼`。"
     tokens = MarkdownConverter.parse_inline_tokens(text)
     
     # 驗證 tokens 解析
@@ -33,7 +33,7 @@ def test_parse_inline_tokens_mixed():
 
     code_tokens = [t for t in tokens if t["code"]]
     assert len(code_tokens) == 1
-    assert code_tokens[0]["text"] == "代碼"
+    assert code_tokens[0]["text"] == "程式碼"
 
 
 def test_to_plain_text():

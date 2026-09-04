@@ -34,7 +34,7 @@ class TestAIChatDialog(unittest.TestCase):
         dlg_no_ctx.close()
 
     def test_message_formatting_and_history(self):
-        # 模擬使用者送出訊息（mock worker.start 避免產生真實網路請求線程）
+        # 模擬使用者送出訊息（mock worker.start 避免產生真實網路請求執行緒）
         from unittest.mock import patch
         with patch('views.dialogs.ai_chat_dialog.AIChatWorker.start'):
             self.dialog.input_edit.setPlainText("這段描寫可以如何加強氣氛？")

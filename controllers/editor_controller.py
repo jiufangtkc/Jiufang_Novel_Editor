@@ -107,7 +107,7 @@ class EditorController:
         dlg.exec()
 
     def select_editor_range(self, start_pos: int, end_pos: int):
-        """在編輯器中選取指定字元區間並滾動至可見。"""
+        """在編輯器中選取指定字元區間並捲動至可見。"""
         cursor = self.view.editor.textCursor()
         cursor.setPosition(start_pos)
         cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)

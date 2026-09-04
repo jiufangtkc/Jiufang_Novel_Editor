@@ -109,13 +109,13 @@ class TestSaveRules(unittest.TestCase):
         self.assertEqual(self.mc.project.current_project_path, new_as_path)
 
     def test_ctrl_s_action_triggers_quiet_save(self):
-        """測試透過 action_save_project（Ctrl+S 快捷鍵對應之動作）觸發時為安靜存檔。"""
-        self.mc.project_info.title = "快捷鍵存檔"
+        """測試透過 action_save_project（Ctrl+S 快速鍵對應之動作）觸發時為安靜存檔。"""
+        self.mc.project_info.title = "快速鍵存檔"
         with patch.object(QMessageBox, "information") as mock_info:
             self.view.action_save_project.trigger()
             mock_info.assert_not_called()
 
-        self.assertTrue(self.mc.project.current_project_path.endswith("快捷鍵存檔.db"))
+        self.assertTrue(self.mc.project.current_project_path.endswith("快速鍵存檔.db"))
 
 
 if __name__ == '__main__':

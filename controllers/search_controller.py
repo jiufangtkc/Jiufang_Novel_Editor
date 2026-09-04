@@ -241,7 +241,7 @@ class SearchController:
 
     def execute_global_search(self, query: str, match_case: bool, whole_word: bool, is_regex: bool):
         """執行跨章節全文搜尋。"""
-        # 先保存當前編輯器內容，確保資料最新
+        # 先儲存當前編輯器內容，確保資料最新
         self.mc.editor.save_current_editor_content()
 
         pattern = self._build_regex_pattern(query, match_case, whole_word, is_regex)

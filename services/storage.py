@@ -107,7 +107,13 @@ class StorageService:
             project.writing_logs.append(WritingLogEntry(
                 date=log_data.get("date", ""),
                 duration=log_data.get("duration", 0),
-                word_count=log_data.get("word_count", 0)
+                word_count=log_data.get("word_count", 0),
+                ai_continuation_count=log_data.get("ai_continuation_count", 0),
+                ai_continuation_chars=log_data.get("ai_continuation_chars", 0),
+                ai_chat_count=log_data.get("ai_chat_count", 0),
+                ai_details=log_data.get("ai_details", {}),
+                paste_large_count=log_data.get("paste_large_count", 0),
+                delete_large_count=log_data.get("delete_large_count", 0)
             ))
             
         return project

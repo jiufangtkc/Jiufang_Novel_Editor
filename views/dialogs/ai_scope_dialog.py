@@ -349,7 +349,7 @@ class AIScopeDialog(QDialog):
         if char_count > 4000:
             chunks = (char_count + 3999) // 4000
             self.lbl_stats.setText(
-                f"包含 {chapter_count} 個章節，總計約 {char_count:,} 字（長文滾動分析，預計分為 {chunks + 1} 階段）"
+                f"包含 {chapter_count} 個章節，總計約 {char_count:,} 字（長文捲動分析，預計分為 {chunks + 1} 階段）"
             )
         else:
             self.lbl_stats.setText(

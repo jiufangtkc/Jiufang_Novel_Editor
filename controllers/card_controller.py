@@ -376,7 +376,7 @@ class CardController:
             card_node.color = new_color
             # 更新樹狀節點顯示名稱
             item.setText(0, f"  {new_title.strip() if new_title.strip() else '（未命名卡片）'}")
-            # 若下方欄位正在編輯同一張卡片，同步刷新
+            # 若下方欄位正在編輯同一張卡片，同步重新整理
             if getattr(self.view.right_panel, 'current_editing_card_id', None) == card_node.id:
                 self.view.right_panel.show_card_detail(
                     card_id=card_node.id,

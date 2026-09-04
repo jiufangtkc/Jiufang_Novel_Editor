@@ -107,7 +107,7 @@ class TestFocusAndOutline(unittest.TestCase):
         self.assertEqual(data.get("mark"), "1st Edit")
 
     def test_focus_mode_lifecycle(self):
-        """測試沉浸模式進入與退出狀態。"""
+        """測試沉浸模式進入與離開狀態。"""
         self.assertFalse(self.view.is_focus_mode)
         self.assertFalse(self.view.left_widget.isHidden())
         self.assertFalse(self.view.right_widget.isHidden())
@@ -123,7 +123,7 @@ class TestFocusAndOutline(unittest.TestCase):
         self.assertFalse(self.view.lbl_focus_banner.isHidden())
         self.assertEqual(self.view.center_stack.currentIndex(), 0)
 
-        # 退出沉浸模式
+        # 離開沉浸模式
         self.view.exit_focus_mode()
         self.assertFalse(self.view.is_focus_mode)
         self.assertFalse(self.view.left_widget.isHidden())

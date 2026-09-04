@@ -92,7 +92,10 @@ class DatabaseService:
                 word_count INTEGER,
                 ai_continuation_count INTEGER DEFAULT 0,
                 ai_continuation_chars INTEGER DEFAULT 0,
-                ai_chat_count INTEGER DEFAULT 0
+                ai_chat_count INTEGER DEFAULT 0,
+                ai_details TEXT DEFAULT '{}',
+                paste_large_count INTEGER DEFAULT 0,
+                delete_large_count INTEGER DEFAULT 0
             )
         ''')
 
@@ -207,16 +210,28 @@ class DatabaseService:
                 
         # Save Writing Logs
         for log in project.writing_logs:
+            details_json = json.dumps(getattr(log, "ai_details", {}) or {}, ensure_ascii=False)
             cursor.execute('''
-                INSERT INTO writing_logs (date, duration, word_count, ai_continuation_count, ai_continuation_chars, ai_chat_count)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO writing_logs (date, duration, word_count, ai_continuation_count, ai_continuation_chars, ai_chat_count, ai_details, paste_large_count, delete_large_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date) DO UPDATE SET
                 duration=excluded.duration,
                 word_count=excluded.word_count,
                 ai_continuation_count=excluded.ai_continuation_count,
                 ai_continuation_chars=excluded.ai_continuation_chars,
-                ai_chat_count=excluded.ai_chat_count
-            ''', (log.date, log.duration, log.word_count, log.ai_continuation_count, log.ai_continuation_chars, log.ai_chat_count))
+                ai_chat_count=excluded.ai_chat_count,
+                ai_details=excluded.ai_details,
+                paste_large_count=excluded.paste_large_count,
+                delete_large_count=excluded.delete_large_count
+            ''', (
+                log.date, log.duration, log.word_count,
+                getattr(log, "ai_continuation_count", 0),
+                getattr(log, "ai_continuation_chars", 0),
+                getattr(log, "ai_chat_count", 0),
+                details_json,
+                getattr(log, "paste_large_count", 0),
+                getattr(log, "delete_large_count", 0)
+            ))
             
         conn.commit()
         conn.close()
@@ -339,13 +354,21 @@ class DatabaseService:
         if logs_rows:
             log_keys = set(logs_rows[0].keys())
         for row in logs_rows:
+            details_raw = row['ai_details'] if 'ai_details' in log_keys and row['ai_details'] else '{}'
+            try:
+                ai_details = json.loads(details_raw) if isinstance(details_raw, str) else {}
+            except Exception:
+                ai_details = {}
             project.writing_logs.append(WritingLogEntry(
                 date=row['date'],
                 duration=row['duration'],
                 word_count=row['word_count'],
                 ai_continuation_count=row['ai_continuation_count'] if 'ai_continuation_count' in log_keys and row['ai_continuation_count'] is not None else 0,
                 ai_continuation_chars=row['ai_continuation_chars'] if 'ai_continuation_chars' in log_keys and row['ai_continuation_chars'] is not None else 0,
-                ai_chat_count=row['ai_chat_count'] if 'ai_chat_count' in log_keys and row['ai_chat_count'] is not None else 0
+                ai_chat_count=row['ai_chat_count'] if 'ai_chat_count' in log_keys and row['ai_chat_count'] is not None else 0,
+                ai_details=ai_details,
+                paste_large_count=row['paste_large_count'] if 'paste_large_count' in log_keys and row['paste_large_count'] is not None else 0,
+                delete_large_count=row['delete_large_count'] if 'delete_large_count' in log_keys and row['delete_large_count'] is not None else 0
             ))
 
             
@@ -413,7 +436,10 @@ class DatabaseService:
                     "word_count": l.word_count,
                     "ai_continuation_count": getattr(l, "ai_continuation_count", 0),
                     "ai_continuation_chars": getattr(l, "ai_continuation_chars", 0),
-                    "ai_chat_count": getattr(l, "ai_chat_count", 0)
+                    "ai_chat_count": getattr(l, "ai_chat_count", 0),
+                    "ai_details": getattr(l, "ai_details", {}),
+                    "paste_large_count": getattr(l, "paste_large_count", 0),
+                    "delete_large_count": getattr(l, "delete_large_count", 0)
                 }
                 for l in project.writing_logs
             ]
@@ -487,7 +513,10 @@ class DatabaseService:
                 word_count=log_d.get("word_count", 0),
                 ai_continuation_count=log_d.get("ai_continuation_count", 0),
                 ai_continuation_chars=log_d.get("ai_continuation_chars", 0),
-                ai_chat_count=log_d.get("ai_chat_count", 0)
+                ai_chat_count=log_d.get("ai_chat_count", 0),
+                ai_details=log_d.get("ai_details", {}),
+                paste_large_count=log_d.get("paste_large_count", 0),
+                delete_large_count=log_d.get("delete_large_count", 0)
             ))
 
         return project

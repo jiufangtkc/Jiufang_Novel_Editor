@@ -37,7 +37,7 @@ DEFAULT_SETTINGS = {
         "LM Studio": "local-model"
     },
     "prompts": {
-        "impression": "你是一位專業的小說編輯與文學評論家。請閱讀以下小說文本，分析其整體基調、文學風格、敘事結構、核心主題與情節張力，並提供具體的寫作優化建議。",
+        "impression": "你是一位專業的小說編輯與文學評論家。請閱讀以下小說文本，分析其整體基調、文學風格、敘事結構、核心主題與情節張力，並提供具體的寫作最佳化建議。",
         "character": "你是一位專業的小說角色分析師。請閱讀以下小說文本，為文本中登場的每一位角色獨立建立詳細角色設定，並在最後梳理一份獨立的角色關係網。\n\n請嚴格依下列結構化標籤輸出：\n===CHARACTER_START===\n【角色姓名】角色名字\n【外觀年齡】外觀推測年齡（例如：約 20~25 歲青年）\n【外觀特徵】文字中猜測或描寫的外貌特徵、著裝與氣質神態\n【人物側寫】個性、核心人格特質、價值觀與人物小傳\n【已知行動】在選定範圍內已知的具體行動軌跡與事蹟\n【人事物關聯】與該角色有關係的人、事、物（請使用直觀繁體中文或「⟷」、「➔」表達關聯，嚴禁輸出 LaTeX 語法如 $\\leftrightarrow$、$\\rightarrow$ 等）\n===CHARACTER_END===\n（有多位角色時請重複輸出上述 ===CHARACTER_START=== 區塊）\n\n===RELATIONSHIP_START===\n【卡片標題】全景角色關係網梳理\n【關係梳理】陣營勢力、角色間的核心矛盾、情感牽絆與互動脈絡深度分析（關聯請使用「⟷」、「➔」或文字說明，嚴禁使用 LaTeX 數學符號）\n===RELATIONSHIP_END===",
         "world": "你是一位小說世界觀架構師。請閱讀以下小說文本，分析並提取出文本中涉及的世界觀設定、歷史背景、地理環境、勢力組織、力量體系或特殊術語，並進行系統化的整理。",
         "timeline": "你是一位專業的小說時間線規劃師。請閱讀以下小說文本，梳理出故事發生的時間線，按先後順序提取出關鍵事件、場景轉換及發生的具體時間節點。",
@@ -572,7 +572,7 @@ class AIService:
 
 
 class AIWorker(QThread):
-    """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線，支援長文滾動壓縮 HRCI）"""
+    """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線，支援長文捲動壓縮 HRCI）"""
     finished_signal = pyqtSignal(dict)
     progress_signal = pyqtSignal(int, int, str)  # (current_step, total_steps, message)
     error_signal = pyqtSignal(str)
@@ -602,7 +602,7 @@ class AIWorker(QThread):
             prompts = settings.get("prompts", {})
 
             if not api_url:
-                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定配置。")
+                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定中進行設定。")
             if provider not in ("Ollama", "LM Studio") and not api_key:
                 raise ValueError(f"尚未填寫 {provider} 的 API Key，請先至 AI 設定填寫。")
 
@@ -725,7 +725,7 @@ class AIChatWorker(QThread):
             prompts = settings.get("prompts", {})
 
             if not api_url:
-                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定配置。")
+                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定中進行設定。")
             if provider not in ("Ollama", "LM Studio") and not api_key:
                 raise ValueError(f"尚未填寫 {provider} 的 API Key，請先至 AI 設定填寫。")
 
@@ -771,7 +771,7 @@ class AIContinuationWorker(QThread):
             prompts = settings.get("prompts", {})
 
             if not api_url:
-                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定配置。")
+                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定中進行設定。")
             if provider not in ("Ollama", "LM Studio") and not api_key:
                 raise ValueError(f"尚未填寫 {provider} 的 API Key，請先至 AI 設定填寫。")
 
@@ -819,7 +819,7 @@ class AIStreamWorker(QThread):
             model = settings.get("models", {}).get(provider, "")
 
             if not api_url:
-                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定配置。")
+                raise ValueError(f"尚未設定 {provider} 的 API 網址，請先至 AI 設定中進行設定。")
             if provider not in ("Ollama", "LM Studio") and not api_key:
                 raise ValueError(f"尚未填寫 {provider} 的 API Key，請先至 AI 設定填寫。")
 

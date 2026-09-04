@@ -65,7 +65,7 @@ class CardDetailTextEdit(QTextEdit):
         modifiers = event.modifiers()
         key = event.key()
 
-        # Ctrl+S 快捷鍵儲存
+        # Ctrl+S 快速鍵儲存
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_S:
             self.signal_save_requested.emit()
             event.accept()
@@ -124,7 +124,7 @@ class CardDetailDialog(QDialog):
         self.apply_theme()
         self.update_word_count()
 
-        # 快捷鍵支援
+        # 快速鍵支援
         QShortcut(QKeySequence("Ctrl+S"), self, self.on_save_clicked)
         QShortcut(QKeySequence("Ctrl+W"), self, self.accept)
 

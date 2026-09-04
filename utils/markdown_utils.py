@@ -51,7 +51,7 @@ def render_markdown_inline(text: str) -> str:
             s = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'<em>\1</em>', s, flags=re.DOTALL)
             # 4. 刪除線 ~~text~~
             s = re.sub(r'~~(.+?)~~', r'<del>\1</del>', s, flags=re.DOTALL)
-            # 5. 行內代碼 `code`
+            # 5. 行內程式碼 `code`
             s = re.sub(r'`([^`]+)`', r'<code>\1</code>', s)
             # 6. 標籤膠囊化 (#標籤)
             s = re.sub(

@@ -149,7 +149,14 @@ class TreeController:
 
             menu.addSeparator()
 
-            # ── 5. 刪除 ─────────────────────────────────
+            # ── 5. 匯入文件 ─────────────────────────────
+            action_import = QAction("📥 匯入文件至此...", self.view)
+            action_import.triggered.connect(lambda: self.mc.import_controller.show_import_dialog(item))
+            menu.addAction(action_import)
+
+            menu.addSeparator()
+
+            # ── 6. 刪除 ─────────────────────────────────
             action_delete = QAction("🗑️ 移至垃圾桶", self.view)
             action_delete.triggered.connect(lambda: self.delete_tree_node(item))
             menu.addAction(action_delete)
@@ -167,6 +174,12 @@ class TreeController:
             action_new_scene = QAction("🎬 新增頂層幕", self.view)
             action_new_scene.triggered.connect(lambda: self.add_scene_node(None))
             menu.addAction(action_new_scene)
+
+            menu.addSeparator()
+
+            action_import = QAction("📥 匯入文件...", self.view)
+            action_import.triggered.connect(lambda: self.mc.import_controller.show_import_dialog(None))
+            menu.addAction(action_import)
 
             menu.addSeparator()
 

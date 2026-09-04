@@ -12,6 +12,10 @@ class StatsController:
 
     def __init__(self, main_controller):
         self.mc = main_controller
+        self._paste_window_words: int = 0
+        self._paste_window_time = None
+        self._delete_window_chars: int = 0
+        self._delete_window_time = None
 
     @property
     def view(self):
@@ -228,6 +232,24 @@ class StatsController:
 
         now = datetime.datetime.now()
 
+        # 監控大量刪除文字行為（單次或2秒內累計超過300字元）
+        if charsRemoved > 0 and self.mc.current_file_item is not None:
+            if charsRemoved >= 300:
+                self.record_text_modification(delete_large=True)
+                self._delete_window_chars = 0
+                self._delete_window_time = None
+            else:
+                if self._delete_window_time and (now - self._delete_window_time).total_seconds() <= 2.0:
+                    self._delete_window_chars += charsRemoved
+                else:
+                    self._delete_window_chars = charsRemoved
+                self._delete_window_time = now
+
+                if self._delete_window_chars >= 300:
+                    self.record_text_modification(delete_large=True)
+                    self._delete_window_chars = 0
+                    self._delete_window_time = None
+
         current_page_words = 0
         if self.mc.current_file_item:
             current_page_words = self.count_words(self.view.editor.toPlainText())
@@ -301,8 +323,8 @@ class StatsController:
 
             self.mc.active_session = None
 
-    def record_ai_activity(self, continuation_count: int = 0, continuation_chars: int = 0, chat_count: int = 0):
-        """記錄並累計當日的 AI 介入度數據（續寫次數/字數、對話次數）。"""
+    def record_ai_activity(self, continuation_count: int = 0, continuation_chars: int = 0, chat_count: int = 0, feature_key: str = ""):
+        """記錄並累計當日的 AI 介入度數據（續寫次數/字數、對話次數，以及細部功能面向）。"""
         now_date_str = datetime.datetime.now().strftime("%Y-%m-%d")
         found = False
         for log in self.mc.writing_logs:
@@ -310,6 +332,69 @@ class StatsController:
                 log.ai_continuation_count = getattr(log, "ai_continuation_count", 0) + continuation_count
                 log.ai_continuation_chars = getattr(log, "ai_continuation_chars", 0) + continuation_chars
                 log.ai_chat_count = getattr(log, "ai_chat_count", 0) + chat_count
+                if not hasattr(log, "ai_details") or not isinstance(log.ai_details, dict):
+                    log.ai_details = {}
+                if feature_key:
+                    log.ai_details[feature_key] = log.ai_details.get(feature_key, 0) + 1
+                found = True
+                break
+        if not found:
+            details = {}
+            if feature_key:
+                details[feature_key] = 1
+            self.mc.writing_logs.append(WritingLogEntry(
+                date=now_date_str,
+                duration=0,
+                word_count=0,
+                ai_continuation_count=continuation_count,
+                ai_continuation_chars=continuation_chars,
+                ai_chat_count=chat_count,
+                ai_details=details
+            ))
+        self.mc.save_temp_doc()
+        if getattr(self.view, 'writing_log_dashboard', None) is not None:
+            self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())
+
+    def on_text_pasted(self, pasted_text: str):
+        """偵測短時間或單次超過 300 字以上的貼上行為次數。"""
+        if not pasted_text or self.view.editor.signalsBlocked():
+            return
+        if not self.mc.tree.is_item_valid(self.mc.current_file_item):
+            return
+
+        now = datetime.datetime.now()
+        words = self.count_words(pasted_text)
+        if words == 0:
+            words = len(pasted_text.strip())
+
+        if words >= 300:
+            self.record_text_modification(paste_large=True)
+            self._paste_window_words = 0
+            self._paste_window_time = None
+        else:
+            if self._paste_window_time and (now - self._paste_window_time).total_seconds() <= 2.0:
+                self._paste_window_words += words
+            else:
+                self._paste_window_words = words
+            self._paste_window_time = now
+
+            if self._paste_window_words >= 300:
+                self.record_text_modification(paste_large=True)
+                self._paste_window_words = 0
+                self._paste_window_time = None
+
+    def record_text_modification(self, paste_large: bool = False, delete_large: bool = False):
+        """記錄並累計當日的大量貼上文字與大量刪除文字次數。"""
+        if not paste_large and not delete_large:
+            return
+        now_date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        found = False
+        for log in self.mc.writing_logs:
+            if log.date == now_date_str:
+                if paste_large:
+                    log.paste_large_count = getattr(log, "paste_large_count", 0) + 1
+                if delete_large:
+                    log.delete_large_count = getattr(log, "delete_large_count", 0) + 1
                 found = True
                 break
         if not found:
@@ -317,17 +402,19 @@ class StatsController:
                 date=now_date_str,
                 duration=0,
                 word_count=0,
-                ai_continuation_count=continuation_count,
-                ai_continuation_chars=continuation_chars,
-                ai_chat_count=chat_count
+                paste_large_count=1 if paste_large else 0,
+                delete_large_count=1 if delete_large else 0
             ))
         self.mc.save_temp_doc()
-        if hasattr(self.view, 'writing_log_dashboard'):
+        if getattr(self.view, 'writing_log_dashboard', None) is not None:
             self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())
 
     def show_writing_log_dashboard(self):
         self.mc.save_current_editor_content()
         self.flush_active_writing_session()
+        scale = getattr(self.view, "scale_factor", 1.0)
+        if hasattr(self.view, "writing_log_dashboard") and hasattr(self.view.writing_log_dashboard, "update_scale"):
+            self.view.writing_log_dashboard.update_scale(scale)
         self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())
         self.view.center_stack.setCurrentIndex(2)
 

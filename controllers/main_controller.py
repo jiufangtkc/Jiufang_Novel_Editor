@@ -20,6 +20,7 @@ from controllers.project_controller import ProjectController
 from controllers.theme_controller import ThemeController
 from controllers.card_controller import CardController
 from controllers.export_controller import ExportController
+from controllers.import_controller import ImportController
 from controllers.ai_controller import AIController
 from controllers.search_controller import SearchController
 from controllers.snapshot_controller import SnapshotController
@@ -85,6 +86,7 @@ class MainController:
         self.theme = ThemeController(self)
         self.card = CardController(self)
         self.export_controller = ExportController(self)
+        self.import_controller = ImportController(self)
         self.ai_controller = AIController(self)
         self.search = SearchController(self)
         self.snapshot = SnapshotController(self)
@@ -204,7 +206,7 @@ class MainController:
                     self.project.init_default_project()
                     break
             else:
-                # 使用者在歡迎視窗按下 X 關閉，直接退出程式
+                # 使用者在歡迎視窗按下 X 關閉，直接結束程式
                 self.should_exit = True
                 break
 
@@ -217,7 +219,10 @@ class MainController:
                 "word_count": log.word_count,
                 "ai_continuation_count": getattr(log, "ai_continuation_count", 0),
                 "ai_continuation_chars": getattr(log, "ai_continuation_chars", 0),
-                "ai_chat_count": getattr(log, "ai_chat_count", 0)
+                "ai_chat_count": getattr(log, "ai_chat_count", 0),
+                "ai_details": dict(getattr(log, "ai_details", {})),
+                "paste_large_count": getattr(log, "paste_large_count", 0),
+                "delete_large_count": getattr(log, "delete_large_count", 0)
             }
             for log in self.writing_logs
         ]
@@ -248,6 +253,8 @@ class MainController:
         self.view.editor.textChanged.connect(self.editor.on_editor_text_changed)
         self.view.editor.cursorPositionChanged.connect(self.editor.on_cursor_position_changed)
         self.view.editor.document().contentsChange.connect(self.stats.on_document_contents_change)
+        if hasattr(self.view.editor, "signal_text_pasted"):
+            self.view.editor.signal_text_pasted.connect(self.stats.on_text_pasted)
 
         self.view.btn_set_target.clicked.connect(self.stats.set_daily_target)
         self.view.btn_clear_progress.clicked.connect(self.stats.clear_daily_progress)
@@ -290,6 +297,8 @@ class MainController:
         self.view.action_save_project.triggered.connect(lambda: self.project.save_project(silent=True))
         self.view.action_save_project_as.triggered.connect(self.project.save_project_as)
         self.view.action_export.triggered.connect(lambda: self.export_single_document())
+        if hasattr(self.view, "action_import"):
+            self.view.action_import.triggered.connect(lambda: self.import_controller.show_import_dialog())
         if hasattr(self.view, "action_load_latest_project"):
             self.view.action_load_latest_project.triggered.connect(self.project.load_latest_story_project)
         self.view.action_load_project.triggered.connect(self.project.load_project)

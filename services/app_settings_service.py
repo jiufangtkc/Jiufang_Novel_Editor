@@ -35,7 +35,7 @@ SETTINGS_FILENAME = "app_settings.json"
 
 
 class AppSettingsService:
-    """負責管理全域視窗尺寸、介面佈局比例、UI 縮放與存檔路徑的持久化。"""
+    """負責管理全域視窗尺寸、介面版面配置比例、UI 縮放與存檔路徑的持久化。"""
 
     @staticmethod
     def get_default_storage_path() -> str:

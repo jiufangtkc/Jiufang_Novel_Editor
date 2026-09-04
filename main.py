@@ -37,7 +37,7 @@ def main():
     # 建立 Controller，並將 View 傳入（啟用使用者啟動選擇流程）
     controller = MainController(view, interactive_startup=True)
     
-    # 若使用者在啟動對話框中取消或關閉，直接乾淨退出
+    # 若使用者在啟動對話框中取消或關閉，直接乾淨結束
     if getattr(controller, "should_exit", False):
         sys.exit(0)
 

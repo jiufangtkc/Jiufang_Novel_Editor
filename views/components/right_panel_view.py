@@ -75,19 +75,19 @@ class RightPanelCardEditor(QTextEdit):
         modifiers = event.modifiers()
         key = event.key()
 
-        # Ctrl+S 快捷鍵儲存
+        # Ctrl+S 快速鍵儲存
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_S:
             self.signal_save_requested.emit()
             event.accept()
             return
 
-        # Ctrl+B 粗體快捷鍵 (所見即所得)
+        # Ctrl+B 粗體快速鍵 (所見即所得)
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_B:
             self.toggle_bold()
             event.accept()
             return
 
-        # Ctrl+I 斜體快捷鍵 (所見即所得)
+        # Ctrl+I 斜體快速鍵 (所見即所得)
         if modifiers == Qt.KeyboardModifier.ControlModifier and key == Qt.Key.Key_I:
             self.toggle_italic()
             event.accept()

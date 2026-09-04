@@ -12,7 +12,7 @@ class MarkdownConverter:
     3. Docx Paragraphs & Runs 結構 (供 Word 匯出使用)
     """
 
-    # 行內格式正則表示式 (粗斜體、粗體、斜體、刪除線、行內代碼)
+    # 行內格式正則表示式 (粗斜體、粗體、斜體、刪除線、行內程式碼)
     # 優先匹配最長語法
     INLINE_PATTERN = re.compile(
         r'(?P<bold_italic>\*\*\*(?P<bi_text>[^\*\n]+?)\*\*\*)|'

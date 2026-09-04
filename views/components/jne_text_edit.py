@@ -11,6 +11,8 @@ class JNE_TextEdit(QTextEdit):
     signal_ai_chat = pyqtSignal(str)
     # 發射信號：()
     signal_ai_continuation = pyqtSignal()
+    # 發射信號：(pasted_text) 貼上文字信號
+    signal_text_pasted = pyqtSignal(str)
 
     def __init__(self, main_window=None):
         super().__init__()
@@ -88,7 +90,9 @@ class JNE_TextEdit(QTextEdit):
     def insertFromMimeData(self, source):
         """貼上文字時若含有 Markdown 格式，自動轉換為乾淨純文字或保持排版"""
         if source.hasText():
-            self.insertPlainText(source.text())
+            pasted_text = source.text()
+            self.insertPlainText(pasted_text)
+            self.signal_text_pasted.emit(pasted_text)
         else:
             super().insertFromMimeData(source)
 

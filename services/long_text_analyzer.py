@@ -4,9 +4,9 @@ from models.models import CompactState, ChunkAnalysisResult, LongTextAnalysisRes
 
 
 class LongTextAnalyzer:
-    """長文分層滾動壓縮與索引分析器（Hierarchical Rolling Compact & Indexing, HRCI）
+    """長文分層捲動壓縮與索引分析器（Hierarchical Rolling Compact & Indexing, HRCI）
 
-    針對 9B 以下本地小模型及長篇小說設計，透過「語義分塊 + 滾動狀態壓縮 + 雙軌索引」機制，
+    針對 9B 以下本地小模型及長篇小說設計，透過「語義分塊 + 捲動狀態壓縮 + 雙軌索引」機制，
     確保在小模型上下文視窗（Context Window）限制下，能穩定且無遺漏地分析超長小說文本。
     """
 
@@ -113,7 +113,7 @@ class LongTextAnalyzer:
 
         system_prompt = (
             f"你是一位專業嚴謹的小說分析編輯與文學顧問。現在正在對一部長篇小說進行「{task_name}」。\n"
-            f"本分析採用滾動壓縮管線進行，這是一篇包含 {total_chunks} 個分段的長篇作品。\n"
+            f"本分析採用捲動壓縮管線進行，這是一篇包含 {total_chunks} 個分段的長篇作品。\n"
             f"你必須嚴格基於提供的前文「歷史摘要索引」與「當前片段」，進行客觀結構化分析，並輸出更新後的索引供下一階段使用。"
         )
 
@@ -153,7 +153,7 @@ class LongTextAnalyzer:
         return "深入分析本段文本的核心內容、文學表現與結構細節。"
 
     def parse_chunk_response(self, response_text: str, current_state: CompactState) -> tuple[str, CompactState]:
-        """解析 LLM 對單一分塊的回應，分離出局部結論並滾動更新狀態索引。"""
+        """解析 LLM 對單一分塊的回應，分離出局部結論並捲動更新狀態索引。"""
         clean_resp = response_text.strip()
 
         # 分離【本段分析結論】與【更新後摘要索引】
@@ -282,7 +282,7 @@ class LongTextAnalyzer:
     def build_synthesis_prompt(self, task_type: str, final_state: CompactState,
                                chunk_results: List[ChunkAnalysisResult],
                                total_chars: int, custom_prompt: str = "") -> tuple[str, str]:
-        """建構長文滾動結束後的全局綜合整合 Prompt。"""
+        """建構長文捲動結束後的全局綜合整合 Prompt。"""
         task_name = self.TASK_NAME_MAP.get(task_type, "長篇小說綜合分析")
 
         system_prompt = (
@@ -325,7 +325,7 @@ class LongTextAnalyzer:
             f"請結合上述所有分析與全景索引，產出最終的完整結構化報告。要求：\n"
             f"1. 宏觀全局視野，避免單純重複各段細節。\n"
             f"2. 結構清晰分明，使用明確小標題與條列。\n"
-            f"3. 提供具體深入的文學評論、關鍵洞察與實質優化建議。\n"
+            f"3. 提供具體深入的文學評論、關鍵洞察與實質最佳化建議。\n"
             f"{extra_req}"
         )
 
@@ -335,7 +335,7 @@ class LongTextAnalyzer:
                           custom_prompt: str = "",
                           progress_callback: Optional[Callable[[int, int, str], None]] = None,
                           is_cancelled_callback: Optional[Callable[[], bool]] = None) -> LongTextAnalysisResult:
-        """執行長文 HRCI 滾動壓縮分析完整管線。
+        """執行長文 HRCI 捲動壓縮分析完整管線。
 
         Args:
             text: 待分析之完整小說文本
@@ -348,7 +348,7 @@ class LongTextAnalyzer:
             LongTextAnalysisResult 物件
         """
         if not self.ai_caller:
-            raise ValueError("未配置 ai_caller，無法執行 AI 分析。")
+            raise ValueError("未設定 ai_caller，無法執行 AI 分析。")
 
         chunks = self.split_into_chunks(text)
         total_chunks = len(chunks)
@@ -361,7 +361,7 @@ class LongTextAnalyzer:
         state = CompactState()
         chunk_results: List[ChunkAnalysisResult] = []
 
-        # 逐段滾動壓縮分析
+        # 逐段捲動壓縮分析
         for idx, chunk in enumerate(chunks):
             if is_cancelled_callback and is_cancelled_callback():
                 raise InterruptedError("使用者已取消長文分析。")
@@ -397,7 +397,7 @@ class LongTextAnalyzer:
                 raw_response=raw_response
             )
             chunk_results.append(chunk_res)
-            state = new_state  # 滾動轉移狀態
+            state = new_state  # 捲動轉移狀態
 
         # 如果只有單一分塊，直接以該分塊的結論作為最終結果
         if total_chunks == 1:

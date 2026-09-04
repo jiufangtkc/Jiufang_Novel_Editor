@@ -58,7 +58,7 @@ class AIChatDialog(QDialog):
         self._init_ui()
         self._load_provider_info()
 
-        # 快捷鍵
+        # 快速鍵
         QShortcut(QKeySequence("Ctrl+Return"), self, self._on_send_clicked)
         QShortcut(QKeySequence("Ctrl+Enter"), self, self._on_send_clicked)
 

@@ -2,7 +2,7 @@ from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import QMainWindow
 
 class MenuBuilder:
-    """負責建立與配置主視窗選單列 (MenuBar) 的構建器。"""
+    """負責建立與設定主視窗選單列 (MenuBar) 的構建器。"""
 
     @staticmethod
     def build_menus(window: QMainWindow):
@@ -19,6 +19,8 @@ class MenuBuilder:
         window.action_save_project_as.setShortcut("Ctrl+Alt+S")
         window.action_export = QAction("匯出(&E)...", window)
         window.action_export.setShortcut("Ctrl+E")
+        window.action_import = QAction("匯入文件(&I)...", window)
+        window.action_import.setShortcut("Ctrl+I")
         window.action_load_latest_project = QAction("讀取上次寫的專案(&L)", window)
         window.action_load_project = QAction("讀取稿件(&O)...", window)
         window.action_load_project.setShortcut("Ctrl+O")
@@ -29,13 +31,14 @@ class MenuBuilder:
         window.action_export_backup.setShortcut("Ctrl+Shift+B")
         window.action_restore_backup = QAction("從備份還原專案(&R)...", window)
         window.action_restore_backup.setShortcut("Ctrl+Shift+R")
-        window.action_exit = QAction("退出九方編輯器(&X)", window)
+        window.action_exit = QAction("結束九方編輯器(&X)", window)
         window.action_exit.setShortcut("Ctrl+Q")
 
         window.file_menu.addAction(window.action_new_book)
         window.file_menu.addAction(window.action_save_project)
         window.file_menu.addAction(window.action_save_project_as)
         window.file_menu.addAction(window.action_export)
+        window.file_menu.addAction(window.action_import)
         window.file_menu.addSeparator()
         window.file_menu.addAction(window.action_load_latest_project)
         window.file_menu.addAction(window.action_load_project)

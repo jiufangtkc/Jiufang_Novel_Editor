@@ -182,13 +182,13 @@ class ProjectController:
                     event.ignore()
                 return
 
-        # 3. 正常結束流程與偏好設定保存
+        # 3. 正常結束流程與偏好設定儲存
         self.mc.flush_active_writing_session()
         # 只有在非放棄存檔時（即已存檔或無變更），才更新 temp_doc
         if not getattr(self.mc, "is_dirty", False):
             self.save_temp_doc()
 
-        # 儲存介面調整的大小與偏好設定，並標記正常退出
+        # 儲存介面調整的大小與偏好設定，並標記正常結束
         settings = AppSettingsService.extract_from_window(self.view)
         settings["autosave_interval_minutes"] = getattr(self.mc, "autosave_interval_minutes", 10)
         settings["autosave_max_files"] = getattr(self.mc, "autosave_max_files", 100)
@@ -259,7 +259,8 @@ class ProjectController:
                 word_count=log.word_count,
                 ai_continuation_count=getattr(log, "ai_continuation_count", 0),
                 ai_continuation_chars=getattr(log, "ai_continuation_chars", 0),
-                ai_chat_count=getattr(log, "ai_chat_count", 0)
+                ai_chat_count=getattr(log, "ai_chat_count", 0),
+                ai_details=dict(getattr(log, "ai_details", {}))
             ))
 
         return project
@@ -366,7 +367,8 @@ class ProjectController:
                 date=l.date, duration=l.duration, word_count=l.word_count,
                 ai_continuation_count=getattr(l, "ai_continuation_count", 0),
                 ai_continuation_chars=getattr(l, "ai_continuation_chars", 0),
-                ai_chat_count=getattr(l, "ai_chat_count", 0)
+                ai_chat_count=getattr(l, "ai_chat_count", 0),
+                ai_details=dict(getattr(l, "ai_details", {}))
             )
             for l in project.writing_logs
         ]

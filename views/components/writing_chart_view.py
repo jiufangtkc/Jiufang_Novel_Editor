@@ -21,6 +21,10 @@ class WritingChartView(QWidget):
         self.values = []
         self.ai_chars = []
         self.ai_chats = []
+        self.ai_details = []
+        self.full_date_map = {}
+        self.total_paste_large = 0
+        self.total_delete_large = 0
         self.chapter_names = []
         self.chapter_words = []
 
@@ -40,11 +44,15 @@ class WritingChartView(QWidget):
         self.mode = mode
         self.update()
 
-    def set_data(self, dates, values, ai_chars=None, ai_chats=None):
+    def set_data(self, dates, values, ai_chars=None, ai_chats=None, ai_details=None, full_date_map=None, total_paste_large=0, total_delete_large=0):
         self.dates = dates
         self.values = values
         self.ai_chars = ai_chars if ai_chars is not None else [0] * len(values)
         self.ai_chats = ai_chats if ai_chats is not None else [0] * len(values)
+        self.ai_details = ai_details if ai_details is not None else [{}] * len(values)
+        self.full_date_map = full_date_map if full_date_map is not None else {d: v for d, v in zip(dates, values)}
+        self.total_paste_large = total_paste_large
+        self.total_delete_large = total_delete_large
         self.update()
 
     def set_chapter_stats(self, chapter_names, chapter_words):
@@ -174,14 +182,15 @@ class WritingChartView(QWidget):
             path_line.moveTo(x_coords[0], y_coords[0])
             for i in range(1, num_points):
                 path_line.lineTo(x_coords[i], y_coords[i])
-            painter.setPen(QPen(self.theme_color, 2))
+            painter.setPen(QPen(self.theme_color, max(1, int(2 * self.scale_factor))))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawPath(path_line)
 
-        painter.setPen(QPen(self.theme_color, 2))
+        dot_r = max(3, int(4 * self.scale_factor))
+        painter.setPen(QPen(self.theme_color, max(1, int(2 * self.scale_factor))))
         painter.setBrush(QBrush(QColor("#1e1e1e")))
         for i in range(num_points):
-            painter.drawEllipse(x_coords[i] - 4, y_coords[i] - 4, 8, 8)
+            painter.drawEllipse(x_coords[i] - dot_r, y_coords[i] - dot_r, dot_r * 2, dot_r * 2)
 
     # =========================================================================
     # 2. GitHub Contribution 風格「每日打卡熱力圖」
@@ -189,50 +198,50 @@ class WritingChartView(QWidget):
     def _paint_heatmap(self, painter: QPainter):
         w = self.width()
         h = self.height()
+        scale = getattr(self, "scale_factor", 1.0)
         self.heatmap_rects.clear()
 
-        painter.setFont(FontManager.get_font(size=int(9 * self.scale_factor)))
+        painter.setFont(FontManager.get_font(size=max(8, int(10 * scale)), weight=QFont.Weight.Bold))
         text_pen = QPen(QColor(170, 170, 170))
 
         # 標題
         painter.setPen(text_pen)
-        painter.drawText(int(20 * self.scale_factor), int(20 * self.scale_factor), int(300 * self.scale_factor), int(20 * self.scale_factor), Qt.AlignmentFlag.AlignLeft, "📅 寫作打卡熱力圖（近 24 週）")
+        painter.drawText(int(20 * scale), int(12 * scale), int(350 * scale), int(22 * scale), Qt.AlignmentFlag.AlignLeft, "📅 寫作打卡熱力圖（近 24 週）")
 
-        # 建立日期與字數查找表
-        date_map = {d: v for d, v in zip(self.dates, self.values)}
+        # 建立全量日期與字數查找表
+        date_map = self.full_date_map if self.full_date_map else {d: v for d, v in zip(self.dates, self.values)}
 
-        # 計算近 24 週（約 168 天）
         today = datetime.date.today()
-        # 找到最近一個週六作為結尾
-        days_to_sat = (5 - today.weekday()) % 7
-        end_date = today + datetime.timedelta(days=days_to_sat)
-        start_date = end_date - datetime.timedelta(weeks=24, days=6)
+        curr_monday = today - datetime.timedelta(days=today.weekday())
+        start_date = curr_monday - datetime.timedelta(weeks=23)
 
         weeks = 24
         days_per_week = 7
 
-        box_size = max(10, min(16, int((w - 80) / weeks) - 3))
-        spacing = 3
-
-        start_x = 45
-        start_y = 50
+        spacing = max(2, int(3 * scale))
+        start_x = int(45 * scale)
+        start_y = int(40 * scale)
+        box_size = max(int(10 * scale), min(int(18 * scale), int((w - start_x - int(30 * scale)) / weeks) - spacing))
 
         # 繪製星期標籤 (Mon, Wed, Fri)
         day_labels = ["一", "二", "三", "四", "五", "六", "日"]
-        painter.setFont(FontManager.get_font(size=int(8 * self.scale_factor)))
+        painter.setFont(FontManager.get_font(size=max(7, int(8 * scale))))
         for day_idx in [0, 2, 4]:
             painter.setPen(text_pen)
-            painter.drawText(10, start_y + day_idx * (box_size + spacing) + box_size - 2, 30, 16, Qt.AlignmentFlag.AlignRight, day_labels[day_idx])
+            painter.drawText(int(5 * scale), start_y + day_idx * (box_size + spacing) + int(2 * scale), start_x - int(10 * scale), box_size, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, day_labels[day_idx])
 
         # 繪製打卡方塊
-        curr_date = start_date
         for col in range(weeks):
             for row in range(days_per_week):
+                curr_date = start_date + datetime.timedelta(days=col * 7 + row)
                 d_str = curr_date.strftime("%Y-%m-%d")
                 count = date_map.get(d_str, 0)
+                is_future = curr_date > today
 
-                # 依字數決定顏色深度
-                if count <= 0:
+                # 依字數或未來日期決定顏色深度
+                if is_future:
+                    bg_color = QColor(255, 255, 255, 5)
+                elif count <= 0:
                     bg_color = QColor(255, 255, 255, 12)
                 elif count < 500:
                     bg_color = QColor(self.theme_color.red(), self.theme_color.green(), self.theme_color.blue(), 80)
@@ -244,18 +253,18 @@ class WritingChartView(QWidget):
                     bg_color = self.theme_color
 
                 rect = QRectF(start_x + col * (box_size + spacing), start_y + row * (box_size + spacing), box_size, box_size)
-                self.heatmap_rects.append((rect, d_str, count))
+                if not is_future:
+                    self.heatmap_rects.append((rect, d_str, count))
 
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(QBrush(bg_color))
                 painter.drawRoundedRect(rect, 2, 2)
 
-                curr_date += datetime.timedelta(days=1)
-
         # 圖例
-        legend_y = start_y + days_per_week * (box_size + spacing) + 15
+        legend_y = start_y + days_per_week * (box_size + spacing) + int(12 * scale)
+        painter.setFont(FontManager.get_font(size=max(7, int(8 * scale))))
         painter.setPen(text_pen)
-        painter.drawText(start_x, legend_y, 40, 20, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "少")
+        painter.drawText(start_x, legend_y, int(30 * scale), int(20 * scale), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "少")
         
         levels = [
             QColor(255, 255, 255, 12),
@@ -264,13 +273,15 @@ class WritingChartView(QWidget):
             QColor(self.theme_color.red(), self.theme_color.green(), self.theme_color.blue(), 200),
             self.theme_color
         ]
-        leg_x = start_x + 30
+        leg_box = max(8, int(12 * scale))
+        leg_step = leg_box + max(3, int(4 * scale))
+        leg_x = start_x + int(24 * scale)
         for lvl_color in levels:
             painter.setBrush(QBrush(lvl_color))
-            painter.drawRoundedRect(QRectF(leg_x, legend_y + 3, 12, 12), 2, 2)
-            leg_x += 16
+            painter.drawRoundedRect(QRectF(leg_x, legend_y + int(3 * scale), leg_box, leg_box), 2, 2)
+            leg_x += leg_step
         painter.setPen(text_pen)
-        painter.drawText(leg_x + 4, legend_y, 40, 20, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "多")
+        painter.drawText(leg_x + int(4 * scale), legend_y, int(30 * scale), int(20 * scale), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "多")
 
     # =========================================================================
     # 3. 全書各章字數長條圖
@@ -278,14 +289,15 @@ class WritingChartView(QWidget):
     def _paint_chapters(self, painter: QPainter):
         w = self.width()
         h = self.height()
+        scale = getattr(self, "scale_factor", 1.0)
 
-        left_pad = 120
-        right_pad = 40
-        top_pad = 30
-        bottom_pad = 20
+        left_pad = int(120 * scale)
+        right_pad = int(40 * scale)
+        top_pad = int(35 * scale)
+        bottom_pad = int(20 * scale)
 
         text_pen = QPen(QColor(170, 170, 170))
-        painter.setFont(FontManager.get_font(size=9))
+        painter.setFont(FontManager.get_font(size=max(7, int(9 * scale))))
 
         if not self.chapter_words or len(self.chapter_words) == 0:
             painter.setPen(text_pen)
@@ -293,12 +305,18 @@ class WritingChartView(QWidget):
             return
 
         max_val = max(self.chapter_words) if max(self.chapter_words) > 0 else 1000
-        bar_height = max(16, min(28, int((h - top_pad - bottom_pad) / len(self.chapter_words)) - 6))
-        spacing = 6
-        avail_w = w - left_pad - right_pad - 60
+        total_ch = len(self.chapter_words)
+        spacing = max(3, int((4 if total_ch > 15 else 6) * scale))
+        avail_h = h - top_pad - bottom_pad
+        bar_height = max(int(10 * scale), min(int(26 * scale), int(avail_h / total_ch) - spacing))
+        avail_w = w - left_pad - right_pad - int(60 * scale)
 
         painter.setPen(text_pen)
-        painter.drawText(20, 15, 300, 20, Qt.AlignmentFlag.AlignLeft, "📊 全書各章節字數分佈圖")
+        painter.setFont(FontManager.get_font(size=max(8, int(10 * scale)), weight=QFont.Weight.Bold))
+        painter.drawText(int(20 * scale), int(12 * scale), int(380 * scale), int(22 * scale), Qt.AlignmentFlag.AlignLeft, f"📊 全書各章節字數分佈圖（共 {total_ch} 章）")
+
+        font_label = FontManager.get_font(size=max(7, int(8.5 * scale)))
+        font_count = FontManager.get_font(size=max(7, int(8 * scale)))
 
         for idx, (name, count) in enumerate(zip(self.chapter_names, self.chapter_words)):
             y = top_pad + idx * (bar_height + spacing)
@@ -307,12 +325,13 @@ class WritingChartView(QWidget):
 
             # 章節名稱（截斷）
             display_name = name[:10] + ("..." if len(name) > 10 else "")
+            painter.setFont(font_label)
             painter.setPen(text_pen)
-            painter.drawText(10, y, left_pad - 20, bar_height, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
+            painter.drawText(int(10 * scale), y, left_pad - int(20 * scale), bar_height, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
 
             # 長條
             bar_w = int((count / max_val) * avail_w) if max_val > 0 else 0
-            bar_rect = QRectF(left_pad, y + 2, max(4, bar_w), bar_height - 4)
+            bar_rect = QRectF(left_pad, y + int(2 * scale), max(4, bar_w), bar_height - int(4 * scale))
 
             grad = QLinearGradient(left_pad, 0, left_pad + bar_w, 0)
             grad.setColorAt(0.0, QColor(self.theme_color.red(), self.theme_color.green(), self.theme_color.blue(), 160))
@@ -323,8 +342,9 @@ class WritingChartView(QWidget):
             painter.drawRoundedRect(bar_rect, 3, 3)
 
             # 字數標記
+            painter.setFont(font_count)
             painter.setPen(text_pen)
-            painter.drawText(left_pad + bar_w + 8, y, 60, bar_height, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f"{count} 字")
+            painter.drawText(left_pad + bar_w + int(8 * scale), y, int(70 * scale), bar_height, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f"{count} 字")
 
     # =========================================================================
     # 4. AI 介入度與原創字數分析圖
@@ -332,27 +352,42 @@ class WritingChartView(QWidget):
     def _paint_ai_ratio(self, painter: QPainter):
         w = self.width()
         h = self.height()
+        scale = getattr(self, "scale_factor", 1.0)
 
         text_pen = QPen(QColor(170, 170, 170))
-        painter.setFont(FontManager.get_font(size=9))
+        painter.setFont(FontManager.get_font(size=max(7, int(9 * scale))))
 
         total_words = sum(self.values)
         total_ai_chars = sum(self.ai_chars)
         total_ai_chats = sum(self.ai_chats)
         total_manual_words = max(0, total_words - total_ai_chars)
 
+        # 計算細部面向
+        structuring_count = 0
+        editorial_count = 0
+        brainstorming_count = 0
+        for d in self.ai_details:
+            if isinstance(d, dict):
+                structuring_count += d.get("character", 0) + d.get("world", 0) + d.get("timeline", 0)
+                editorial_count += d.get("proofread", 0) + d.get("impression", 0)
+                brainstorming_count += d.get("chat", 0)
+        if structuring_count == 0 and editorial_count == 0 and brainstorming_count == 0:
+            brainstorming_count = total_ai_chats
+
         painter.setPen(text_pen)
-        painter.drawText(20, 20, 300, 20, Qt.AlignmentFlag.AlignLeft, "🤖 AI 創作介入度與輔助比例分析")
+        painter.setFont(FontManager.get_font(size=max(8, int(10 * scale)), weight=QFont.Weight.Bold))
+        painter.drawText(int(20 * scale), int(20 * scale), int(380 * scale), int(22 * scale), Qt.AlignmentFlag.AlignLeft, "🛡️ AI 創作誠信度與輔助面向分析")
 
         if total_words <= 0 and total_ai_chars <= 0:
+            painter.setFont(FontManager.get_font(size=max(7, int(9 * scale))))
             painter.setPen(text_pen)
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "尚未累積足夠的寫作與 AI 互動記錄")
             return
 
         # 圓餅圖/環形圖繪製
-        center_x = int(w * 0.35)
+        center_x = int(w * 0.30)
         center_y = int(h * 0.55)
-        radius = min(int(h * 0.32), 90)
+        radius = min(int(h * 0.36), int(85 * scale))
 
         pie_total = max(1, total_manual_words + total_ai_chars)
         manual_angle = int((total_manual_words / pie_total) * 360 * 16)
@@ -372,39 +407,47 @@ class WritingChartView(QWidget):
             painter.drawPie(center_x - radius, center_y - radius, radius * 2, radius * 2, manual_angle, ai_angle)
 
         # 內圈中空環形
-        inner_r = int(radius * 0.6)
+        inner_r = int(radius * 0.62)
         painter.setBrush(QBrush(QColor("#1e1e1e")))
         painter.drawEllipse(center_x - inner_r, center_y - inner_r, inner_r * 2, inner_r * 2)
 
-        # 環形中間文字
-        ratio_pct = int((total_ai_chars / pie_total) * 100)
+        # 環形中間文字 (突顯手寫原創率)
+        handcrafted_pct = 100 if pie_total == 0 else int((total_manual_words / pie_total) * 100)
         painter.setPen(text_pen)
-        painter.setFont(FontManager.get_font(size=11, weight=QFont.Weight.Bold))
-        painter.drawText(center_x - inner_r, center_y - 10, inner_r * 2, 20, Qt.AlignmentFlag.AlignCenter, f"{ratio_pct}%")
-        painter.setFont(FontManager.get_font(size=8))
-        painter.drawText(center_x - inner_r, center_y + 8, inner_r * 2, 16, Qt.AlignmentFlag.AlignCenter, "AI 輔助")
+        painter.setFont(FontManager.get_font(size=max(8, int(11 * scale)), weight=QFont.Weight.Bold))
+        text_num_y = center_y - int(12 * scale)
+        text_num_h = int(20 * scale)
+        painter.drawText(center_x - inner_r, text_num_y, inner_r * 2, text_num_h, Qt.AlignmentFlag.AlignCenter, f"{handcrafted_pct}%")
+
+        painter.setFont(FontManager.get_font(size=max(7, int(8 * scale))))
+        text_sub_y = center_y + int(8 * scale)
+        text_sub_h = int(16 * scale)
+        painter.drawText(center_x - inner_r, text_sub_y, inner_r * 2, text_sub_h, Qt.AlignmentFlag.AlignCenter, "手寫原創")
 
         # 右側數據統計明細
-        info_x = int(w * 0.6)
-        info_y = center_y - 70
+        info_x = int(w * 0.52)
+        info_y = max(int(35 * scale), center_y - int(65 * scale))
 
-        painter.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        painter.setFont(FontManager.get_font(size=max(8, int(10 * scale)), weight=QFont.Weight.Bold))
         painter.setPen(text_pen)
-        painter.drawText(info_x, info_y, 250, 24, Qt.AlignmentFlag.AlignLeft, "數據明細總覽：")
+        painter.drawText(info_x, info_y, int(320 * scale), int(22 * scale), Qt.AlignmentFlag.AlignLeft, "誠信指標與輔助明細：")
 
-        # 項目 1：手寫原創字數
-        painter.setBrush(QBrush(manual_color))
-        painter.drawRoundedRect(QRectF(info_x, info_y + 35, 12, 12), 2, 2)
-        painter.setFont(FontManager.get_font(size=9))
-        painter.setPen(text_pen)
-        painter.drawText(info_x + 20, info_y + 30, 220, 20, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f"手寫原創字數：{total_manual_words:,} 字 ({100 - ratio_pct}%)")
+        painter.setFont(FontManager.get_font(size=max(7, int(8.5 * scale))))
+        items = [
+            (manual_color, f"親筆手創：{total_manual_words:,} 字 ({handcrafted_pct}%)"),
+            (ai_color, f"AI 正文代筆：{total_ai_chars:,} 字 ({100 - handcrafted_pct}%)"),
+            (QColor("#42a5f5"), f"🧩 設定架構整理：{structuring_count:,} 次 (角色/世界觀/時間線)"),
+            (QColor("#ffa726"), f"🔍 責任編輯審校：{editorial_count:,} 次 (AI校稿/寫作建議)"),
+            (QColor("#ab47bc"), f"💬 靈感構思對話：{brainstorming_count:,} 次 (對話助手)")
+        ]
 
-        # 項目 2：AI 續寫字數
-        painter.setBrush(QBrush(ai_color))
-        painter.drawRoundedRect(QRectF(info_x, info_y + 65, 12, 12), 2, 2)
-        painter.drawText(info_x + 20, info_y + 60, 220, 20, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f"AI 續寫字數：{total_ai_chars:,} 字 ({ratio_pct}%)")
-
-        # 項目 3：AI 對話互動
-        painter.setBrush(QBrush(QColor("#ab47bc")))
-        painter.drawRoundedRect(QRectF(info_x, info_y + 95, 12, 12), 2, 2)
-        painter.drawText(info_x + 20, info_y + 90, 220, 20, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, f"AI 對話與分析互動：{total_ai_chats:,} 次")
+        row_y = info_y + int(24 * scale)
+        sq_size = max(6, int(9 * scale))
+        row_height = max(16, int(20 * scale))
+        for color, text in items:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(color))
+            painter.drawRoundedRect(QRectF(info_x, row_y + int(2 * scale), sq_size, sq_size), 2, 2)
+            painter.setPen(text_pen)
+            painter.drawText(info_x + sq_size + int(6 * scale), row_y, int(350 * scale), row_height, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+            row_y += row_height

@@ -7,7 +7,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
     """
     即時 Markdown 語法高亮器。
     支援標題 (# ~ ######)、粗體 (**或__)、斜體 (*或_)、刪除線 (~~)、
-    清單 (- 或 1.)、引言 (>)、行內代碼 (`)、代碼區塊、水平分隔線 (---)、
+    清單 (- 或 1.)、引言 (>)、行內程式碼 (`)、程式碼區塊、水平分隔線 (---)、
     以及小說常用標籤與角色欄位標記（例如 【外貌特徵】、#標籤）。
     """
 
@@ -112,7 +112,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
         self.fmt_quote.setForeground(quote_color)
         self.fmt_quote.setFontItalic(True)
 
-        # 行內代碼
+        # 行內程式碼
         self.fmt_code = QTextCharFormat()
         self.fmt_code.setForeground(code_color)
         self.fmt_code.setBackground(code_bg)
@@ -169,7 +169,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             # 10. 刪除線 (~~text~~)
             (re.compile(r"~~[^~\n]+~~"), self.fmt_strike),
 
-            # 11. 行內代碼 (`code`)
+            # 11. 行內程式碼 (`code`)
             (re.compile(r"`[^`\n]+`"), self.fmt_code),
 
             # 12. 關係箭頭與 LaTeX 指令 (⟷, ➔, $\leftrightarrow$, \leftrightarrow 等)
@@ -189,7 +189,7 @@ class MarkdownHighlighter(QSyntaxHighlighter):
             re.compile(r"\*\*|__"),      # 粗體符號
             re.compile(r"(?<!\*)\*(?!\*)|(?<!\w)_(?!\w)"),  # 斜體符號
             re.compile(r"~~"),            # 刪除線符號
-            re.compile(r"`"),             # 代碼符號
+            re.compile(r"`"),             # 程式碼符號
             re.compile(r"^#{1,6}\s"),     # 標題前綴
             re.compile(r"^>\s*"),         # 引言前綴
             re.compile(r"\$"),            # 數學符號標記

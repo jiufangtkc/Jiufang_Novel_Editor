@@ -1,6 +1,77 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-03，實作「快速存檔安靜存檔」與「依書名單一存檔覆寫規則」（Ctrl+S 不彈窗，檔名不再帶時間戳，除非另存新檔否則維持原檔名覆寫），全套 171 項單元測試維持 100% 通過。
+> 最後更新：2026-09-04，實作 Phase 25「全專案中文用語臺灣繁體情境在地化全面檢核與替換」（清查全專案 87 處非臺灣慣用語，將「優化」、「默認」、「滾動」、「退出」、「代碼」、「文檔」、「快捷鍵」、「線程」、「保存」等全面標準化為「最佳化」、「預設」、「捲動」、「結束/離開」、「程式碼」、「文件」、「快速鍵」、「執行緒」、「儲存」），全套 191 項單元測試維持 100% 通過。
+
+### 陷阱 17：寫作打卡熱力圖（Heatmap）網格與星期對齊
+- 熱力圖的網格繪製為 24 欄（週）× 7 列（星期一至日）。計算起始日時，必須以「本週一」為基準向前推 23 週（共 24 週）：`curr_monday = today - datetime.timedelta(days=today.weekday())`，`start_date = curr_monday - datetime.timedelta(weeks=23)`。切勿額外加上 `days=6`，否則會多扣除 6 天使最後一格停留在上週，導致當週歷史打卡全部落在網格之外。
+- 熱力圖的 `date_map` 必須包含專案全部歷史寫作日誌（`full_date_map`），切勿僅傳遞給近期折線圖的 14 天切片數據。
+
+### 陷阱 18：樹狀目錄節點資料鍵名相容性
+- 專案在 `tree_controller.py` 中向 `QTreeWidgetItem` 寫入的字典鍵名為 `"type"`（值為 `"file"`, `"scene"`, `"folder"`），但在早期少數測試或匯入預覽模組中可能存在 `"node_type"`。任何從樹節點提取章節屬性之模組，應一律採用 `node_type = data.get("type") or data.get("node_type")` 進行雙向安全相容取值。
+
+---
+
+## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
+
+- **本次完成事項 (Phase 25：全專案中文用語臺灣繁體情境在地化全面檢核與替換，全套 191 項單元測試 100% 綠燈)**：
+  1. **AI 提示詞與服務模組標準化**：
+     - `ai_settings.json` 與 `services/ai_service.py` 預設文學評論提示詞中之「寫作優化建議」全面修正為「寫作最佳化建議」。
+     - `services/long_text_analyzer.py` 中之演算法註解、Prompt 模板與進度回報中的「滾動壓縮 / 滾動更新 / 滾動分析」全面修正為「捲動壓縮 / 捲動更新 / 捲動分析」；「實質優化建議」修正為「實質最佳化建議」；「未配置 ai_caller」修正為「未設定 ai_caller」。
+  2. **UI 介面、選單與對話框標準化**：
+     - `views/components/menu_builder.py`：檔案選單之「退出九方編輯器(&X)」修正為標準 Windows 繁體中文「結束九方編輯器(&X)」。
+     - `views/main_window.py`：沉浸專注模式提示條「✨ 沉浸寫作模式 — 按 Esc 或 F11 退出」修正為「按 Esc 或 F11 離開」；註解中快捷鍵修正為快速鍵。
+     - `views/dialogs/ai_scope_dialog.py`：長篇小說分析統計提示文字「長文滾動分析」修正為「長文捲動分析」。
+     - `README.md`：核心特色說明中之「打字機滾動模式」修正為「打字機捲動模式」。
+  3. **控制器、模型與工具層用語在地化**：
+     - `main.py` 與 `controllers/main_controller.py`：結束處理註解由「退出」修正為「結束」。
+     - `controllers/card_controller.py`：連動更新註解由「同步刷新」修正為「同步重新整理」。
+     - `controllers/ai_controller.py` 與 `controllers/editor_controller.py`：由「滾動至可見」修正為「捲動至可見」。
+     - `models/models.py`：`CompactState` 與 `LongTextAnalysisResult` 之 docstring 修正為「捲動壓縮狀態物件」與「長文捲動分析」。
+     - `utils/markdown_highlighter.py`、`markdown_converter.py`、`markdown_utils.py`：語法標記與解析註解中之「行內代碼 / 代碼區塊」全面修正為「行內程式碼 / 程式碼區塊」。
+  4. **測試套件與專案文檔全面同步**：
+     - `tests/test_ai_chat.py`：線程 ➔ 執行緒。
+     - `tests/test_markdown_converter.py`：測試文字從 \`代碼\` 升級為 \`程式碼\`，驗證繁體字串之 Markdown 行內解析無誤。
+     - `tests/test_save_rules.py`、`test_import_controller.py`：快捷鍵 ➔ 快速鍵。
+     - `tests/test_autosave_and_startup.py`、`test_focus_and_outline.py`：退出 ➔ 結束/離開。
+     - `tests/test_phase12.py`、`test_controllers.py`：保存 ➔ 儲存。
+     - `.agents/docs/TEST_SUITE.md`、`IMPLEMENTATION_PLAN.md`、`OPTIMIZATION_PLAN.md`、`ROADMAP.md` 全數完成用語同步。
+  5. **全套測試 100% 綠燈通過**：
+     - 執行 `pytest tests/`，共 191 項測試全數 PASS（0 failures, 0 errors），系統穩定度與行為一致性完全無虞。
+  1. **創作日誌熱力圖修復**：
+     - 修正 `WritingChartView._paint_heatmap` 的日期起始計算，以本週一為基準往前推 23 週，確保每一列（row 0～6）精準對齊週一至週日，並將當日（例如 2026-09-04）以及過去 24 週（含 8/31、9/1、9/3、9/4 等）完整涵蓋進可見方格。
+     - 傳入全量日誌 `full_date_map`，解決先前僅傳遞最近 14 天切片資料導致打卡格子深色未點亮之問題；未來日期則自動顯示微暗未解鎖方塊。
+  2. **各章節字數統計修復與最佳化**：
+     - 修正 `WritingLogDashboard._extract_chapter_stats` 節點型態提取邏輯，相容 `type` 與 `node_type`，解決「尚未建立任何章節或章節尚無字數」之錯誤顯示。
+     - 若使用者正在編輯當前章節，即時從編輯器抓取最新字數；長條圖繪製亦支援章節數量自適應高度。
+  3. **短時間大量貼上（>300字）即時偵測與記錄**：
+     - `JNE_TextEdit` 於 `insertFromMimeData` 攔截所有貼上行為（快速鍵與右鍵選單）並發射 `signal_text_pasted(str)`。
+     - `StatsController.on_text_pasted` 計算有效字數，單次或 2 秒窗口內累計超過 300 字時，累計為「大量貼上文字」次數（`paste_large_count`），且與 AI 續寫文字嚴格分離。
+  4. **短時間大量刪除（>300字）即時偵測與記錄**：
+     - `StatsController.on_document_contents_change` 監控底層 `charsRemoved`，單次或 2 秒窗口內累計超過 300 字時，累計為「大量刪除文字」次數（`delete_large_count`），且阻斷切換章節與開啟專案時的文字重設信號。
+  5. **資料庫 Schema v12 Migration 與持久化**：
+     - `DatabaseMigrations` 升級至版本 12，新增 `upgrade_v11_to_v12` 於 `writing_logs` 補齊 `paste_large_count` 與 `delete_large_count`。
+     - `DatabaseService`、`StorageService` 與 `MainController` 完整支援兩欄位之 SQL 存取、快照與 JSON 字典轉換。
+  6. **寫作儀表板 UI 與誠信指標全面展示**：
+     - 日誌表格由 5 欄擴展為 6 欄，新增「大量異動(貼/刪)」欄位，以 `[📋貼上 1] [✂️刪除 1]` 標籤標記，並提供明細 Tooltip。
+     - AI 介入度圖表右側明細新增大量貼上與大量刪除之誠信打點項目。
+     - 頂部第四張指標卡片標註異動統計。
+     - CSV 匯出自動補齊大量貼上與刪除次數欄位。
+  7. **測試套件擴充與全套通過**：
+     - 新增 `tests/test_writing_log_enhancements.py`（5 項測試）。
+     - 修復 `test_stats_ai_breakdown.py` 連線未關閉之 Windows 檔案把柄鎖定問題。
+     - 全套 191 項測試 100% 通過（`pytest tests/` 191 passed in 41.65s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
+
+- **當前任務狀態**：
+  1. 創作日誌熱力圖與各章字數長條圖已正常運作，且大量貼上與刪除文字行為監控已完整落地。
+  2. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
+  3. 全套 191 項測試維持 100% 通過。
+- **下一個 Agent 的任務指引**：
+  1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
+  2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。
+  3. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
+  4. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
+  5. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -21,9 +92,9 @@
 - **儲存與備份**：純 SQLite 儲存（含 `database_migrations.py` 版本化 Migration Pipeline）、自動暫存排程與崩潰還原 (`AutosaveController`)、版本快照管理 (`SnapshotController`)、ZIP 備份/還原 (`BackupController`)、垃圾桶管理。
 - **雲端同步與存檔路徑自訂**：支援自訂存檔路徑（如 Dropbox、OneDrive 或自訂目錄）、自動建立 `Story` 與 `Temp_doc` 資料夾、變更路徑時自動安全遷移歷史稿件與暫存檔。
 - **寫作輔助與檢查**：尋找與取代、全文檢索、多格式匯出 (docx/txt/md/epub)。
-- **AI 整合與長文滾動壓縮（HRCI）**：
+- **AI 整合與長文捲動壓縮（HRCI）**：
   - 支援多輪對話、智慧續寫（含防護開關）、本機模型偵測 (Ollama/LM Studio)。
-  - **長文分析演算法（HRCI）**：為 9B 以下本地小模型設計「語義安全分塊 + 滾動狀態壓縮（雙軌索引） + 全局最終整合」機制，突破 Context Window 限制並防止細節丟失。
+  - **長文分析演算法（HRCI）**：為 9B 以下本地小模型設計「語義安全分塊 + 捲動狀態壓縮（雙軌索引） + 全局最終整合」機制，突破 Context Window 限制並防止細節丟失。
   - **AI 角色提取**：支援從小說文本自動提取角色特徵、關係網，並匯入卡片系統。
 - **數據追蹤**：寫作儀表板（趨勢折線圖、熱力圖、各章長條圖、AI 介入度環形圖）、AI 介入度記錄 (手寫 vs AI)。
 - **文風檢查**：繁中贅詞偵測（公文冗贅、被動弱句、高頻虛詞、相鄰重複詞）、白名單與自訂詞庫。
@@ -40,7 +111,7 @@
     |
     ▼── 功能開發完畢，進入最佳化階段 ──
     |
-    ├── Phase 13：技術債與冗餘代碼清理（✅ 全部完成）
+    ├── Phase 13：技術債與冗餘程式碼清理（✅ 全部完成）
     ├── Phase 14：專案深度檢視與架構防護最佳化（✅ 全部完成）
     ├── Phase 15：Agent 友善化與 Controller 拆分（✅ 全部完成）
     ├── Phase 16：全面審計與系統擴充（✅ 全部完成）
@@ -78,6 +149,12 @@
         ├── 22.3 視覺減噪渲染：MarkdownHighlighter 導入 fmt_muted 淡化語法標記符號，顯著加強粗體、斜體等正文樣式
         ├── 22.4 多格式匯出升級：ExportController 全面整合 MarkdownConverter，匯出 Word/ePub/TXT 自動轉為出版級排版與乾淨純文字
         └── 22.5 單元測試擴充：新增 test_markdown_converter.py 並更新 test_export.py，134/134 項測試全數通過
+    └── Phase 23：AI 輔助創作誠信指標細項打點與寫作儀表板升級（✅ 全部完成）
+        ├── 23.1 誠信光譜資料模型：WritingLogEntry 擴充 ai_details 字典，區分「正文代筆 (continuation)」、「設定架構整理 (character/world/timeline)」、「文字審校 (proofread/impression)」、「靈感對話 (chat)」
+        ├── 23.2 資料庫平滑升級：DatabaseMigrations 實現 v10 -> v11，writing_logs 新增 ai_details TEXT DEFAULT '{}' 欄位，維持舊檔 100% 相容
+        ├── 23.3 全 AI 功能精準打點：對話、角色提取、世界觀提取、時間線梳理、文學評語、AI 校稿與智慧擴寫皆正確傳入 feature_key
+        ├── 23.4 儀表板 UI 與圖表升級：頂部 KPI 突出「手寫原創率」與「主要角色定位」；日誌表格第 5 欄顯示膠囊標籤 [🔍校審][🧩整理][💬靈感] 與懸停明細 Tooltip；圖表呈現手創率環形圖與面向統計明細；CSV 匯出細部統計
+        └── 23.5 測試套件擴充：新增 test_stats_ai_breakdown.py，186/186 項測試全數通過
     └── Phase 26：當日目標與進度多設備（Dropbox 同步）持久化與日誌連動（✅ 全部完成）
         ├── 26.1 模型擴充：ProjectInfo 新增 daily_target_word_count 欄位（預設 1000 字）
         ├── 26.2 SQLite 遷移升級：DatabaseMigrations 實現 v9 -> v10 升級，為 project_info 表補齊目標欄位
@@ -134,60 +211,39 @@
 ### 陷阱 14：Antigravity Agent 執行測試與背景工作機制
 - 專案全套測試數量達 154 項，完整執行需耗時約 17 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須使用 `manage_task` 追蹤狀態直至 `DONE` 並讀取日誌回報結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
 
-### 陷阱 15：Windows 虛擬環境搬移與 PyInstaller Launcher 陷阱
-- 在 Windows 上，若專案或 `.venv` 資料夾從其他磁碟機（例如 C 槽搬移至 D 槽）或使用者目錄搬家，`.venv\Scripts\*.exe`（如 `pyinstaller.exe`）為二進位 wrapper，內部寫死了原建立時的絕對路徑，直接執行會拋出 `Fatal error in launcher: Unable to create process using ...`。
-- **解法**：呼叫工具時請一律使用 `.venv\Scripts\python.exe -m PyInstaller`（以 Python 直譯器直接掛載模組），並確認 `.venv\pyvenv.cfg` 中的 `home` 與 `executable` 指向系統實際存在的 Python 安裝目錄。此外，打包後若在專案根目錄產生臨時的 `Jiufang_Novel_Editor.spec`，應立即清除以維持根目錄整潔規範。
+### 陷阱 16：SQLite Migration v10 -> v11 與 writing_logs.ai_details 序列化
+- 在擴充 `writing_logs` 紀錄 AI 細部功能次數時，採用 JSON 格式儲存於 `ai_details` 欄位（而不是為每個可能新增的 AI 功能增加 SQL 欄位），以維持彈性擴充。
+- 反序列化時需嚴格防禦：`details_raw` 若為 `None` 或無效字串，應安全回退為空字典 `{}`。
+- 當新增資料庫版本時，既有遷移測試（如 `test_daily_progress_sync.py`）中的 `SELECT MAX(version)` 檢查應斷言等於 `DatabaseService.CURRENT_SCHEMA_VERSION`，避免因版本遞增而造成斷言失敗。
 
 ---
 
-
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (實作快速存檔安靜存檔與依書名單一存檔覆寫規則，全套 171 項單元測試 100% 綠燈)**：
-  1. **快速存檔安靜存檔 (Quiet / Silent Save)**：
-     - `controllers/project_controller.py`：`save_project(self, silent: bool = True)` 預設改為安靜存檔，不彈出 `QMessageBox.information` 對話框打斷寫作。
-     - 狀態列反饋：儲存成功時於狀態列顯示 `稿件已儲存至 {檔名}` 3 秒，既溫和安靜又具備明確安全感；若儲存失敗依然保留 `QMessageBox.critical` 錯誤通知。
-     - `controllers/main_controller.py`：選單與快捷鍵 Ctrl+S 動作綁定 `action_save_project.triggered.connect(lambda: self.project.save_project(silent=True))`，解決 Qt triggered 訊號傳入 checked=False 的潛在覆蓋問題。
-  2. **存檔規則與檔名管理改進（單一存檔不膨脹）**：
-     - 存檔不再加上日期與時間（移除 `now_str = datetime.datetime.now().strftime(...)` 產生新檔的行為）。
-     - 若已有開啟或已存檔路徑（`self.current_project_path`），一般存檔時直接覆寫該路徑（本來的檔案名稱），不再重複產生大量歷史檔案。
-     - 新專案首次存檔時依照書名命名（如 `Story/{書名}/{書名}.db`）；若後續在編輯器修改書名，除非使用者主動執行「另存新檔」，否則依然維持本來的檔案名稱進行覆寫。
-     - 「另存新檔」（`save_project_as`）提供書名作為預設檔名建議，另存成功後更新 `current_project_path`，後續存檔便持續使用另存後的新檔名。
-     - `_reset_project_state` 新增重設 `self.current_project_path = ""`，防範開新專案時誤用前一專案路徑。
-  3. **測試套件擴充與文檔維護**：
-     - 新增 `tests/test_save_rules.py`（6 項測試），完整覆蓋安靜存檔無對話框、狀態列提示、檔名不含時間戳、連續存檔覆寫原檔、改書名仍沿用原檔名、另存新檔後更新路徑與 Ctrl+S 觸發等行為。
-     - 全套 171 項測試 100% 通過（`pytest tests/` 171 passed in 16.64s）。
+- **本次完成事項 (Phase 25：AI 誠信光譜指標精準化與創作日誌全域 UI 縮放自適應，全套 193 項單元測試 100% 綠燈)**：
+  1. **AI 誠信光譜指標精準化**：
+     - 使用者指出「大量貼上文字」與「大量刪除文字」為一般文字剪貼與排版行為，不應列入 AI 介入度或誠信指標。
+     - 在 `WritingChartView._paint_ai_ratio` 的「誠信指標與輔助明細」中，正式剔除「📋 大量貼上文字」與「✂️ 大量刪除文字」，專注呈現「親筆手創」、「AI 正文代筆」、「設定架構整理」、「責任編輯審校」、「靈感構思對話」等真正與 AI 相關之創作面向。
+     - 在 `WritingLogDashboard.refresh_data` 中，移除 `card_ai_ratio`（創作誠信與 AI 輔助指標卡片）副標題上的貼上/刪除統計文字，保持指標卡片純淨反映原創與 AI 輔助；日誌表格中仍保留第 4 欄獨立的「大量異動(貼/刪)」以供作家隨時檢閱異常剪貼紀錄。
+     - 表格中「AI 輔助與面向」欄位 ToolTip 同步清理，移除大量貼上與刪除次數，與第 4 欄專屬 ToolTip 各司其職。
+  2. **創作日誌與寫作儀表板全域 UI 縮放反應**：
+     - `WritingLogDashboard` 外層引入 `QScrollArea`，確保在高解析度大縮放比例（如 150%、175%、200%）或較小視窗尺寸下，整個儀表板（標題、卡片、圖表、日誌表格）均能自適應等比縮放且垂直滾動流暢，絕無元件重疊、擠壓變形或文字截斷問題。
+     - `MetricCard`、儀表板標題、分享/匯出/關閉按鈕、視圖切換按鈕、表格表頭與每列高度（`defaultSectionSize`）均完整套用 `scale_factor` 縮放。
+     - `WritingChartView` 四大圖表視圖（字數趨勢圖、打卡熱力圖、各章字數圖、AI 介入度環形圖）底層所有文字字級、線寬、方塊尺寸、間距與邊距全面響應 `self.scale_factor`。
+     - 在 `StatsController.show_writing_log_dashboard` 中，開啟日誌視圖時自動強制同步主視窗最新的 `scale_factor`，保證一開啟即是完美比例。
+  3. **測試套件擴充與全量驗證**：
+     - 在 `tests/test_writing_log_enhancements.py` 新增 `test_ai_ratio_chart_excludes_paste_and_delete` 與 `test_writing_log_dashboard_ui_scale_response`。
+     - 全專案 31 個測試模組、193 項測試 100% 通過（`pytest tests/` 193 passed in 44.24s）。
      - 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
 
-- **前次完成事項 (發布 v0.1.1-beta 測試預發布版與稿件未存檔關閉防護機制，全套 165 項單元測試 100% 綠燈)**：
-  1. **未儲存狀態機制與標題星號連動**：
-     - `controllers/main_controller.py`：新增 `self.is_dirty` 狀態屬性與 `mark_dirty(dirty: bool)` 方法。
-     - `controllers/project_controller.py`：`update_project_labels` 於未存檔時在視窗標題自動標註 `*`（例如 `*{書名} - 九方小說編輯器`），已存檔時移除星號。
-  2. **全面變更事件與存檔清空覆蓋**：
-     - `EditorController.on_editor_text_changed` 編輯器打字/修改內文時觸發 `mark_dirty(True)`。
-     - `ProjectController.edit_project_title` / `edit_logline` 變更書名與大綱時觸發 `mark_dirty(True)`。
-     - `ProjectController.save_temp_doc` 擴充 `from_timer: bool = False` 參數，非計時器之目錄樹、卡片等所有實質結構異動觸發暫存時自動標記 `mark_dirty(True)`，定時器暫存則不誤標記。
-     - 正式存檔 `save_project`（支援 `silent` 參數）、`save_project_as`、專案載入 `load_project_data`、新開專案 `_reset_project_state` 完成時自動重設 `mark_dirty(False)`。
-  3. **關閉事件攔截與確認對話框**：
-     - `ProjectController.on_close_event`：若稿件未存檔且處於使用者互動模式，彈出「**稿件尚未存檔**」對話框。
-     - 提供「儲存(&S)」、「不儲存(&D)」、「取消」三選項：
-       - 【儲存】：執行 `save_project(silent=True)`，成功後關閉程式，失敗則阻止關閉。
-       - 【不儲存】：放棄變更直接關閉，不覆寫暫存檔，正常儲存偏好設定。
-       - 【取消】：呼叫 `event.ignore()` 中止關閉，留在編輯器。
-  4. **版本發布與 Git 忽略規則強化**：
-     - `.gitignore`：除 `pre-release/` 外，同步加入 `pre-realease/` 等拼寫相容忽略規則，徹底杜絕二進位發布檔推送到 GitHub 遠端儲存庫。
-     - GitHub Pre-release：發布 `v0.1.1-beta`，並上傳 Windows 安裝程式（Setup.exe）與免安裝綠色包（.zip）雙版本資產。
-
 - **當前任務狀態**：
-  1. Python 3.14 已透過目錄聯結（Directory Junction）統一固定於 `C:\Python314`，並已將 `C:\Python314` 與 `C:\Python314\Scripts` 加入使用者環境變數 `Path`。
-  2. 專案 `.venv\pyvenv.cfg` 之 `home` 與 `executable` 已固定指向 `C:\Python314`。
-  3. 打包工具 `.agents\build\build.bat` 經雙重驗證打包順暢，成功產出 `dist\Jiufang_Novel_Editor\Jiufang_Novel_Editor.exe`，且打包後自動清理臨時 spec 檔以維護根目錄整潔。
-  4. 全套 171 項測試維持 100% 通過。
+  1. AI 介入度與誠信分析圖已不再包含非 AI 的文字剪貼與刪除行為，指標定義更嚴謹、客觀。
+  2. 創作日誌與寫作儀表板完整跟隨設定中的介面縮放百分比（100%、125%、150%、175%、200% 等）縮放與適配。
+  3. 全套 193 項測試維持 100% 通過。
 - **下一個 Agent 的任務指引**：
   1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
   2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。
-
-  2. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
-  3. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
-  4. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
+  3. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
+  4. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
+  5. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
 

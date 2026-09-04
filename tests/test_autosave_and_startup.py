@@ -112,7 +112,7 @@ class TestAutosaveAndStartup(unittest.TestCase):
         self.assertIn("暫存與自動存檔設定", self.view.action_autosave_settings.text())
 
     def test_crash_recovery_trigger(self):
-        """測試當前次標記為異常退出且存在暫存檔時，能正確載入最新暫存檔。"""
+        """測試當前次標記為異常結束且存在暫存檔時，能正確載入最新暫存檔。"""
         temp_dir = self.mc.get_temp_dir()
         os.makedirs(temp_dir, exist_ok=True)
         test_temp_db = os.path.join(temp_dir, "temp_20260827_999999.db")

@@ -14,7 +14,7 @@
 
 ### 2. 審美不統一情形 (Aesthetic Inconsistencies)
 ⚠️ **主題引擎 (ThemeManager) 破窗效應**：
-在 `views/main_window.py` 內存有大量 **Inline Stylesheet (寫死的 CSS 樣式)**，完全繞過了 `theme_manager.py` 的統一管控。這會導致切換主題（如綠影、青瓷）時，部分介面依然卡在「預設深色」的顏色。
+在 `views/main_window.py` 內部存在大量 **Inline Stylesheet (寫死的 CSS 樣式)**，完全繞過了 `theme_manager.py` 的統一管控。這會導致切換主題（如綠影、青瓷）時，部分介面依然卡在「預設深色」的顏色。
 - **被硬編碼的元件**：
   - `lbl_current_file` (編輯器頂部檔名)：硬編碼了 `background-color: #2d2d2d;`。
   - `JNEStatusBar` (狀態列)：硬編碼了 `#2d2d2d`、按鈕 `#3d3d3d`、hover `#4d4d4d`。
@@ -49,7 +49,7 @@
 - [x] **Phase 14.5**：將「左方面板」（包含樹狀結構與垃圾桶切換）抽離為獨立元件類別 `LeftPanelView`。（✅ 已完成）
 - [x] **Phase 14.6**：將「右方面板」（包含資料集與 TabWidget）抽離為獨立元件類別 `RightPanelView`，讓 `MainWindow` 僅負責 Layout 排版。（✅ 已完成）
 
-### 🎯 階段 C：遺留代碼封存防護 (Legacy Code Safelocking)
+### 🎯 階段 C：遺留程式碼封存防護 (Legacy Code Safelocking)
 > **目標**：防止舊程式碼被誤用。
 - [x] **Phase 14.7**：修改 `services/storage.py`，刪除 `save_project_to_json` 等「寫入」相關方法。僅保留 `load_project_from_json` 與對應的私有轉譯函式，徹底封死存回 JSON 的路徑。（✅ 已完成）
 - [x] **Phase 14.8**：在 `storage.py` 頂端與 `load_project_from_json` 中加入警告註解與 `warnings.warn("StorageService 僅供舊版相容，勿用於新功能")`，確保未來開發者與 Agent 清楚其定位。（✅ 已完成）

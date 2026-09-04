@@ -1,7 +1,7 @@
 # 九方小說編輯器 — Phase 20 系統重構與防護最佳化計畫
 
 > 規劃日期：2026-09-01
-> 規劃目標：清理累積技術債、預防潛在狀態衝突、進一步優化大型檔案可讀性
+> 規劃目標：清理累積技術債、預防潛在狀態衝突、進一步最佳化大型檔案可讀性
 > 執行階段：Phase 20
 
 ---
@@ -48,7 +48,7 @@
 
 ### Phase 20.3: UI 狀態同步防護機制加固
 **目標**：徹底消除右側資料面板與左側主樹/主編輯器的同步衝突。
-1. **單一資料流 (Single Source of Truth) 確認**：確保右側卡片編輯時，修改的是唯一的 `CardNode` 或 `ChapterNode` 實例，且修改後透過單一 Signal `card_content_updated` 通知所有相關 View（左樹、右樹、主編輯器）刷新 UI。
+1. **單一資料流 (Single Source of Truth) 確認**：確保右側卡片編輯時，修改的是唯一的 `CardNode` 或 `ChapterNode` 實例，且修改後透過單一 Signal `card_content_updated` 通知所有相關 View（左樹、右樹、主編輯器）重新整理 UI。
 2. **鎖定機制 (Editing Lock)**：當使用者在右側面板編輯某卡片時，考慮鎖定主編輯器對應內容，或即時雙向綁定 (Two-way binding)。
 3. **驗證**：擴充 `tests/test_right_panel_split.py`，模擬左側更名與右側編輯同時發生的情況，確保資料模型一致。
 

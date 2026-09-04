@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         self.write_page_layout.setContentsMargins(0, 0, 0, 0)
 
         # 沉浸模式提示列
-        self.lbl_focus_banner = QLabel("✨ 沉浸寫作模式 — 按 Esc 或 F11 退出")
+        self.lbl_focus_banner = QLabel("✨ 沉浸寫作模式 — 按 Esc 或 F11 離開")
         self.lbl_focus_banner.setObjectName("lbl_focus_banner")
         self.lbl_focus_banner.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_focus_banner.setFont(FontManager.get_font(size=10))
@@ -336,7 +336,7 @@ class MainWindow(QMainWindow):
         self.showFullScreen()
 
     def exit_focus_mode(self):
-        """退出沉浸模式，恢復各面板可見性與視窗尺寸。"""
+        """離開沉浸模式，恢復各面板可見性與視窗尺寸。"""
         if not self.is_focus_mode:
             return
         self.is_focus_mode = False
@@ -374,7 +374,7 @@ class MainWindow(QMainWindow):
                 self.splitter.setSizes(self._saved_splitter_sizes)
 
     def keyPressEvent(self, event):
-        """全域鍵盤快捷鍵處理。"""
+        """全域鍵盤快速鍵處理。"""
         if event.key() == Qt.Key.Key_F11:
             self.toggle_focus_mode()
             event.accept()

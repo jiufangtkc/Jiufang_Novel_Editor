@@ -22,7 +22,7 @@
 | Phase 10 | 版本管理與備份 | ✅ 已完成 | SQLite 快照 (snapshots)、SnapshotDialog、ZIP 專案備份/還原 (BackupService) |
 | Phase 11 | AI 對話 + 續寫 | ✅ 已完成 | 多輪對話視窗、編輯器/卡片右鍵整合、續寫（含安全開關與心流警告）、本地模型偵測 |
 | Phase 12 | 贅詞偵測 + 儀表板 + AI 介入度 | ✅ 已完成 | 繁中贅詞檢查引擎、白名單與自訂詞庫維護、4大圖表視覺化(趨勢/熱力圖/各章/AI環形圖)、AI 介入度累計追蹤 |
-| Phase 13 | 程式碼最佳化與技術債清理 | ✅ 已完成 | 移除冗餘代碼、抽取重複邏輯、統一主題與設定管理、相容 10B LLM 維護規則 |
+| Phase 13 | 程式碼最佳化與技術債清理 | ✅ 已完成 | 移除冗餘程式碼、抽取重複邏輯、統一主題與設定管理、相容 10B LLM 維護規則 |
 | Phase 14 | 專案深度檢視與架構防護最佳化 | ✅ 已完成 | 主題一致性 QSS 統一渲染、主視窗拆分瘦身 (MenuBuilder/LeftPanel/RightPanel)、封存 StorageService 寫入、SQLite 版本化遷移 Pipeline |
 | Phase 15 | Agent 友善化與技術債清理 | ✅ 已完成 | 文件更新、10B LLM 防卡死守則、Controller 拆分瘦身 (`SnapshotController`, `BackupController`) 與穩定性測試修復 |
 | Phase 16 | 全面審計與技術債修復 (Plan 02) | ✅ 已完成 | B1-B6 Bug 修復、全數文件同步、HRCI 長篇分析演算法、縮放引導 |

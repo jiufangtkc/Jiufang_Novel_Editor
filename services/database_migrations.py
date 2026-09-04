@@ -3,7 +3,7 @@ import datetime
 
 class DatabaseMigrations:
     """管理 SQLite 資料庫 schema_version 與歷代版本升級 (Migrations)。"""
-    CURRENT_SCHEMA_VERSION = 10
+    CURRENT_SCHEMA_VERSION = 12
 
     @staticmethod
     def get_current_schema_version(cursor: sqlite3.Cursor) -> int:
@@ -176,6 +176,24 @@ class DatabaseMigrations:
         if "daily_target_word_count" not in p_cols:
             cursor.execute("ALTER TABLE project_info ADD COLUMN daily_target_word_count INTEGER DEFAULT 1000")
 
+    @staticmethod
+    def upgrade_v10_to_v11(cursor: sqlite3.Cursor):
+        """v10 -> v11：writing_logs 增加 ai_details 欄位記錄各 AI 功能面向次數 (JSON)"""
+        cursor.execute("PRAGMA table_info(writing_logs)")
+        cols = {row[1] for row in cursor.fetchall()}
+        if "ai_details" not in cols:
+            cursor.execute("ALTER TABLE writing_logs ADD COLUMN ai_details TEXT DEFAULT '{}'")
+
+    @staticmethod
+    def upgrade_v11_to_v12(cursor: sqlite3.Cursor):
+        """v11 -> v12：writing_logs 增加 paste_large_count 與 delete_large_count 欄位"""
+        cursor.execute("PRAGMA table_info(writing_logs)")
+        cols = {row[1] for row in cursor.fetchall()}
+        if "paste_large_count" not in cols:
+            cursor.execute("ALTER TABLE writing_logs ADD COLUMN paste_large_count INTEGER DEFAULT 0")
+        if "delete_large_count" not in cols:
+            cursor.execute("ALTER TABLE writing_logs ADD COLUMN delete_large_count INTEGER DEFAULT 0")
+
     @classmethod
     def apply_migrations(cls, cursor: sqlite3.Cursor):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -201,6 +219,8 @@ class DatabaseMigrations:
             (7, cls.upgrade_v7_to_v8),
             (8, cls.upgrade_v8_to_v9),
             (9, cls.upgrade_v9_to_v10),
+            (10, cls.upgrade_v10_to_v11),
+            (11, cls.upgrade_v11_to_v12),
         ]
 
         for from_v, step_fn in migrations:

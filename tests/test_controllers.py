@@ -197,9 +197,11 @@ class TestControllers(unittest.TestCase):
             new_file = os.path.join(temp_doc_dir, "temp_20260824_150000.db")
             DatabaseService.save_project(new_project, new_file)
 
-            # 暫時將 mc.app_dir 指向 temp_workspace 進行測試
+            # 暫時將 mc.app_dir 指向 temp_workspace 進行測試，並清空 storage_path 避免受全域設定干擾
             original_app_dir = self.mc.app_dir
+            original_storage_path = self.mc.app_settings.get("storage_path")
             self.mc.app_dir = temp_workspace
+            self.mc.app_settings["storage_path"] = ""
             try:
                 loaded = self.mc.project.auto_load_latest_temp()
                 self.assertTrue(loaded)
@@ -216,6 +218,10 @@ class TestControllers(unittest.TestCase):
                 self.assertEqual(self.mc.project_info.title, "最新小說定稿")
             finally:
                 self.mc.app_dir = original_app_dir
+                if original_storage_path is not None:
+                    self.mc.app_settings["storage_path"] = original_storage_path
+                else:
+                    self.mc.app_settings.pop("storage_path", None)
         finally:
             shutil.rmtree(temp_workspace, ignore_errors=True)
 
@@ -238,7 +244,7 @@ class TestControllers(unittest.TestCase):
         self.assertEqual(self.mc.project_info.title, "我的長篇小說")
         self.assertEqual(self.view.lbl_project_title.text(), "我的長篇小說")
 
-        # 驗證序列化保存時，卷名與書名皆各自保留
+        # 驗證序列化儲存時，卷名與書名皆各自保留
         project = self.mc.project._build_jne_project()
         self.assertEqual(project.project_info.title, "我的長篇小說")
         self.assertEqual(project.tree[0].name, "第一卷：前妻與牛肉麵的香氣")
