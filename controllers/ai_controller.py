@@ -24,6 +24,7 @@ class AIController:
         self.ai_task_overlay = None
         self.ai_floating_hud = None
         self.proofread_dialog = None
+        self.chat_dialog = None
 
     def open_ai_settings_dialog(self):
         """開啟 AI 助手設定對話框。"""
@@ -134,19 +135,29 @@ class AIController:
                 self.reload_proofread_results()
 
     def open_ai_chat_dialog(self, context_text: str = ""):
-        """開啟 AI 多輪對話對話框（可帶入選取或指定之上下文）。"""
+        """開啟 AI 多輪對話視窗（非模態，作家可隨時回到主編輯器繼續創作）。"""
         if not context_text:
             cursor = self.view.editor.textCursor()
             selected = cursor.selectedText().strip()
             if selected:
                 context_text = selected
 
-        dlg = AIChatDialog(self.view, initial_context=context_text)
-        dlg.signal_insert_to_editor.connect(self.insert_text_to_editor)
-        dlg.signal_save_as_card.connect(lambda title, content: self.add_card_from_ai("summary", title, content))
+        if self.chat_dialog is None:
+            self.chat_dialog = AIChatDialog(self.view, initial_context=context_text)
+            self.chat_dialog.signal_insert_to_editor.connect(self.insert_text_to_editor)
+            self.chat_dialog.signal_save_as_card.connect(
+                lambda title, content: self.add_card_from_ai("summary", title, content)
+            )
+        else:
+            if context_text:
+                self.chat_dialog.set_new_context(context_text)
+
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
             self.mc.stats.record_ai_activity(chat_count=1, feature_key="chat")
-        dlg.exec()
+
+        self.chat_dialog.show()
+        self.chat_dialog.raise_()
+        self.chat_dialog.activateWindow()
 
     def insert_text_to_editor(self, text: str):
         """將文字插入至當前主編輯器游標位置。"""

@@ -274,7 +274,7 @@ class SearchController:
         item_name = item.text(0)
         item_path = f"{parent_path} / {item_name}" if parent_path != "根目錄" else item_name
 
-        if node_type == "file" and content:
+        if node_type in ("file", "scene") and content:
             lines = content.split("\n")
             # 建立每行字元起點索引，以便快速計算 line_num
             line_starts = []
@@ -286,6 +286,7 @@ class SearchController:
             for match in pattern.finditer(content):
                 start_pos = match.start()
                 match_len = match.end() - start_pos
+                match_text = match.group(0)
 
                 # 二分搜尋或計算行號
                 line_num = 1
@@ -310,6 +311,7 @@ class SearchController:
                     "line_num": line_num,
                     "char_offset": start_pos,
                     "match_len": match_len,
+                    "match_text": match_text,
                     "snippet": raw_snippet
                 })
 
@@ -318,7 +320,7 @@ class SearchController:
             child = item.child(i)
             self._search_tree_item_recursive(child, pattern, results)
 
-    def navigate_to_global_match(self, node_id: str, line_num: int, char_offset: int, match_len: int):
+    def navigate_to_global_match(self, node_id: str, line_num: int, char_offset: int, match_len: int, match_text: str = ""):
         """從全文搜尋對話框雙擊跳轉至目標章節並選取高亮文字。"""
         item = self._find_tree_item_by_id(node_id)
         if item is None:
@@ -330,8 +332,22 @@ class SearchController:
 
         # 游標定位並選取
         cursor = self.editor.textCursor()
-        cursor.setPosition(char_offset)
-        cursor.setPosition(char_offset + match_len, QTextCursor.MoveMode.KeepAnchor)
+        total_len = len(self.editor.toPlainText())
+        target_pos = min(max(0, char_offset), total_len)
+        target_end = min(max(target_pos, target_pos + match_len), total_len)
+        cursor.setPosition(target_pos)
+        cursor.setPosition(target_end, QTextCursor.MoveMode.KeepAnchor)
+
+        # 若提供了 match_text 且當前選取文字不完全吻合（可能因 Markdown 渲染差異造成偏移），進行智慧校準
+        if match_text and cursor.selectedText() != match_text:
+            search_start = max(0, char_offset - 200)
+            doc = self.editor.document()
+            found_cursor = doc.find(match_text, search_start)
+            if found_cursor.isNull() or abs(found_cursor.position() - char_offset) > 300:
+                found_cursor = doc.find(match_text, 0)
+            if not found_cursor.isNull():
+                cursor = found_cursor
+
         self.editor.setTextCursor(cursor)
         self.editor.ensureCursorVisible()
         self.editor.setFocus()

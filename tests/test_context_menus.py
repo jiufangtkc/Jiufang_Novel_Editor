@@ -112,6 +112,98 @@ class TestContextMenus(unittest.TestCase):
         self.mc.tree.clear_item_mark(item)
         self.assertEqual(item.data(0, Qt.ItemDataRole.UserRole).get("mark"), "None")
 
+    def test_tree_context_menu_convert_options(self):
+        """測試作品面板右鍵選單中的「轉換…」母選單與子選項。"""
+        from PyQt6.QtWidgets import QMenu
+        item_file = self.mc.tree.create_item("測試章節", is_folder=False)
+        self.view.tree_widget.addTopLevelItem(item_file)
+
+        captured_menus = []
+        def fake_exec(menu_self, *args, **kwargs):
+            captured_menus.append(menu_self)
+            return None
+
+        with patch.object(QMenu, "exec", fake_exec):
+            self.mc.tree.show_tree_context_menu(self.view.tree_widget.visualItemRect(item_file).center())
+            self.assertEqual(len(captured_menus), 1)
+            menu = captured_menus[0]
+
+            conv_menu = None
+            for action in menu.actions():
+                if action.menu() and "轉換…" in action.menu().title():
+                    conv_menu = action.menu()
+                    break
+
+            self.assertIsNotNone(conv_menu, "右鍵選單中應包含「轉換…」母選項")
+            sub_actions = {a.text(): a for a in conv_menu.actions()}
+            self.assertIn("📁 轉換為卷", sub_actions)
+            self.assertIn("📄 轉換為章", sub_actions)
+            self.assertIn("🎬 轉換為幕", sub_actions)
+
+            # 章節節點：「轉換為章」應禁用，「轉換為卷」與「轉換為幕」應啟用
+            self.assertTrue(sub_actions["📁 轉換為卷"].isEnabled())
+            self.assertFalse(sub_actions["📄 轉換為章"].isEnabled())
+            self.assertTrue(sub_actions["🎬 轉換為幕"].isEnabled())
+
+    def test_tree_convert_file_to_folder(self):
+        """測試章節節點轉換為卷節點。"""
+        item = self.mc.tree.create_item("第一章", is_folder=False, content="章節正文內容")
+        self.view.tree_widget.addTopLevelItem(item)
+        item_id = self.mc.tree.get_item_id(item)
+        self.mc.file_word_stats[item_id] = {"valid": 6, "spaces": 0, "alpha": 0, "sym": 0}
+
+        self.view.tree_widget.setCurrentItem(item)
+        self.mc.tree.on_tree_item_clicked(item, 0)
+        self.assertEqual(self.mc.current_file_item, item)
+
+        # 轉換為卷
+        self.mc.tree.convert_tree_node(item, "folder")
+
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        self.assertEqual(data.get("type"), "folder")
+        # 原正文應保留在資料字典中防止誤操作遺失
+        self.assertEqual(data.get("content"), "章節正文內容")
+        # 編輯器應卸載且字數統計應移除卷
+        self.assertIsNone(self.mc.current_file_item)
+        self.assertNotIn(item_id, self.mc.file_word_stats)
+
+    def test_tree_convert_folder_to_file(self):
+        """測試卷節點轉換為章節節點。"""
+        item = self.mc.tree.create_item("第一卷", is_folder=True)
+        self.view.tree_widget.addTopLevelItem(item)
+        item_id = self.mc.tree.get_item_id(item)
+
+        # 轉換為章
+        self.mc.tree.convert_tree_node(item, "file")
+
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        self.assertEqual(data.get("type"), "file")
+        self.assertIn("content", data)
+        self.assertIn("cards", data)
+        self.assertIn(item_id, self.mc.file_word_stats)
+
+    def test_tree_convert_file_to_scene_and_back(self):
+        """測試章節節點與幕節點互相轉換。"""
+        item = self.mc.tree.create_item("第一章", is_folder=False, content="這是測試文字")
+        self.view.tree_widget.addTopLevelItem(item)
+        self.mc.tree.set_item_mark(item, MARK_COLOR_MAP["Draft"], "Draft")
+
+        # 轉換為幕
+        self.mc.tree.convert_tree_node(item, "scene")
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        self.assertEqual(data.get("type"), "scene")
+        self.assertEqual(data.get("mark"), "Draft")
+        self.assertIn("scene_pov", data)
+        self.assertIn("scene_location", data)
+        self.assertIn("scene_summary", data)
+
+        # 轉回章
+        self.mc.tree.convert_tree_node(item, "file")
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        self.assertEqual(data.get("type"), "file")
+        self.assertEqual(data.get("mark"), "Draft")
+
+
     # ── 右側資料集面板測試 ─────────────────────────────────────────
 
     def test_card_rename(self):

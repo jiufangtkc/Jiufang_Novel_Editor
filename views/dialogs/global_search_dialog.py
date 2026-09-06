@@ -10,8 +10,8 @@ from utils.theme_manager import ThemeManager
 
 class GlobalSearchDialog(QDialog):
     """跨章節全文搜尋對話框。"""
-    # 傳遞 (node_id, line_number, char_offset, match_length)
-    signal_navigate_to_match = pyqtSignal(str, int, int, int)
+    # 傳遞 (node_id, line_number, char_offset, match_length, match_text)
+    signal_navigate_to_match = pyqtSignal(str, int, int, int, str)
     signal_search_requested = pyqtSignal(str, bool, bool, bool)
 
     def __init__(self, parent=None):
@@ -240,7 +240,8 @@ class GlobalSearchDialog(QDialog):
             data["node_id"],
             data["line_num"],
             data["char_offset"],
-            data["match_len"]
+            data["match_len"],
+            data.get("match_text", "")
         )
         self.accept()
 

@@ -232,10 +232,19 @@ class ThemeController:
         if hasattr(self.view, "combo_size"):
             self.view.combo_size.setFont(FontManager.get_font(family=fam, size=int(9 * scale)))
             self.view.combo_size.setFixedWidth(int(70 * scale))
-        if hasattr(self.view, "btn_ellipsis"):
-            self.view.btn_ellipsis.setFont(FontManager.get_font(family=fam, size=int(10 * scale)))
-        if hasattr(self.view, "btn_emdash"):
-            self.view.btn_emdash.setFont(FontManager.get_font(family=fam, size=int(10 * scale)))
+        for btn_name, f_size, w in [
+            ("btn_bold", 10, 32), ("btn_italic", 10, 32), ("btn_strike", 10, 32),
+            ("btn_punc_quote_single", 10, 38), ("btn_punc_quote_double", 10, 38),
+            ("btn_punc_exclamation", 10, 32), ("btn_punc_question", 10, 32),
+            ("btn_punc_colon", 10, 32), ("btn_punc_semicolon", 10, 32),
+            ("btn_punc_comma_pause", 10, 32), ("btn_punc_section", 10, 32),
+            ("btn_ellipsis", 10, 42), ("btn_emdash", 10, 42)
+        ]:
+            if hasattr(self.view, btn_name):
+                btn = getattr(self.view, btn_name)
+                btn.setFont(FontManager.get_font(family=fam, size=int(f_size * scale)))
+                btn.setFixedWidth(int(w * scale))
+
         if hasattr(self.view, "btn_typewriter"):
             self.view.btn_typewriter.setFont(FontManager.get_font(family=fam, size=int(9 * scale)))
 

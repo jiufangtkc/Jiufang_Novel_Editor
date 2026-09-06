@@ -289,7 +289,7 @@ class OutlineView(QWidget):
 
     def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int):
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        if data and data.get("type") == "file":
+        if data and data.get("type") in ("file", "scene"):
             item_id = data.get("id")
             if item_id:
                 self.signal_chapter_selected.emit(item_id)
@@ -299,7 +299,7 @@ class OutlineView(QWidget):
         if not item:
             return
         data = item.data(0, Qt.ItemDataRole.UserRole)
-        if not data or data.get("type") != "file":
+        if not data or data.get("type") not in ("file", "scene"):
             return
 
         item_id = data.get("id")

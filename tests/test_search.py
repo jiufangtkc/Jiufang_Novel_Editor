@@ -128,5 +128,44 @@ class TestSearch(unittest.TestCase):
         self.assertEqual(self.view.tree_widget.currentItem(), item2)
         self.assertEqual(self.view.editor.textCursor().selectedText(), "主角")
 
+    def test_global_search_includes_scenes_and_dialog(self):
+        """測試跨章節全文搜尋支援 scene (幕) 節點及包含對話框之跳轉校準。"""
+        self.view.tree_widget.clear()
+
+        # 建立 卷 -> 章 -> 幕 (scene) 結構
+        vol_folder = self.mc.tree.create_item("第一卷 風起", is_folder=True)
+        ch_folder = self.mc.tree.create_item("第一章 試煉", is_folder=True)
+        scene1 = self.mc.tree.create_item("第一幕 劍意破曉", is_scene=True, content="莫庸握緊道劍，寒芒如星。")
+        scene2 = self.mc.tree.create_item("第二幕 仙魔交感", is_scene=True, content="越無憂的身影自虛空中浮現，眼神中滿是決絕。")
+
+        ch_folder.addChild(scene1)
+        ch_folder.addChild(scene2)
+        vol_folder.addChild(ch_folder)
+        self.view.tree_widget.addTopLevelItem(vol_folder)
+
+        # 搜尋使用者回報的關鍵字「越無憂」
+        pattern = self.mc.search._build_regex_pattern("越無憂", match_case=False, whole_word=False, is_regex=False)
+        results = []
+        for i in range(self.view.tree_widget.topLevelItemCount()):
+            top = self.view.tree_widget.topLevelItem(i)
+            self.mc.search._search_tree_item_recursive(top, pattern, results)
+
+        self.assertEqual(len(results), 1)
+        self.assertIn("越無憂", results[0]["snippet"])
+        self.assertEqual(results[0]["chapter_path"], "第一卷 風起 / 第一章 試煉 / 第二幕 仙魔交感")
+        self.assertEqual(results[0]["match_text"], "越無憂")
+
+        # 測試跳轉至該 scene 節點
+        scene2_id = self.mc.tree.get_item_id(scene2)
+        self.mc.search.navigate_to_global_match(
+            scene2_id,
+            line_num=results[0]["line_num"],
+            char_offset=results[0]["char_offset"],
+            match_len=results[0]["match_len"],
+            match_text=results[0]["match_text"]
+        )
+        self.assertEqual(self.view.tree_widget.currentItem(), scene2)
+        self.assertEqual(self.view.editor.textCursor().selectedText(), "越無憂")
+
 if __name__ == "__main__":
     unittest.main()

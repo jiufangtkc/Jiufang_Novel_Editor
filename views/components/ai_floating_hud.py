@@ -65,15 +65,19 @@ class AIFloatingHUD(QWidget):
         self.lbl_time.setStyleSheet("color: #4fc1ff; font-weight: bold;")
         header_layout.addWidget(self.lbl_time)
 
-        self.btn_toggle_collapse = QPushButton("–")
-        self.btn_toggle_collapse.setFixedSize(int(18 * sf), int(18 * sf))
+        self.btn_toggle_collapse = QPushButton("−")
+        self.btn_toggle_collapse.setObjectName("HUDHeaderBtn")
+        self.btn_toggle_collapse.setFixedSize(int(22 * sf), int(22 * sf))
+        self.btn_toggle_collapse.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         self.btn_toggle_collapse.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_collapse.setToolTip("收折 / 展開")
         self.btn_toggle_collapse.clicked.connect(self.toggle_collapse)
         header_layout.addWidget(self.btn_toggle_collapse)
 
         self.btn_cancel = QPushButton("✕")
-        self.btn_cancel.setFixedSize(int(18 * sf), int(18 * sf))
+        self.btn_cancel.setObjectName("HUDCancelBtn")
+        self.btn_cancel.setFixedSize(int(22 * sf), int(22 * sf))
+        self.btn_cancel.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cancel.setToolTip("取消此 AI 任務")
         self.btn_cancel.clicked.connect(self._on_cancel_clicked)
@@ -123,17 +127,25 @@ class AIFloatingHUD(QWidget):
                 color: #e3e3e3;
                 background-color: transparent;
             }
-            QPushButton {
-                background-color: rgba(255, 255, 255, 0.08);
-                color: #cccccc;
-                border: 1px solid #3e4451;
+            QPushButton#HUDHeaderBtn, QPushButton#HUDCancelBtn {
+                background-color: rgba(255, 255, 255, 0.12);
+                color: #ffffff;
+                border: 1px solid #4f5b66;
                 border-radius: 4px;
+                padding: 0px;
+                margin: 0px;
                 font-weight: bold;
+                text-align: center;
             }
-            QPushButton:hover {
+            QPushButton#HUDHeaderBtn:hover {
                 background-color: #007acc;
                 color: #ffffff;
                 border-color: #4fc1ff;
+            }
+            QPushButton#HUDCancelBtn:hover {
+                background-color: #d9534f;
+                color: #ffffff;
+                border-color: #ff6b6b;
             }
             QProgressBar {
                 background-color: #21252b;
@@ -198,7 +210,7 @@ class AIFloatingHUD(QWidget):
     def toggle_collapse(self):
         self.is_collapsed = not self.is_collapsed
         self.content_widget.setVisible(not self.is_collapsed)
-        self.btn_toggle_collapse.setText("+" if self.is_collapsed else "–")
+        self.btn_toggle_collapse.setText("+" if self.is_collapsed else "−")
         self.adjustSize()
 
     def _on_cancel_clicked(self):

@@ -106,47 +106,28 @@ class TestWritingLogEnhancements(unittest.TestCase):
         self.assertEqual(log.paste_large_count, 3)
         self.assertEqual(log.delete_large_count, 2)
 
-    def test_large_paste_detection(self):
-        """驗證短時間內貼上超過300字觸發大量貼上記錄。"""
+    def test_paste_no_longer_tracked(self):
+        """驗證大量貼上監控已移除，貼上長文字不再寫入或累計大量貼上記錄。"""
         mc = DummyMainController()
         view = DummyView()
         mc.view = view
         stats = StatsController(mc)
         mc.stats = stats
 
-        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-
-        # 貼上小於 300 字：不應累計
-        small_text = "這是一段簡短的文字貼上。" * 5
-        stats.on_text_pasted(small_text)
-        self.assertEqual(len(mc.writing_logs), 0)
-
-        # 貼上大於 300 字：應累計 1 次
-        large_text = "這是一段長篇小說內文測試段落。" * 30  # 約 450 字
+        large_text = "這是一段長篇小說內文測試段落。" * 30
         stats.on_text_pasted(large_text)
-        self.assertEqual(len(mc.writing_logs), 1)
-        self.assertEqual(mc.writing_logs[0].date, today_str)
-        self.assertEqual(mc.writing_logs[0].paste_large_count, 1)
+        self.assertEqual(len(mc.writing_logs), 0)
 
-    def test_large_delete_detection(self):
-        """驗證短時間內刪除超過300字觸發大量刪除記錄。"""
+    def test_delete_no_longer_tracked(self):
+        """驗證大量刪除監控已移除，大範圍刪除字元不再寫入或累計大量刪除記錄。"""
         mc = DummyMainController()
         view = DummyView()
         mc.view = view
         stats = StatsController(mc)
         mc.stats = stats
 
-        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-
-        # 正常打字退格（刪除少數字元）：不應累計
-        stats.on_document_contents_change(0, charsRemoved=1, charsAdded=0)
-        self.assertEqual(len(mc.writing_logs), 0)
-
-        # 單次大範圍反白刪除（例如刪除 350 字元）
         stats.on_document_contents_change(0, charsRemoved=350, charsAdded=0)
-        self.assertEqual(len(mc.writing_logs), 1)
-        self.assertEqual(mc.writing_logs[0].date, today_str)
-        self.assertEqual(mc.writing_logs[0].delete_large_count, 1)
+        self.assertEqual(len(mc.writing_logs), 0)
 
     def test_heatmap_dates_include_today(self):
         """驗證熱力圖週對齊算法能精準涵蓋今日（如2026-09-04）及過去24週所有日期。"""
@@ -280,5 +261,50 @@ class TestWritingLogEnhancements(unittest.TestCase):
         self.assertEqual(dashboard.chart_view.minimumHeight(), int(200 * 2.0))
         self.assertEqual(dashboard.table.height(), int(190 * 2.0))
 
+    def test_typing_ime_and_backspace_no_false_positive_large_delete(self):
+        """驗證正常打字時輸入法組字替換與連續單字退格不會誤觸大量刪除。"""
+        mc = DummyMainController()
+        view = DummyView()
+        mc.view = view
+        stats = StatsController(mc)
+        mc.stats = stats
+
+        # 模擬輸入法組字打字 350 次（每次替換 1-2 字元）
+        for _ in range(350):
+            stats.on_document_contents_change(0, charsRemoved=1, charsAdded=1)
+        self.assertEqual(len(mc.writing_logs), 0)
+
+        # 模擬日常單字退格修改錯字 350 次
+        for _ in range(350):
+            stats.on_document_contents_change(0, charsRemoved=1, charsAdded=0)
+        self.assertEqual(len(mc.writing_logs), 0)
+
+    def test_writing_log_dashboard_columns_count(self):
+        """驗證創作日誌儀表板表格移除大量異動欄位後，為標準 5 欄設定。"""
+        class MockMainWindow:
+            def __init__(self):
+                self.tree_widget = QTreeWidget()
+                self.writing_logs = []
+                self.current_theme = "default"
+                self.scale_factor = 1.0
+
+        win = MockMainWindow()
+        dashboard = WritingLogDashboard(win)
+        self.assertEqual(dashboard.table.columnCount(), 5)
+        headers = [dashboard.table.horizontalHeaderItem(i).text() for i in range(5)]
+        self.assertEqual(headers, ["日期", "當日總時長", "手寫字數", "AI 續寫字數", "AI 輔助與面向"])
+
+    def test_record_text_modification_is_safe_noop(self):
+        """驗證 record_text_modification 已變為安全 no-op，不累計日誌也不報錯。"""
+        mc = DummyMainController()
+        view = DummyView()
+        mc.view = view
+        stats = StatsController(mc)
+        mc.stats = stats
+
+        stats.record_text_modification(paste_large=True, delete_large=True)
+        self.assertEqual(len(mc.writing_logs), 0)
+
 if __name__ == "__main__":
     unittest.main()
+

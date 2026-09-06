@@ -179,8 +179,8 @@ class WritingLogDashboard(QWidget):
         # 日誌表格
         self.table = QTableWidget()
         self.table.setFont(FontManager.get_font(size=9))
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["日期", "當日總時長", "手寫字數", "AI 續寫字數", "大量異動(貼/刪)", "AI 輔助與面向"])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["日期", "當日總時長", "手寫字數", "AI 續寫字數", "AI 輔助與面向"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
@@ -300,9 +300,6 @@ class WritingLogDashboard(QWidget):
             else:
                 card_sub_val = f"輔助互動 {all_interactions} 次 | 0 字代筆"
 
-        total_paste_large = sum(l.get("paste_large_count", 0) for l in self.logs)
-        total_delete_large = sum(l.get("delete_large_count", 0) for l in self.logs)
-
         self.card_ai_ratio.update_values(card_main_val, card_sub_val)
 
         # 填充表格
@@ -363,29 +360,11 @@ class WritingLogDashboard(QWidget):
             else:
                 chat_display = f"{day_interactions} 次"
 
-            paste_cnt = log.get("paste_large_count", 0)
-            delete_cnt = log.get("delete_large_count", 0)
-            mod_tags = []
-            if paste_cnt > 0:
-                mod_tags.append(f"[📋貼上 {paste_cnt}]")
-            if delete_cnt > 0:
-                mod_tags.append(f"[✂️刪除 {delete_cnt}]")
-            mod_display = " ".join(mod_tags) if mod_tags else "無"
-
             date_item = QTableWidgetItem(date_str)
             duration_item = QTableWidgetItem(duration_str)
             manual_item = QTableWidgetItem(f"{manual_words:,}")
             ai_item = QTableWidgetItem(f"{ai_chars:,}")
-            mod_item = QTableWidgetItem(mod_display)
             chat_item = QTableWidgetItem(chat_display)
-
-            mod_item.setToolTip(
-                f"【{date_str} 異常異動明細】\n"
-                f"• 短時間大量貼上(>300字)：{paste_cnt} 次\n"
-                f"• 短時間大量刪除(>300字)：{delete_cnt} 次\n"
-                "────────────────────────\n"
-                "備註：超過300字之非正常連續鍵入變更"
-            )
 
             tooltip_lines = [
                 f"【{date_str} AI 輔助誠信明細】",
@@ -399,7 +378,7 @@ class WritingLogDashboard(QWidget):
             ]
             chat_item.setToolTip("\n".join(tooltip_lines))
 
-            for item in (date_item, duration_item, manual_item, ai_item, mod_item, chat_item):
+            for item in (date_item, duration_item, manual_item, ai_item, chat_item):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
 
@@ -409,10 +388,9 @@ class WritingLogDashboard(QWidget):
             self.table.setItem(row_idx, 1, duration_item)
             self.table.setItem(row_idx, 2, manual_item)
             self.table.setItem(row_idx, 3, ai_item)
-            self.table.setItem(row_idx, 4, mod_item)
-            self.table.setItem(row_idx, 5, chat_item)
+            self.table.setItem(row_idx, 4, chat_item)
 
-        # 傳遞數據至 ChartView（含全量歷史打卡查找表與大量異動次數）
+        # 傳遞數據至 ChartView（含全量歷史打卡查找表）
         sorted_logs_asc = sorted(self.logs, key=lambda x: x.get("date", ""))
         recent_logs = sorted_logs_asc[-14:] if len(sorted_logs_asc) > 14 else sorted_logs_asc
         recent_dates = [x.get("date", "") for x in recent_logs]
@@ -425,9 +403,7 @@ class WritingLogDashboard(QWidget):
 
         self.chart_view.set_data(
             recent_dates, recent_values, recent_ai_chars, recent_ai_chats, recent_ai_details,
-            full_date_map=full_date_map,
-            total_paste_large=total_paste_large,
-            total_delete_large=total_delete_large
+            full_date_map=full_date_map
         )
 
         # 傳遞章節統計數據
@@ -449,7 +425,7 @@ class WritingLogDashboard(QWidget):
         try:
             with open(file_path, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f)
-                writer.writerow(["日期", "當日總寫作時長(秒)", "當日總時長(格式化)", "今日總字數", "手寫字數", "AI續寫字數", "大量貼上(>300字)次數", "大量刪除(>300字)次數", "AI總輔助次數", "AI設定整理次數", "AI文字審校次數", "AI靈感對話次數"])
+                writer.writerow(["日期", "當日總寫作時長(秒)", "當日總時長(格式化)", "今日總字數", "手寫字數", "AI續寫字數", "AI總輔助次數", "AI設定整理次數", "AI文字審校次數", "AI靈感對話次數"])
 
                 sorted_logs = sorted(self.logs, key=lambda x: x.get("date", ""))
 
@@ -459,8 +435,6 @@ class WritingLogDashboard(QWidget):
                     word_count = log.get("word_count", 0)
                     ai_chars = log.get("ai_continuation_chars", 0)
                     ai_chats = log.get("ai_chat_count", 0)
-                    paste_cnt = log.get("paste_large_count", 0)
-                    delete_cnt = log.get("delete_large_count", 0)
 
                     details = log.get("ai_details", {})
                     structuring = 0
@@ -494,8 +468,6 @@ class WritingLogDashboard(QWidget):
                         word_count,
                         manual_words,
                         ai_chars,
-                        paste_cnt,
-                        delete_cnt,
                         total_act,
                         structuring,
                         editorial,

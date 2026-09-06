@@ -75,6 +75,41 @@ class TestAIChatDialog(unittest.TestCase):
         self.assertEqual(len(received_card), 1)
         self.assertEqual(received_card[0][1], "測試回覆內容")
 
+    def test_markdown_rendering_in_chat(self):
+        # 測試 assistant 訊息帶有 Markdown 語法時渲染為 HTML 富文本
+        markdown_reply = "### 劇情建議\n* **角色矛盾**: 主角與反派的立場不同。\n* `關鍵道具`: 具有神秘力量。\n* 關係：A <-> B"
+        self.dialog._on_worker_finished(markdown_reply)
+
+        html_content = self.dialog.chat_history_edit.toHtml()
+        # 驗證包含粗體、標題與關係箭頭符號
+        self.assertIn("劇情建議", html_content)
+        self.assertIn("角色矛盾", html_content)
+        # 驗證包含 strong 粗體樣式
+        self.assertTrue("<b>" in html_content or "<strong>" in html_content or "font-weight" in html_content)
+        # 驗證 LaTeX 箭頭轉換
+        self.assertIn("⟷", html_content)
+
+    def test_streaming_and_stage_status(self):
+        # 測試階段狀態流轉
+        self.dialog._on_worker_status("connecting", "🧠 正在連線模型...")
+        self.assertIn("連線", self.dialog.lbl_status.text())
+
+        self.dialog._on_worker_status("thinking", "⏳ 模型思考中...")
+        self.assertIn("思考", self.dialog.lbl_status.text())
+
+        # 測試流式 chunk 到達
+        self.dialog._on_worker_chunk("第一段文字")
+        self.assertIn("第一段文字", self.dialog.chat_history_edit.toHtml())
+        self.assertIn("生成中", self.dialog.chat_history_edit.toHtml())
+
+        self.dialog._on_worker_chunk("，接著第二段")
+        self.assertIn("接著第二段", self.dialog.chat_history_edit.toHtml())
+
+        # 結束
+        self.dialog._on_worker_finished("第一段文字，接著第二段。")
+        self.assertEqual(self.dialog.current_streaming_text, "")
+        self.assertIn("接著第二段", self.dialog.chat_history_edit.toHtml())
+
 
 if __name__ == "__main__":
     unittest.main()

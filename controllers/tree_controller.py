@@ -106,6 +106,24 @@ class TreeController:
                 action_edit_scene.triggered.connect(lambda: self.edit_scene_metadata(item))
                 menu.addAction(action_edit_scene)
 
+            # ── 轉換類型 ─────────────────────────────
+            convert_menu = menu.addMenu("🔄 轉換…")
+
+            action_convert_folder = QAction("📁 轉換為卷", self.view)
+            action_convert_folder.setEnabled(node_type != "folder")
+            action_convert_folder.triggered.connect(lambda checked, i=item: self.convert_tree_node(i, "folder"))
+            convert_menu.addAction(action_convert_folder)
+
+            action_convert_file = QAction("📄 轉換為章", self.view)
+            action_convert_file.setEnabled(node_type != "file")
+            action_convert_file.triggered.connect(lambda checked, i=item: self.convert_tree_node(i, "file"))
+            convert_menu.addAction(action_convert_file)
+
+            action_convert_scene = QAction("🎬 轉換為幕", self.view)
+            action_convert_scene.setEnabled(node_type != "scene")
+            action_convert_scene.triggered.connect(lambda checked, i=item: self.convert_tree_node(i, "scene"))
+            convert_menu.addAction(action_convert_scene)
+
             menu.addSeparator()
 
             # ── 3. 進度標記 ─────────────────────────────
@@ -267,6 +285,117 @@ class TreeController:
             new_item.addChild(child_clone)
 
         return new_item
+
+    def convert_tree_node(self, item: QTreeWidgetItem, target_type: str):
+        """將節點在卷 (folder)、章 (file)、幕 (scene) 之間轉換。"""
+        if not self.is_item_valid(item):
+            return
+
+        data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+        current_type = data.get("type", "file")
+        if current_type == target_type:
+            return
+
+        item_id = data.get("id")
+
+        if target_type == "folder":
+            # 轉換為卷
+            # 若目前正在編輯此節點，先儲存文字內容後卸載
+            if self.mc.current_file_item == item:
+                self.mc.save_current_editor_content()
+                self.mc.current_file_item = None
+                self.view.editor.blockSignals(True)
+                self.view.editor.clear()
+                self.view.editor.blockSignals(False)
+                self.view.lbl_current_file.setText("請選擇左側文件進行編輯")
+
+            # 隱藏幕屬性頁籤（若開啟）
+            if hasattr(self.view, 'scene_tab_index'):
+                self.view.tabs.setTabVisible(self.view.scene_tab_index, False)
+                if self.view.tabs.currentIndex() == self.view.scene_tab_index:
+                    self.view.tabs.setCurrentIndex(0)
+
+            # folder 不計入 file_word_stats
+            if item_id and item_id in self.mc.file_word_stats:
+                self.mc.file_word_stats.pop(item_id, None)
+                self.mc.update_status_bar()
+                self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+
+            data["type"] = "folder"
+            item.setIcon(0, create_custom_icon("folder", self.view.folder_icon_color, self.view.scale_factor))
+
+        elif target_type == "file":
+            # 轉換為章
+            data["type"] = "file"
+            data.setdefault("content", "")
+            data.setdefault("mark", "None")
+            data.setdefault("cards", {"summary": [], "character": [], "world": [], "timeline": []})
+
+            # 若先前顯示幕屬性頁籤，轉為章後若當前選取即隱藏
+            if hasattr(self.view, 'scene_tab_index'):
+                if self.view.tree_widget.currentItem() == item:
+                    self.view.tabs.setTabVisible(self.view.scene_tab_index, False)
+                    if self.view.tabs.currentIndex() == self.view.scene_tab_index:
+                        self.view.tabs.setCurrentIndex(0)
+
+            # 更新圖示：若有標記則保留進度標記，否則顯示章節圖示
+            mark = data.get("mark", "None")
+            if mark and mark != "None" and mark in MARK_COLOR_MAP:
+                self.set_item_mark(item, MARK_COLOR_MAP[mark], mark)
+            else:
+                item.setIcon(0, create_custom_icon("file", self.view.file_icon_color, self.view.scale_factor))
+
+            # 更新字數快取
+            if item_id:
+                self.mc.file_word_stats[item_id] = self.mc.stats.analyze_exclusions_from_markdown(data.get("content", ""))
+                self.mc.update_status_bar()
+                self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+
+            # 若當前焦點即此項目，載入編輯器
+            if self.view.tree_widget.currentItem() == item:
+                self.on_tree_item_clicked(item, 0)
+
+        elif target_type == "scene":
+            # 轉換為幕
+            data["type"] = "scene"
+            data.setdefault("content", "")
+            data.setdefault("cards", {"summary": [], "character": [], "world": [], "timeline": []})
+            data.setdefault("mark", "Draft")
+            data.setdefault("scene_summary", "")
+            data.setdefault("scene_pov", "")
+            data.setdefault("scene_location", "")
+
+            # 更新圖示：若有標記且不是 None 則顯示標記圓點，否則顯示幕圖示
+            mark = data.get("mark", "None")
+            if mark and mark != "None" and mark in MARK_COLOR_MAP:
+                self.set_item_mark(item, MARK_COLOR_MAP[mark], mark)
+            else:
+                item.setIcon(0, create_custom_icon("folder", "#7EB8F7", self.view.scale_factor))
+
+            # 更新字數快取
+            if item_id:
+                self.mc.file_word_stats[item_id] = self.mc.stats.analyze_exclusions_from_markdown(data.get("content", ""))
+                self.mc.update_status_bar()
+                self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+
+            # 若當前焦點即此項目，載入編輯器與幕屬性
+            if self.view.tree_widget.currentItem() == item:
+                self.on_tree_item_clicked(item, 0)
+
+        self.view.tree_widget.blockSignals(True)
+        item.setData(0, Qt.ItemDataRole.UserRole, data)
+        self.view.tree_widget.blockSignals(False)
+
+        # 若大綱視圖開啟中，同步更新
+        if hasattr(self.view, "outline_view") and hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3:
+            self.view.outline_view.populate_from_tree(
+                self.view.tree_widget,
+                self.view.folder_icon_color,
+                self.view.file_icon_color,
+                self.view.scale_factor
+            )
+
+        self.mc.project.save_temp_doc()
 
     def move_item_up(self, item: QTreeWidgetItem):
         """將節點在其父層（或頂層）向上移動一位。"""

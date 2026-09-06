@@ -5,7 +5,9 @@ import urllib.error
 import urllib.parse
 from PyQt6.QtCore import QThread, pyqtSignal
 
-SETTINGS_FILE = "ai_settings.json"
+from services.app_settings_service import AppSettingsService
+
+SETTINGS_FILENAME = "ai_settings.json"
 
 DEFAULT_SETTINGS = {
     "provider": "Google",
@@ -48,11 +50,36 @@ DEFAULT_SETTINGS = {
 
 
 class AIService:
-    @staticmethod
-    def load_settings(file_path=SETTINGS_FILE) -> dict:
-        if os.path.exists(file_path):
+    @classmethod
+    def get_settings_file_path(cls, custom_dir: str = None) -> str:
+        """取得本機儲存 AI 設定檔的完整絕對路徑（預設在 AppData/Local/Jiufang_Novel_Editor/）。"""
+        if not custom_dir:
+            custom_dir = AppSettingsService.get_default_storage_path()
+        if not os.path.exists(custom_dir):
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                os.makedirs(custom_dir, exist_ok=True)
+            except Exception:
+                pass
+        return os.path.join(custom_dir, SETTINGS_FILENAME)
+
+    @classmethod
+    def load_settings(cls, file_path: str = None) -> dict:
+        target_path = file_path if file_path else cls.get_settings_file_path()
+        
+        # 若 AppData 路徑檔案不存在，但當前目錄有舊版 ai_settings.json，自動遷移
+        if not file_path and not os.path.exists(target_path):
+            legacy_path = SETTINGS_FILENAME
+            if os.path.exists(legacy_path):
+                try:
+                    with open(legacy_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    cls.save_settings(data, file_path=target_path)
+                except Exception as e:
+                    print(f"自動遷移舊版 AI 設定檔失敗: {e}")
+
+        if os.path.exists(target_path):
+            try:
+                with open(target_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     # 合併預設值避免缺欄位
                     merged = dict(DEFAULT_SETTINGS)
@@ -66,10 +93,14 @@ class AIService:
                 print(f"讀取 AI 設定檔失敗: {e}")
         return dict(DEFAULT_SETTINGS)
 
-    @staticmethod
-    def save_settings(settings: dict, file_path=SETTINGS_FILE):
+    @classmethod
+    def save_settings(cls, settings: dict, file_path: str = None):
+        target_path = file_path if file_path else cls.get_settings_file_path()
         try:
-            with open(file_path, "w", encoding="utf-8") as f:
+            target_dir = os.path.dirname(target_path)
+            if target_dir and not os.path.exists(target_dir):
+                os.makedirs(target_dir, exist_ok=True)
+            with open(target_path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, ensure_ascii=False, indent=4)
         except Exception as e:
             print(f"儲存 AI 設定檔失敗: {e}")
@@ -640,9 +671,9 @@ class AIWorker(QThread):
                 )
                 result_text = analysis_result.final_synthesis
             else:
-                self.progress_signal.emit(1, 1, "✨ AI 正在分析中，請稍候...")
-                # 呼叫單次 API
-                result_text = AIService.call_api(
+                self.progress_signal.emit(1, 1, "🧠 正在連線模型並分析文本...")
+                chunks = []
+                generator = AIService.call_api_stream(
                     provider=provider,
                     api_url=api_url,
                     api_key=api_key,
@@ -651,6 +682,19 @@ class AIWorker(QThread):
                     user_content=self.text_content,
                     timeout=timeout
                 )
+                chunk_count = 0
+                for chunk in generator:
+                    if self._is_cancelled:
+                        break
+                    chunks.append(chunk)
+                    chunk_count += 1
+                    if chunk_count % 5 == 0:
+                        total_len = sum(len(c) for c in chunks)
+                        self.progress_signal.emit(1, 1, f"✨ 正在生成分析結果（已產出約 {total_len} 字）...")
+
+                if self._is_cancelled:
+                    raise RuntimeError("AI 分析已被使用者取消。")
+                result_text = "".join(chunks)
 
             # 解析結構與卡片預設對應類別
             category_map = {
@@ -705,7 +749,9 @@ class AIWorker(QThread):
 
 
 class AIChatWorker(QThread):
-    """AI 多輪對話背景執行緒"""
+    """AI 多輪對話背景執行緒（支援串流輸出與工作階段通知）"""
+    chunk_signal = pyqtSignal(str)
+    status_signal = pyqtSignal(str, str)  # (status_key, display_message)
     finished_signal = pyqtSignal(str)
     error_signal = pyqtSignal(str)
 
@@ -713,9 +759,14 @@ class AIChatWorker(QThread):
         super().__init__()
         self.messages = list(messages)
         self.custom_system_prompt = custom_system_prompt
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
 
     def run(self):
         try:
+            self.status_signal.emit("connecting", "🧠 正在連線模型...")
             settings = AIService.load_settings()
             provider = settings.get("provider", "Google")
             timeout = int(settings.get("timeout", 300))
@@ -737,7 +788,12 @@ class AIChatWorker(QThread):
                 full_messages.append({"role": "system", "content": sys_prompt})
             full_messages.extend(self.messages)
 
-            resp_text = AIService.call_api(
+            self.status_signal.emit("thinking", "⏳ 模型思考中...")
+
+            full_chunks = []
+            first_chunk_received = False
+
+            generator = AIService.call_api_stream(
                 provider=provider,
                 api_url=api_url,
                 api_key=api_key,
@@ -745,9 +801,25 @@ class AIChatWorker(QThread):
                 messages=full_messages,
                 timeout=timeout
             )
-            self.finished_signal.emit(resp_text)
+
+            for chunk in generator:
+                if self._is_cancelled:
+                    break
+                if not first_chunk_received:
+                    first_chunk_received = True
+                    self.status_signal.emit("generating", "✍️ 正在生成回覆中...")
+                full_chunks.append(chunk)
+                self.chunk_signal.emit(chunk)
+
+            if self._is_cancelled:
+                self.error_signal.emit("對話生成已被使用者取消。")
+            else:
+                resp_text = "".join(full_chunks)
+                self.status_signal.emit("finished", "✅ 回覆完成")
+                self.finished_signal.emit(resp_text)
         except Exception as e:
-            self.error_signal.emit(str(e))
+            if not self._is_cancelled:
+                self.error_signal.emit(str(e))
 
 
 class AIContinuationWorker(QThread):

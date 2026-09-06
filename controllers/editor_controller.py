@@ -44,6 +44,8 @@ class EditorController:
 
         self.mc.mark_dirty(True)
         self.mc.update_status_bar()
+        if self.mc.typewriter_mode:
+            self.align_typewriter_center()
 
     def change_font(self, font):
         family = font.family() if isinstance(font, QFont) else str(font)
@@ -82,18 +84,151 @@ class EditorController:
         self.mc.typewriter_mode = checked
         self.view.btn_typewriter.setText("打字機模式: 開" if checked else "打字機模式: 關")
         if checked:
-            self.on_cursor_position_changed()
+            self.align_typewriter_center()
 
-    def on_cursor_position_changed(self):
+    def align_typewriter_center(self):
+        """在打字機模式下，將游標垂直對齊至編輯器可見區域中央。
+
+        若當前游標處於文字選取狀態（例如使用者正在拖曳框選文字），則不進行對齊，
+        避免畫面滾動導致選取範圍跳動失控。
+        """
         if not self.mc.typewriter_mode:
             return
         cursor = self.view.editor.textCursor()
+        if cursor.hasSelection():
+            return
         cursor_rect = self.view.editor.cursorRect(cursor)
         viewport_height = self.view.editor.viewport().height()
         scrollbar = self.view.editor.verticalScrollBar()
-        target_y = cursor_rect.top() + scrollbar.value() - (viewport_height / 2)
-        if target_y > 0:
-            scrollbar.setValue(int(target_y))
+        target_y = int(cursor_rect.top() + scrollbar.value() - (viewport_height / 2))
+        scrollbar.setValue(max(0, target_y))
+
+    def on_cursor_position_changed(self):
+        # 游標位置變動時同步樣式按鈕（粗體/斜體/刪除線）之狀態
+        self.update_format_buttons_state()
+
+    def update_format_buttons_state(self):
+        """根據當前游標處字元格式，同步樣式按鈕之按下狀態。"""
+        cursor = self.view.editor.textCursor()
+        fmt = cursor.charFormat()
+        is_bold = (fmt.fontWeight() == QFont.Weight.Bold) or (fmt.fontWeight() >= 700)
+        is_italic = fmt.fontItalic()
+        is_strike = fmt.fontStrikeOut()
+
+        if hasattr(self.view, "btn_bold"):
+            self.view.btn_bold.blockSignals(True)
+            self.view.btn_bold.setChecked(is_bold)
+            self.view.btn_bold.blockSignals(False)
+
+        if hasattr(self.view, "btn_italic"):
+            self.view.btn_italic.blockSignals(True)
+            self.view.btn_italic.setChecked(is_italic)
+            self.view.btn_italic.blockSignals(False)
+
+        if hasattr(self.view, "btn_strike"):
+            self.view.btn_strike.blockSignals(True)
+            self.view.btn_strike.setChecked(is_strike)
+            self.view.btn_strike.blockSignals(False)
+
+    def toggle_bold(self):
+        """切換粗體樣式。"""
+        if hasattr(self.view.editor, "toggle_bold"):
+            self.view.editor.toggle_bold()
+        self.update_format_buttons_state()
+        self.view.editor.setFocus()
+
+    def toggle_italic(self):
+        """切換斜體樣式。"""
+        if hasattr(self.view.editor, "toggle_italic"):
+            self.view.editor.toggle_italic()
+        self.update_format_buttons_state()
+        self.view.editor.setFocus()
+
+    def toggle_strike(self):
+        """切換刪除線樣式。"""
+        if hasattr(self.view.editor, "toggle_strike"):
+            self.view.editor.toggle_strike()
+        self.update_format_buttons_state()
+        self.view.editor.setFocus()
+
+    def insert_bracket_pair(self, open_br: str, close_br: str):
+        """成對括號/引號插入或包裹選取文字。"""
+        cursor = self.view.editor.textCursor()
+        if cursor.hasSelection():
+            selected = cursor.selectedText()
+            cursor.insertText(f"{open_br}{selected}{close_br}")
+        else:
+            pos = cursor.position()
+            cursor.insertText(f"{open_br}{close_br}")
+            cursor.setPosition(pos + len(open_br))
+            self.view.editor.setTextCursor(cursor)
+        self.view.editor.setFocus()
+
+    def insert_punctuation(self, punc: str):
+        """插入指定標點符號並保持編輯器焦點。"""
+        self.view.editor.insertPlainText(punc)
+        self.view.editor.setFocus()
+
+    def open_auto_format_dialog(self):
+        """開啟小說自動排版工具對話框。"""
+        from views.dialogs.auto_format_dialog import AutoFormatDialog
+        from services.text_formatter_service import TextFormatterService
+
+        current_text = self.view.editor.toPlainText()
+        dlg = AutoFormatDialog(self.view, current_text=current_text)
+        if dlg.exec():
+            options = dlg.get_options()
+            scope = options.get('scope', 'current')
+
+            if scope == 'current':
+                # 套用至當前章節
+                if not current_text:
+                    return
+                formatted = TextFormatterService.format_text(current_text, options)
+                cursor = self.view.editor.textCursor()
+                cursor.beginEditBlock()
+                cursor.select(QTextCursor.SelectionType.Document)
+                cursor.insertText(formatted)
+                cursor.endEditBlock()
+            else:
+                # 套用至全書所有章節
+                from PyQt6.QtWidgets import QMessageBox
+                ret = QMessageBox.question(
+                    self.view,
+                    "確認套用全書排版",
+                    "即將對全書所有章節進行自動排版，此動作將更新所有章節內文。\n是否確定繼續？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes
+                )
+                if ret != QMessageBox.StandardButton.Yes:
+                    return
+
+                # 先儲存當前章節內容避免被舊快照覆蓋
+                self.save_current_editor_content()
+
+                def process_item(item):
+                    data = item.data(0, Qt.ItemDataRole.UserRole)
+                    if data and not data.get("is_folder", False):
+                        content = data.get("content", "")
+                        if content:
+                            new_content = TextFormatterService.format_text(content, options)
+                            data["content"] = new_content
+                            item.setData(0, Qt.ItemDataRole.UserRole, data)
+                    for i in range(item.childCount()):
+                        process_item(item.child(i))
+
+                for i in range(self.view.tree_widget.topLevelItemCount()):
+                    process_item(self.view.tree_widget.topLevelItem(i))
+
+                # 重新載入當前章節編輯器內容
+                if self.mc.current_file_item:
+                    curr_data = self.mc.current_file_item.data(0, Qt.ItemDataRole.UserRole)
+                    if curr_data:
+                        content = curr_data.get("content", "")
+                        self.view.editor.set_markdown(content)
+
+                self.mc.mark_dirty(True)
+                self.mc.update_status_bar()
 
     def open_lint_dialog(self):
         """開啟文風與贅詞檢查對話框。"""

@@ -1,77 +1,61 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-04，實作 Phase 25「全專案中文用語臺灣繁體情境在地化全面檢核與替換」（清查全專案 87 處非臺灣慣用語，將「優化」、「默認」、「滾動」、「退出」、「代碼」、「文檔」、「快捷鍵」、「線程」、「保存」等全面標準化為「最佳化」、「預設」、「捲動」、「結束/離開」、「程式碼」、「文件」、「快速鍵」、「執行緒」、「儲存」），全套 191 項單元測試維持 100% 通過。
+> 最後更新：2026-09-06，完成 GitHub 發布文案檢討改寫（去 Emoji、回歸同儕創作者平實語調）、增訂工作區發布規則，並發布 v0.1.3-Beta（包含 Setup.exe 與 Zip），全套 222 項單元測試維持 100% 通過。
 
 ### 陷阱 17：寫作打卡熱力圖（Heatmap）網格與星期對齊
 - 熱力圖的網格繪製為 24 欄（週）× 7 列（星期一至日）。計算起始日時，必須以「本週一」為基準向前推 23 週（共 24 週）：`curr_monday = today - datetime.timedelta(days=today.weekday())`，`start_date = curr_monday - datetime.timedelta(weeks=23)`。切勿額外加上 `days=6`，否則會多扣除 6 天使最後一格停留在上週，導致當週歷史打卡全部落在網格之外。
 - 熱力圖的 `date_map` 必須包含專案全部歷史寫作日誌（`full_date_map`），切勿僅傳遞給近期折線圖的 14 天切片數據。
 
-### 陷阱 18：樹狀目錄節點資料鍵名相容性
-- 專案在 `tree_controller.py` 中向 `QTreeWidgetItem` 寫入的字典鍵名為 `"type"`（值為 `"file"`, `"scene"`, `"folder"`），但在早期少數測試或匯入預覽模組中可能存在 `"node_type"`。任何從樹節點提取章節屬性之模組，應一律採用 `node_type = data.get("type") or data.get("node_type")` 進行雙向安全相容取值。
+### 陷阱 20：大量文字刪除/貼上行為監控已全面移除
+- **背景與原因**：
+  由於鍵盤敲擊、輸入法組字（IME）、日常退格（Backspace / Delete）以及剪貼文字在不同輸入環境下極易產生誤判，且給使用者帶來不必要的心理負擔與系統開銷。
+- **現行架構處理**：
+  - 已將 `StatsController.on_document_contents_change` 內的大量刪除計數邏輯徹底移除，僅保留正常字數統計與 session 計時。
+  - 已自 `MainController` 拔除 `signal_text_pasted` 之統計監聽；`on_text_pasted` 與 `record_text_modification` 保留為 safe no-op 以維持向後相容。
+  - `WritingLogDashboard` 表格已移除「大量異動(貼/刪)」欄位，恢復為標準 5 欄設定（日期、當日總時長、手寫字數、AI 續寫字數、AI 輔助與面向）；CSV 匯出亦同步剔除相關次數欄位。
+  - 既有資料庫欄位（`paste_large_count`、`delete_large_count`）維持模型向後相容性，不破壞舊有專案存檔讀取。
+
+### 陷阱 21：AI 相關設定路徑與對話視窗非模態
+- **AI 設定檔儲存路徑嚴禁使用相對路徑**：
+  在桌面端應用程式中，若直接使用 `"ai_settings.json"`，會隨啟動方式（捷徑、不同工作目錄、關聯開啟）而造成路徑漂移、設定遺失。必須統一使用 `AIService.get_settings_file_path()` 儲存於使用者 AppData 本機目錄（`%LOCALAPPDATA%/Jiufang_Novel_Editor/`），並保留舊版檔案向後相容與自動遷移。
+- **AI 對話視窗必須保持非模態 (Modeless)**：
+  切勿在 `open_ai_chat_dialog` 呼叫阻塞式 `dlg.exec()`，否則作家在等待 AI 回覆或查閱對話時會被鎖定主編輯器而無法繼續碼字。應使用單一實例保持與 `dlg.show()`、`dlg.raise_()`。
+
+### 陷阱 22：章節樹「幕 (Scene)」節點與「檔案 (File)」節點的內容屬性等價性
+- **問題根源**：
+  編輯器核心結構中，「幕 (Scene)」節點（`node_type == "scene"`）與普通文件節點（`node_type == "file"`）均承載正文內文（`content`）。九方小說編輯器在章節結構與預設專案中，正文主要存放在 `scene` 節點內。
+- **關鍵規範**：
+  遍歷章節內文時（如跨章節全文搜尋、大綱檢視操作等），判斷式**絕對不可**只寫 `node_type == "file"`，必須寫 `node_type in ("file", "scene")`，否則所有幕節點的內文將被全面略過。
+- **跳轉高亮校準**：
+  從搜尋結果跳轉時，Markdown 標籤在渲染成富文本後可能導致字元位移，`navigate_to_global_match` 應以 `match_text` 與 `document().find()` 進行智慧校準，確保游標精確選取目標關鍵字。
 
 ---
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項 (Phase 25：全專案中文用語臺灣繁體情境在地化全面檢核與替換，全套 191 項單元測試 100% 綠燈)**：
-  1. **AI 提示詞與服務模組標準化**：
-     - `ai_settings.json` 與 `services/ai_service.py` 預設文學評論提示詞中之「寫作優化建議」全面修正為「寫作最佳化建議」。
-     - `services/long_text_analyzer.py` 中之演算法註解、Prompt 模板與進度回報中的「滾動壓縮 / 滾動更新 / 滾動分析」全面修正為「捲動壓縮 / 捲動更新 / 捲動分析」；「實質優化建議」修正為「實質最佳化建議」；「未配置 ai_caller」修正為「未設定 ai_caller」。
-  2. **UI 介面、選單與對話框標準化**：
-     - `views/components/menu_builder.py`：檔案選單之「退出九方編輯器(&X)」修正為標準 Windows 繁體中文「結束九方編輯器(&X)」。
-     - `views/main_window.py`：沉浸專注模式提示條「✨ 沉浸寫作模式 — 按 Esc 或 F11 退出」修正為「按 Esc 或 F11 離開」；註解中快捷鍵修正為快速鍵。
-     - `views/dialogs/ai_scope_dialog.py`：長篇小說分析統計提示文字「長文滾動分析」修正為「長文捲動分析」。
-     - `README.md`：核心特色說明中之「打字機滾動模式」修正為「打字機捲動模式」。
-  3. **控制器、模型與工具層用語在地化**：
-     - `main.py` 與 `controllers/main_controller.py`：結束處理註解由「退出」修正為「結束」。
-     - `controllers/card_controller.py`：連動更新註解由「同步刷新」修正為「同步重新整理」。
-     - `controllers/ai_controller.py` 與 `controllers/editor_controller.py`：由「滾動至可見」修正為「捲動至可見」。
-     - `models/models.py`：`CompactState` 與 `LongTextAnalysisResult` 之 docstring 修正為「捲動壓縮狀態物件」與「長文捲動分析」。
-     - `utils/markdown_highlighter.py`、`markdown_converter.py`、`markdown_utils.py`：語法標記與解析註解中之「行內代碼 / 代碼區塊」全面修正為「行內程式碼 / 程式碼區塊」。
-  4. **測試套件與專案文檔全面同步**：
-     - `tests/test_ai_chat.py`：線程 ➔ 執行緒。
-     - `tests/test_markdown_converter.py`：測試文字從 \`代碼\` 升級為 \`程式碼\`，驗證繁體字串之 Markdown 行內解析無誤。
-     - `tests/test_save_rules.py`、`test_import_controller.py`：快捷鍵 ➔ 快速鍵。
-     - `tests/test_autosave_and_startup.py`、`test_focus_and_outline.py`：退出 ➔ 結束/離開。
-     - `tests/test_phase12.py`、`test_controllers.py`：保存 ➔ 儲存。
-     - `.agents/docs/TEST_SUITE.md`、`IMPLEMENTATION_PLAN.md`、`OPTIMIZATION_PLAN.md`、`ROADMAP.md` 全數完成用語同步。
-  5. **全套測試 100% 綠燈通過**：
-     - 執行 `pytest tests/`，共 191 項測試全數 PASS（0 failures, 0 errors），系統穩定度與行為一致性完全無虞。
-  1. **創作日誌熱力圖修復**：
-     - 修正 `WritingChartView._paint_heatmap` 的日期起始計算，以本週一為基準往前推 23 週，確保每一列（row 0～6）精準對齊週一至週日，並將當日（例如 2026-09-04）以及過去 24 週（含 8/31、9/1、9/3、9/4 等）完整涵蓋進可見方格。
-     - 傳入全量日誌 `full_date_map`，解決先前僅傳遞最近 14 天切片資料導致打卡格子深色未點亮之問題；未來日期則自動顯示微暗未解鎖方塊。
-  2. **各章節字數統計修復與最佳化**：
-     - 修正 `WritingLogDashboard._extract_chapter_stats` 節點型態提取邏輯，相容 `type` 與 `node_type`，解決「尚未建立任何章節或章節尚無字數」之錯誤顯示。
-     - 若使用者正在編輯當前章節，即時從編輯器抓取最新字數；長條圖繪製亦支援章節數量自適應高度。
-  3. **短時間大量貼上（>300字）即時偵測與記錄**：
-     - `JNE_TextEdit` 於 `insertFromMimeData` 攔截所有貼上行為（快速鍵與右鍵選單）並發射 `signal_text_pasted(str)`。
-     - `StatsController.on_text_pasted` 計算有效字數，單次或 2 秒窗口內累計超過 300 字時，累計為「大量貼上文字」次數（`paste_large_count`），且與 AI 續寫文字嚴格分離。
-  4. **短時間大量刪除（>300字）即時偵測與記錄**：
-     - `StatsController.on_document_contents_change` 監控底層 `charsRemoved`，單次或 2 秒窗口內累計超過 300 字時，累計為「大量刪除文字」次數（`delete_large_count`），且阻斷切換章節與開啟專案時的文字重設信號。
-  5. **資料庫 Schema v12 Migration 與持久化**：
-     - `DatabaseMigrations` 升級至版本 12，新增 `upgrade_v11_to_v12` 於 `writing_logs` 補齊 `paste_large_count` 與 `delete_large_count`。
-     - `DatabaseService`、`StorageService` 與 `MainController` 完整支援兩欄位之 SQL 存取、快照與 JSON 字典轉換。
-  6. **寫作儀表板 UI 與誠信指標全面展示**：
-     - 日誌表格由 5 欄擴展為 6 欄，新增「大量異動(貼/刪)」欄位，以 `[📋貼上 1] [✂️刪除 1]` 標籤標記，並提供明細 Tooltip。
-     - AI 介入度圖表右側明細新增大量貼上與大量刪除之誠信打點項目。
-     - 頂部第四張指標卡片標註異動統計。
-     - CSV 匯出自動補齊大量貼上與刪除次數欄位。
-  7. **測試套件擴充與全套通過**：
-     - 新增 `tests/test_writing_log_enhancements.py`（5 項測試）。
-     - 修復 `test_stats_ai_breakdown.py` 連線未關閉之 Windows 檔案把柄鎖定問題。
-     - 全套 191 項測試 100% 通過（`pytest tests/` 191 passed in 41.65s）。
-     - 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
+- **本次完成事項（GitHub 文案檢討改寫、增訂發布規則、程式碼推送與 v0.1.3-Beta 正式發布）**：
+  1. **文案風格檢討與全面改寫**：
+     - 全面檢視 `README.md`，保留作者親筆自述前言，將功能介紹徹底去除 Emoji 與行銷煽情詞，以同儕小說創作者視角平實說明功能設計初衷與已知限制。
+     - 透過 GitHub API 更新遠端歷次發布（`v0.1.0-beta`、`v0.1.1-beta`、`v0.1.2-beta`）之 Release 內文，全面剔除 Emoji 與誇飾字眼。
+  2. **工作區規則增訂 (`.agents/rules/workspace_rules.md`)**：
+     - 正式新增「發布規則與文案風格規範」，明文規定溝通定位、文字風格禁令（嚴禁 Emoji 與過度矯情）與 Release SOP 六步驟標準作業流程。
+  3. **專案變更推送與 v0.1.3-Beta 發布**：
+     - 提交包含節點類型轉換（卷/章/幕）、全文搜尋修復、文字排版工具、打字機模式微調、移除日常刪貼監控等完整更新至 Git 並推送到遠端。
+     - 建立 `v0.1.3-beta` 標籤並於 GitHub 建立 Pre-release，上傳 `Jiufang_Novel_Editor_0.1.3-Beta-Setup.exe` 與 `Jiufang_Novel_Editor_0.1.3-Beta-Setup.zip`。
+  4. **全套測試維持 100% 綠燈**：
+     - 222 項單元測試全數通過。
 
 - **當前任務狀態**：
-  1. 創作日誌熱力圖與各章字數長條圖已正常運作，且大量貼上與刪除文字行為監控已完整落地。
-  2. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
-  3. 全套 191 項測試維持 100% 通過。
+  1. v0.1.3-Beta 發布完成，所有公開文件風格已對齊創作者同儕平實語氣。
+  2. 程式碼與標籤皆已同步至 GitHub 遠端儲存庫。
+
 - **下一個 Agent 的任務指引**：
-  1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
-  2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。
-  3. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
-  4. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
-  5. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
+  1. 後續所有對外文件或 Release Notes 必須遵守 `.agents/rules/workspace_rules.md` 中的發布規範，嚴禁使用 Emoji 與煽情行銷詞彙。
+  2. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
+  3. 打包請一律使用 `.agents\build\build.bat`。產物必須置於 `pre-release/`，嚴禁放置於專案根目錄。
+  4. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
+  5. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
+  6. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 

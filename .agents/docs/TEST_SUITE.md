@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
-> **最後更新**：2026-09-04  
-> **測試總數**：193 項自動化測試（31 個測試模組）  
+> **最後更新**：2026-09-06  
+> **測試總數**：222 項自動化測試（34 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,17 +11,17 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 193 項測試
-C:\Python314\python.exe -m pytest tests/
+# 執行全部 222 項測試
+pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
 C:\Python314\python.exe -m pytest tests/ --collect-only -q
 
 # 執行單一測試檔案
-C:\Python314\python.exe -m pytest tests/test_import_service.py
+C:\Python314\python.exe -m pytest tests/test_typewriter_mode.py
 
 # 執行特定關鍵字測試
-C:\Python314\python.exe -m pytest tests/ -k "test_import"
+C:\Python314\python.exe -m pytest tests/ -k "test_typewriter"
 ```
 
 ---
@@ -30,13 +30,13 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 
 | 分類領域 | 測試模組檔名 | 測試數 | 核心測試目標 |
 | :--- | :--- | :---: | :--- |
-| **1. AI 輔助與長文本分析** | `test_ai_character_extraction.py`<br>`test_ai_chat.py`<br>`test_ai_continuation.py`<br>`test_ai_service.py`<br>`test_long_text_analyzer.py` | 23 | 結構化角色提取、LaTeX 清理、章節內文提取、AI 聊天面板、智慧續寫、長文本滑動視窗分析與中斷機制 |
-| **2. 編輯器與右側資料卡片** | `test_controllers.py`<br>`test_right_panel_split.py`<br>`test_card_detail_dialog.py` | 23 | 9 大子控制器協同、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
-| **3. 章節樹與三層結構（幕）** | `test_context_menus.py`<br>`test_scene.py` | 18 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
+| **1. AI 輔助與長文本分析** | `test_ai_character_extraction.py`<br>`test_ai_chat.py`<br>`test_ai_continuation.py`<br>`test_ai_service.py`<br>`test_long_text_analyzer.py` | 27 | 結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、長文本滑動視窗分析與中斷機制、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性 |
+| **2. 編輯器與右側資料卡片** | `test_controllers.py`<br>`test_typewriter_mode.py`<br>`test_right_panel_split.py`<br>`test_card_detail_dialog.py` | 28 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
+| **3. 章節樹與三層結構（幕）** | `test_context_menus.py`<br>`test_scene.py` | 22 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記/轉換為卷章幕）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
 | **4. 資料庫、備份與路徑移轉** | `test_database.py`<br>`test_daily_progress_sync.py`<br>`test_backup.py`<br>`test_snapshot.py`<br>`test_tree_expansion_persistence.py`<br>`test_storage_path.py`<br>`test_save_rules.py` | 31 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則 |
 | **5. 自動存檔與崩潰恢復** | `test_autosave_and_startup.py` | 9 | 啟動導引視窗（新建/開啟/最新）、異常結束崩潰自動恢復（Crash Recovery）、暫存檔配額清理與自動存檔週期 |
-| **6. 審校、統計與寫作日誌** | `test_phase12.py`<br>`test_stats_settings.py`<br>`test_stats_ai_breakdown.py`<br>`test_writing_log_enhancements.py` | 27 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、AI 輔助創作誠信指標細項打點、寫作打卡熱力圖覆蓋修復、各章節字數長條圖提取修復、短時間大量文字貼上與刪除行為即時監控、AI 誠信指標排除非 AI 剪貼行為、創作日誌文字與介面全域 UI 縮放反應、全書字數目標進度條 |
-| **7. 視窗設定、大綱與匯出** | `test_window_settings.py`<br>`test_focus_and_outline.py`<br>`test_markdown_converter.py`<br>`test_export.py`<br>`test_search.py` | 31 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT) |
+| **6. 審校、統計與寫作日誌** | `test_phase12.py`<br>`test_stats_settings.py`<br>`test_stats_ai_breakdown.py`<br>`test_writing_log_enhancements.py` | 30 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、AI 輔助創作誠信指標細項打點、寫作打卡熱力圖覆蓋修復、各章節字數長條圖提取修復、短時間大量文字貼上與刪除行為即時監控、排除正常打字與輸入法組字誤觸大量刪除、固定時間窗口防無窮累積、背景儀表板非可見時跳過重繪以消除打字卡頓、創作日誌文字與介面全域 UI 縮放反應、全書字數目標進度條 |
+| **7. 視窗設定、大綱與匯出** | `test_window_settings.py`<br>`test_focus_and_outline.py`<br>`test_markdown_converter.py`<br>`test_export.py`<br>`test_search.py` | 32 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT) |
 | **8. 主題樣式與對話框色彩** | `test_theme_dialogs.py` | 10 | 全 6 種主題之彈出視窗高對比度 Token、按鈕/核取/單選指示器渲染、所有對話框主題色彩套用相容 |
 | **9. 外部文件匯入與樹狀適應** | `test_import_service.py`<br>`test_import_controller.py` | 12 | 中文小說正則切分（卷/章/場景）、Markdown 標題對應、Word 大綱樣式、多編碼自動偵測 (UTF-8/Big5)、單檔不切分、預覽精靈勾選過濾與三種掛載模式 |
 | **10. 稿件未儲存防護** | `test_unsaved_changes.py` | 9 | 編輯器輸入與章節樹異動髒標記、關閉確認對話框存檔/不存檔/取消選擇機制 |
@@ -45,7 +45,7 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 
 ## 3. 各測試模組詳細項目清單
 
-### 3.1 AI 輔助與長文本分析（23 項）
+### 3.1 AI 輔助與長文本分析（27 項）
 
 #### `test_ai_character_extraction.py` (6 項)
 - `test_ai_dialogs_scale_and_styles`：測試 `AIScopeDialog` 與 `AICharacterReviewDialog` 支援 scale_factor 縮放與清晰外框。
@@ -55,21 +55,25 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 - `test_markdown_highlighter_and_preview`：測試 `MarkdownHighlighter` 與 `CardDetailDialog` 預覽切換。
 - `test_structured_character_parsing_5_elements`：測試結構化標籤格式解析，確認 5 大要素與獨立關係卡解析無誤。
 
-#### `test_ai_chat.py` (4 項)
+#### `test_ai_chat.py` (6 項)
 - `test_init_with_context`：測試 AI 聊天面板帶有目前章節上下文之初始化狀態。
 - `test_init_without_context`：測試無上下文狀態下的 AI 聊天面板初始化。
 - `test_insert_and_save_card_signals`：測試將 AI 回應插入正文或另存為資料卡片的信號發送。
 - `test_message_formatting_and_history`：測試對話訊息排版格式與歷史對話記錄儲存。
+- `test_markdown_rendering_in_chat`：測試 AI 助理回覆 Markdown 富文本渲染，驗證標題、粗體、清單與關係箭頭正確轉換。
+- `test_streaming_and_stage_status`：測試對話流式輸出 chunks 接收與工作階段（連線 ➔ 思考 ➔ 生成 ➔ 完成）狀態流轉。
 
 #### `test_ai_continuation.py` (3 項)
 - `test_continuation_default_disabled`：驗證智慧續寫功能預設保持停用，避免未授權呼叫。
 - `test_continuation_inserted_at_cursor`：驗證生成續寫文本能精準插入於編輯器游標所在位置。
 - `test_continuation_worker_initialization`：驗證背景續寫非同步 Worker 初始化與參數傳遞。
 
-#### `test_ai_service.py` (3 項)
+#### `test_ai_service.py` (5 項)
 - `test_default_settings_contains_openai_and_features`：驗證預設 `ai_settings.json` 正確包含 OpenAI 介面及各項 AI 功能開關。
 - `test_detect_local_models_empty_or_offline`：驗證本地模型離線或無法連接時的例外捕捉與防禦處理。
 - `test_load_and_save_settings`：驗證 AI 服務設定檔讀取與儲存之完整性。
+- `test_get_settings_file_path_appdata`：驗證 AI 設定檔持久化路徑正確指向 AppData 本機資料夾。
+- `test_floating_hud_buttons_visibility`：驗證懸浮 HUD 右上角收折與關閉按鈕具備專屬 objectName、高對比文字與安全尺寸。
 
 #### `test_long_text_analyzer.py` (7 項)
 - `test_split_into_chunks_short_text`：測試短文本的分塊處理（不切分）。
@@ -111,20 +115,31 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 - `test_save_card_from_panel`：測試在下方欄位修改內容並儲存，資料模型與上方面板節點皆正確同步。
 - `test_scene_panel_switch`：測試切換為「幕」屬性編輯面板 (Index 2)。
 
+#### `test_typewriter_mode.py` (5 項)
+- `test_toggle_typewriter`：測試打字機模式開關狀態與工具列按鈕文字提示連動。
+- `test_typewriter_cursor_movement_does_not_scroll`：測試滑鼠點選與鍵盤游標移動時，不會強行觸發視窗滾動對齊。
+- `test_typewriter_no_align_when_has_selection`：測試當游標選取文字時（如滑鼠拖曳反白），嚴格禁止滾動對齊，防止畫面亂跳。
+- `test_typewriter_align_on_typing`：測試打字機模式開啟下，打字輸入時游標所在行精準對齊至可見區域垂直中央。
+- `test_typewriter_disabled_no_align`：測試打字機模式關閉時，打字不強制滾動置中。
+
 #### `test_card_detail_dialog.py` (2 項)
 - `test_plain_text_editing_and_data`：測試卡片獨立詳情視窗之文字編輯與資料儲存。
 - `test_plain_text_paste_strips_formatting`：測試貼上外來網頁或富文本時，自動清洗為純文字。
 
 ---
 
-### 3.3 章節樹與三層結構「幕」（18 項）
+### 3.3 章節樹與三層結構「幕」（22 項）
 
-#### `test_context_menus.py` (9 項)
+#### `test_context_menus.py` (13 項)
 - `test_card_copy_content`：測試卡片右鍵複製內文至剪貼簿。
 - `test_card_duplicate`：測試卡片複製副本（含子階層卡片）。
 - `test_card_move_up_and_down`：測試卡片節點同層順序上移與下移。
 - `test_card_rename`：測試卡片重新命名。
 - `test_tree_clear_mark`：測試清除目錄樹節點之進度標記色彩。
+- `test_tree_context_menu_convert_options`：測試作品面板右鍵選單包含「🔄 轉換…」母選單與「📁 轉換為卷」、「📄 轉換為章」、「🎬 轉換為幕」子選項，並依據節點目前類型精準啟用/禁用（反灰）。
+- `test_tree_convert_file_to_folder`：測試章節（file）轉換為卷（folder）時，正文安全保留、編輯器主動卸載、字數統計同步自 file_word_stats 移除。
+- `test_tree_convert_folder_to_file`：測試卷（folder）轉換為章節（file）時，補全正文與卡片預設欄位並重新納入字數統計。
+- `test_tree_convert_file_to_scene_and_back`：測試章節（file）與幕（scene）雙向轉換，驗證進度標記保留、幕屬性欄位補全與資料型態切換正確性。
 - `test_tree_duplicate_file_node`：測試單一章節節點建立副本。
 - `test_tree_duplicate_folder_with_children`：測試整卷資料夾（含其下所有子章節）完整建立副本。
 - `test_tree_move_up_and_down`：測試目錄樹同層節點上移與下移。
@@ -233,14 +248,17 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 - `test_database_save_and_load_ai_details`：驗證 SQLite `DatabaseService.save_project` 與 `load_project` 完整保留並還原 `ai_details` JSON 字典。
 - `test_migration_v10_to_v11`：驗證舊版 v10 資料庫能平滑無損遷移至 v11，自動為 `writing_logs` 補齊 `ai_details` 欄位並更新 `schema_version`。
 
-#### `test_writing_log_enhancements.py` (7 項)
-- `test_database_migration_v12_and_roundtrip`：驗證 SQLite schema v12 Migration 正確為 `writing_logs` 新增 `paste_large_count` 與 `delete_large_count` 欄位，並驗證儲存與載入往返一致性。
-- `test_large_paste_detection`：驗證在編輯器中進行貼上時，短時間或單次超過 300 字能即時累計當日 `paste_large_count`，且小於 300 字時不計入。
-- `test_large_delete_detection`：驗證在編輯器中進行大範圍刪除時，單次超過 300 字能即時累計當日 `delete_large_count`，而一般鍵盤單字退格不計入。
+#### `test_writing_log_enhancements.py` (10 項)
+- `test_database_migration_v12_and_roundtrip`：驗證 SQLite schema v12 Migration 為 `writing_logs` 支援 `paste_large_count` 與 `delete_large_count` 欄位相容性，並驗證儲存與載入往返一致性。
+- `test_paste_no_longer_tracked`：驗證大量貼上監控已完全移除，貼上長文字不再寫入或累計大量貼上記錄。
+- `test_delete_no_longer_tracked`：驗證大量刪除監控已完全移除，大範圍刪除字元不再寫入或累計大量刪除記錄。
 - `test_heatmap_dates_include_today`：驗證寫作打卡熱力圖網格計算，以「本週一」為基準向前推 23 週，使當日（如 2026-09-04）及過去 24 週打卡歷史全數納入可見網格並可被 Hover 查詢。
 - `test_chapter_stats_extraction`：驗證 `WritingLogDashboard._extract_chapter_stats` 能正確識別 `type="file"` 樹節點並提取章節名稱與各章內文字數。
 - `test_ai_ratio_chart_excludes_paste_and_delete`：驗證 AI 介入度分析圖與創作誠信指標卡片中，大量文字貼上與大量文字刪除行為不列入 AI 誠信光譜指標，保持 AI 介入度面向純淨。
 - `test_writing_log_dashboard_ui_scale_response`：驗證創作日誌與寫作儀表板（含標題、按鈕、指標卡片、圖表視圖與日誌表格）隨全局介面縮放比例（如 150%、200%）自適應等比縮放與可捲動性。
+- `test_typing_ime_and_backspace_no_false_positive_large_delete`：驗證正常打字時輸入法組字替換與連續單字退格不會誤觸或產生任何錯誤記錄。
+- `test_writing_log_dashboard_columns_count`：驗證創作日誌儀表板表格移除大量異動欄位後，維持乾淨的 5 欄設定（日期、當日總時長、手寫字數、AI 續寫字數、AI 輔助與面向）。
+- `test_record_text_modification_is_safe_noop`：驗證 `record_text_modification` 已變更為安全相容之 no-op 函式，呼叫時不累計日誌亦不拋出錯誤。
 
 ---
 
@@ -280,9 +298,10 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 - `test_export_txt`：測試匯出為純文字檔 (.txt)。
 - `test_export_default_dir_follows_storage_path`：測試匯出預設目錄正確跟隨 `mc.get_export_dir()` 與自訂存檔路徑連動。
 
-#### `test_search.py` (5 項)
+#### `test_search.py` (6 項)
 - `test_find_in_editor_and_navigation`：測試編輯器內關鍵字搜尋與上一個/下一個導航。
 - `test_global_search_across_chapters`：測試跨章節全書全文搜尋與結果摘要匹配。
+- `test_global_search_includes_scenes_and_dialog`：測試跨章節全文搜尋完整支援第三層「幕 (Scene)」節點、多層卷章樹狀路徑摘要、以及跳轉至目標章節時的智慧定位校準。
 - `test_search_controller_initialization`：驗證 SearchController 正確初始化並連接到 MainController。
 - `test_search_options`：測試搜尋選項（區分大小寫、全字比對、正規表達式）。
 - `test_single_replace_and_replace_all`：測試單次取代與全書一次取代。
@@ -337,6 +356,26 @@ C:\Python314\python.exe -m pytest tests/ -k "test_import"
 - `test_import_insert_mode_into_folder`：測試插入模式 (insert)，指定資料夾時節點作為該資料夾的子項掛載。
 - `test_import_new_book_mode`：測試開立新書模式 (new_book)，重置專案狀態並全面以新目錄樹替換。
 - `test_dialog_filtering`：測試 `ImportPreviewDialog` 的樹狀勾選過濾機制，未勾選項目不匯入。
+
+---
+
+### 3.11 自動排版工具與編輯器標點符號工具列（12 項）
+
+#### `test_text_formatter_service.py` (8 項)
+- `test_convert_halfwidth_punctuation`：驗證半形逗號、問號、驚嘆號、冒號、分號、括號與波浪號轉全形。
+- `test_convert_halfwidth_punctuation_preserve_decimal`：驗證英文句點轉全形時智慧保護數字小數點。
+- `test_indent_paragraphs`：驗證段首自動縮排二格全形空格。
+- `test_remove_indentation_is_reversible`：驗證段首縮排清除功能之可逆性。
+- `test_compact_empty_lines`：驗證連續多行空行壓縮為單一空行。
+- `test_remove_all_empty_lines`：驗證移除所有空行。
+- `test_add_empty_lines`：驗證各段落間自動增加一行空行。
+- `test_format_text_combined`：驗證複合選項排版之循序處理正確性。
+
+#### `test_auto_format_dialog.py` (4 項)
+- `test_auto_format_dialog_options_and_preview`：驗證 AutoFormatDialog 選項取得與即時對比預覽連動。
+- `test_punctuation_toolbar_quote_wrapping`：驗證標點工具列之引號在有選取時包裹文字、無選取時插入並游標居中。
+- `test_punctuation_toolbar_single_punctuation_insert`：驗證標點工具列之全形驚嘆號、問號、冒號、分號、頓號、段落分隔號插入。
+- `test_style_buttons_toggle`：驗證格式工具列之粗體、斜體、刪除線按鈕狀態切換與文字格式套用。
 
 ---
 

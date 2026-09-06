@@ -6,6 +6,12 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from PyQt6.QtWidgets import QApplication
+
+app = QApplication.instance()
+if not app:
+    app = QApplication(sys.argv)
+
 from services.ai_service import AIService, DEFAULT_SETTINGS
 
 
@@ -60,6 +66,29 @@ class TestAIService(unittest.TestCase):
             models_lm = AIService.detect_local_models("LM Studio", "http://127.0.0.1:99999/v1/chat/completions", timeout=1)
             self.assertIsInstance(models_lm, list)
             self.assertEqual(len(models_lm), 0)
+
+    def test_get_settings_file_path_appdata(self):
+        # 驗證預設路徑包含應用程式目錄與 ai_settings.json
+        path = AIService.get_settings_file_path()
+        self.assertTrue(path.endswith("ai_settings.json"))
+        self.assertIn("Jiufang_Novel_Editor", path)
+
+        # 驗證自訂目錄
+        custom_path = AIService.get_settings_file_path(self.temp_dir.name)
+        self.assertEqual(custom_path, os.path.join(self.temp_dir.name, "ai_settings.json"))
+
+    def test_floating_hud_buttons_visibility(self):
+        from views.components.ai_floating_hud import AIFloatingHUD
+        hud = AIFloatingHUD()
+        # 驗證按鈕存在且具備專屬 objectName 與清晰文字
+        self.assertEqual(hud.btn_toggle_collapse.objectName(), "HUDHeaderBtn")
+        self.assertEqual(hud.btn_cancel.objectName(), "HUDCancelBtn")
+        self.assertEqual(hud.btn_toggle_collapse.text(), "−")
+        self.assertEqual(hud.btn_cancel.text(), "✕")
+        # 驗證尺寸大於等於 20
+        self.assertGreaterEqual(hud.btn_toggle_collapse.width(), 20)
+        self.assertGreaterEqual(hud.btn_cancel.width(), 20)
+        hud.close()
 
 
 if __name__ == "__main__":

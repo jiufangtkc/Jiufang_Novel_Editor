@@ -246,15 +246,39 @@ class MainController:
         # 中央編輯器面板 (Center Panel)
         self.view.combo_font.currentFontChanged.connect(self.editor.change_font)
         self.view.combo_size.currentTextChanged.connect(self.editor.change_font_size)
-        self.view.btn_ellipsis.clicked.connect(lambda: self.view.editor.insertPlainText("……"))
-        self.view.btn_emdash.clicked.connect(lambda: self.view.editor.insertPlainText("──"))
+
+        # 樣式按鈕
+        if hasattr(self.view, "btn_bold"):
+            self.view.btn_bold.clicked.connect(self.editor.toggle_bold)
+        if hasattr(self.view, "btn_italic"):
+            self.view.btn_italic.clicked.connect(self.editor.toggle_italic)
+        if hasattr(self.view, "btn_strike"):
+            self.view.btn_strike.clicked.connect(self.editor.toggle_strike)
+
+        # 常用標點工具列按鈕
+        if hasattr(self.view, "btn_punc_quote_single"):
+            self.view.btn_punc_quote_single.clicked.connect(lambda: self.editor.insert_bracket_pair("「", "」"))
+        if hasattr(self.view, "btn_punc_quote_double"):
+            self.view.btn_punc_quote_double.clicked.connect(lambda: self.editor.insert_bracket_pair("『", "』"))
+        if hasattr(self.view, "btn_punc_exclamation"):
+            self.view.btn_punc_exclamation.clicked.connect(lambda: self.editor.insert_punctuation("！"))
+        if hasattr(self.view, "btn_punc_question"):
+            self.view.btn_punc_question.clicked.connect(lambda: self.editor.insert_punctuation("？"))
+        if hasattr(self.view, "btn_punc_colon"):
+            self.view.btn_punc_colon.clicked.connect(lambda: self.editor.insert_punctuation("："))
+        if hasattr(self.view, "btn_punc_semicolon"):
+            self.view.btn_punc_semicolon.clicked.connect(lambda: self.editor.insert_punctuation("；"))
+        if hasattr(self.view, "btn_punc_comma_pause"):
+            self.view.btn_punc_comma_pause.clicked.connect(lambda: self.editor.insert_punctuation("、"))
+        if hasattr(self.view, "btn_punc_section"):
+            self.view.btn_punc_section.clicked.connect(lambda: self.editor.insert_punctuation("※"))
+        self.view.btn_ellipsis.clicked.connect(lambda: self.editor.insert_punctuation("……"))
+        self.view.btn_emdash.clicked.connect(lambda: self.editor.insert_punctuation("──"))
         self.view.btn_typewriter.toggled.connect(self.editor.toggle_typewriter)
 
         self.view.editor.textChanged.connect(self.editor.on_editor_text_changed)
         self.view.editor.cursorPositionChanged.connect(self.editor.on_cursor_position_changed)
         self.view.editor.document().contentsChange.connect(self.stats.on_document_contents_change)
-        if hasattr(self.view.editor, "signal_text_pasted"):
-            self.view.editor.signal_text_pasted.connect(self.stats.on_text_pasted)
 
         self.view.btn_set_target.clicked.connect(self.stats.set_daily_target)
         self.view.btn_clear_progress.clicked.connect(self.stats.clear_daily_progress)
@@ -312,6 +336,8 @@ class MainController:
         self.view.action_adjust_global_size.triggered.connect(self.theme.adjust_global_size)
 
         self.view.action_show_writing_log.triggered.connect(self.stats.show_writing_log_dashboard)
+        if hasattr(self.view, "action_auto_format"):
+            self.view.action_auto_format.triggered.connect(self.editor.open_auto_format_dialog)
         self.view.action_lint.triggered.connect(self.editor.open_lint_dialog)
 
         # 設定 (Settings)

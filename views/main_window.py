@@ -135,15 +135,31 @@ class MainWindow(QMainWindow):
         self.combo_size.setFixedWidth(70)
         self.format_toolbar.addWidget(self.combo_size)
 
-        self.btn_ellipsis = QPushButton("……")
-        self.btn_ellipsis.setFont(FontManager.get_font(size=10))
-        self.btn_ellipsis.setToolTip("插入省略號 (……)")
-        self.format_toolbar.addWidget(self.btn_ellipsis)
+        # 樣式按鈕組：粗體、斜體、刪除線
+        self.btn_bold = QPushButton("B")
+        self.btn_bold.setFont(FontManager.get_font(size=10, weight=QFont.Weight.Bold))
+        self.btn_bold.setCheckable(True)
+        self.btn_bold.setToolTip("粗體 (Ctrl+B)")
+        self.btn_bold.setFixedWidth(32)
+        self.format_toolbar.addWidget(self.btn_bold)
 
-        self.btn_emdash = QPushButton("──")
-        self.btn_emdash.setFont(FontManager.get_font(size=10))
-        self.btn_emdash.setToolTip("插入破折號 (──)")
-        self.format_toolbar.addWidget(self.btn_emdash)
+        self.btn_italic = QPushButton("I")
+        font_italic = FontManager.get_font(size=10)
+        font_italic.setItalic(True)
+        self.btn_italic.setFont(font_italic)
+        self.btn_italic.setCheckable(True)
+        self.btn_italic.setToolTip("斜體 (Ctrl+I)")
+        self.btn_italic.setFixedWidth(32)
+        self.format_toolbar.addWidget(self.btn_italic)
+
+        self.btn_strike = QPushButton("S")
+        font_strike = FontManager.get_font(size=10)
+        font_strike.setStrikeOut(True)
+        self.btn_strike.setFont(font_strike)
+        self.btn_strike.setCheckable(True)
+        self.btn_strike.setToolTip("刪除線 (Ctrl+Shift+S)")
+        self.btn_strike.setFixedWidth(32)
+        self.format_toolbar.addWidget(self.btn_strike)
 
         from PyQt6.QtWidgets import QSizePolicy
         spacer = QWidget()
@@ -156,6 +172,72 @@ class MainWindow(QMainWindow):
         self.format_toolbar.addWidget(self.btn_typewriter)
 
         self.write_page_layout.addWidget(self.format_toolbar)
+
+        # 常用標點工具列
+        self.punct_toolbar = QToolBar()
+        self.punct_toolbar.setObjectName("punct_toolbar")
+
+        self.btn_punc_quote_single = QPushButton("「」")
+        self.btn_punc_quote_single.setFont(FontManager.get_font(size=10))
+        self.btn_punc_quote_single.setToolTip("引號 (選取文字包裹 / 插入居中)")
+        self.btn_punc_quote_single.setFixedWidth(38)
+        self.punct_toolbar.addWidget(self.btn_punc_quote_single)
+
+        self.btn_punc_quote_double = QPushButton("『』")
+        self.btn_punc_quote_double.setFont(FontManager.get_font(size=10))
+        self.btn_punc_quote_double.setToolTip("雙引號 (選取文字包裹 / 插入居中)")
+        self.btn_punc_quote_double.setFixedWidth(38)
+        self.punct_toolbar.addWidget(self.btn_punc_quote_double)
+
+        self.btn_punc_exclamation = QPushButton("！")
+        self.btn_punc_exclamation.setFont(FontManager.get_font(size=10))
+        self.btn_punc_exclamation.setToolTip("插入驚嘆號 (！)")
+        self.btn_punc_exclamation.setFixedWidth(32)
+        self.punct_toolbar.addWidget(self.btn_punc_exclamation)
+
+        self.btn_punc_question = QPushButton("？")
+        self.btn_punc_question.setFont(FontManager.get_font(size=10))
+        self.btn_punc_question.setToolTip("插入問號 (？)")
+        self.btn_punc_question.setFixedWidth(32)
+        self.punct_toolbar.addWidget(self.btn_punc_question)
+
+        self.btn_punc_colon = QPushButton("：")
+        self.btn_punc_colon.setFont(FontManager.get_font(size=10))
+        self.btn_punc_colon.setToolTip("插入冒號 (：)")
+        self.btn_punc_colon.setFixedWidth(32)
+        self.punct_toolbar.addWidget(self.btn_punc_colon)
+
+        self.btn_punc_semicolon = QPushButton("；")
+        self.btn_punc_semicolon.setFont(FontManager.get_font(size=10))
+        self.btn_punc_semicolon.setToolTip("插入分號 (；)")
+        self.btn_punc_semicolon.setFixedWidth(32)
+        self.punct_toolbar.addWidget(self.btn_punc_semicolon)
+
+        self.btn_punc_comma_pause = QPushButton("、")
+        self.btn_punc_comma_pause.setFont(FontManager.get_font(size=10))
+        self.btn_punc_comma_pause.setToolTip("插入頓號 (、)")
+        self.btn_punc_comma_pause.setFixedWidth(32)
+        self.punct_toolbar.addWidget(self.btn_punc_comma_pause)
+
+        self.btn_punc_section = QPushButton("※")
+        self.btn_punc_section.setFont(FontManager.get_font(size=10))
+        self.btn_punc_section.setToolTip("插入段落/場景標記 (※)")
+        self.btn_punc_section.setFixedWidth(32)
+        self.punct_toolbar.addWidget(self.btn_punc_section)
+
+        self.btn_ellipsis = QPushButton("……")
+        self.btn_ellipsis.setFont(FontManager.get_font(size=10))
+        self.btn_ellipsis.setToolTip("插入省略號 (……)")
+        self.btn_ellipsis.setFixedWidth(42)
+        self.punct_toolbar.addWidget(self.btn_ellipsis)
+
+        self.btn_emdash = QPushButton("──")
+        self.btn_emdash.setFont(FontManager.get_font(size=10))
+        self.btn_emdash.setToolTip("插入破折號 (──)")
+        self.btn_emdash.setFixedWidth(42)
+        self.punct_toolbar.addWidget(self.btn_emdash)
+
+        self.write_page_layout.addWidget(self.punct_toolbar)
 
         self.find_replace_bar = FindReplaceBar(self)
         self.find_replace_bar.hide()
@@ -325,6 +407,7 @@ class MainWindow(QMainWindow):
         self.left_widget.hide()
         self.right_widget.hide()
         self.format_toolbar.hide()
+        self.punct_toolbar.hide()
         self.find_replace_bar.hide()
         self.status_bar.hide()
         self.menuBar().hide()
@@ -347,6 +430,7 @@ class MainWindow(QMainWindow):
         self.left_widget.show()
         self.right_widget.show()
         self.format_toolbar.show()
+        self.punct_toolbar.show()
         self.status_bar.show()
         self.menuBar().show()
         

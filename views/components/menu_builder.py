@@ -94,6 +94,10 @@ class MenuBuilder:
 
         # 5. 工具選單
         window.tools_menu = menubar.addMenu("工具(&T)")
+        window.action_auto_format = QAction("自動排版工具(&T)...", window)
+        window.action_auto_format.setShortcut("Ctrl+Alt+T")
+        window.tools_menu.addAction(window.action_auto_format)
+
         window.action_lint = QAction("文風與贅詞檢查(&L)...", window)
         window.action_lint.setShortcut("Ctrl+Shift+L")
         window.tools_menu.addAction(window.action_lint)

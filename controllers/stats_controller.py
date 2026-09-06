@@ -12,10 +12,6 @@ class StatsController:
 
     def __init__(self, main_controller):
         self.mc = main_controller
-        self._paste_window_words: int = 0
-        self._paste_window_time = None
-        self._delete_window_chars: int = 0
-        self._delete_window_time = None
 
     @property
     def view(self):
@@ -232,24 +228,6 @@ class StatsController:
 
         now = datetime.datetime.now()
 
-        # 監控大量刪除文字行為（單次或2秒內累計超過300字元）
-        if charsRemoved > 0 and self.mc.current_file_item is not None:
-            if charsRemoved >= 300:
-                self.record_text_modification(delete_large=True)
-                self._delete_window_chars = 0
-                self._delete_window_time = None
-            else:
-                if self._delete_window_time and (now - self._delete_window_time).total_seconds() <= 2.0:
-                    self._delete_window_chars += charsRemoved
-                else:
-                    self._delete_window_chars = charsRemoved
-                self._delete_window_time = now
-
-                if self._delete_window_chars >= 300:
-                    self.record_text_modification(delete_large=True)
-                    self._delete_window_chars = 0
-                    self._delete_window_time = None
-
         current_page_words = 0
         if self.mc.current_file_item:
             current_page_words = self.count_words(self.view.editor.toPlainText())
@@ -356,58 +334,12 @@ class StatsController:
             self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())
 
     def on_text_pasted(self, pasted_text: str):
-        """偵測短時間或單次超過 300 字以上的貼上行為次數。"""
-        if not pasted_text or self.view.editor.signalsBlocked():
-            return
-        if not self.mc.tree.is_item_valid(self.mc.current_file_item):
-            return
-
-        now = datetime.datetime.now()
-        words = self.count_words(pasted_text)
-        if words == 0:
-            words = len(pasted_text.strip())
-
-        if words >= 300:
-            self.record_text_modification(paste_large=True)
-            self._paste_window_words = 0
-            self._paste_window_time = None
-        else:
-            if self._paste_window_time and (now - self._paste_window_time).total_seconds() <= 2.0:
-                self._paste_window_words += words
-            else:
-                self._paste_window_words = words
-            self._paste_window_time = now
-
-            if self._paste_window_words >= 300:
-                self.record_text_modification(paste_large=True)
-                self._paste_window_words = 0
-                self._paste_window_time = None
+        """文字貼上事件處理（大量貼上監控已移除）。"""
+        pass
 
     def record_text_modification(self, paste_large: bool = False, delete_large: bool = False):
-        """記錄並累計當日的大量貼上文字與大量刪除文字次數。"""
-        if not paste_large and not delete_large:
-            return
-        now_date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-        found = False
-        for log in self.mc.writing_logs:
-            if log.date == now_date_str:
-                if paste_large:
-                    log.paste_large_count = getattr(log, "paste_large_count", 0) + 1
-                if delete_large:
-                    log.delete_large_count = getattr(log, "delete_large_count", 0) + 1
-                found = True
-                break
-        if not found:
-            self.mc.writing_logs.append(WritingLogEntry(
-                date=now_date_str,
-                duration=0,
-                word_count=0,
-                paste_large_count=1 if paste_large else 0,
-                delete_large_count=1 if delete_large else 0
-            ))
-        self.mc.save_temp_doc()
-        if getattr(self.view, 'writing_log_dashboard', None) is not None:
-            self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())
+        """文字異動記錄（大量異動監控與統計已移除）。"""
+        pass
 
     def show_writing_log_dashboard(self):
         self.mc.save_current_editor_content()
