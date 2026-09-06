@@ -79,6 +79,59 @@ class TestAISettingsAndWorker(unittest.TestCase):
         stream_worker.cancel()
         self.assertTrue(stream_worker._is_cancelled)
 
+    def test_workers_run_without_name_error(self):
+        """測試各背景執行緒在執行 run() 時，能正確透過 AIService 呼叫 API 且不發生 NameError。"""
+        from unittest.mock import patch
+
+        dummy_settings = {
+            "provider": "LM Studio",
+            "timeout": 30,
+            "api_urls": {"LM Studio": "http://localhost:1234/v1/chat/completions"},
+            "api_keys": {"LM Studio": ""},
+            "models": {"LM Studio": "test-model"},
+            "prompts": {"chat": "你是一位小說助手"}
+        }
+
+        with patch.object(AIService, 'load_settings', return_value=dummy_settings):
+            # 1. 測試 AIChatWorker.run()
+            with patch.object(AIService, 'call_api_stream', return_value=iter(["這是", "測試", "回覆"])):
+                chat_worker = AIChatWorker(messages=[{"role": "user", "content": "樞機是什麼意思？"}])
+                chunks = []
+                finished_text = []
+                chat_worker.chunk_signal.connect(chunks.append)
+                chat_worker.finished_signal.connect(finished_text.append)
+                chat_worker.run()
+                self.assertEqual("".join(chunks), "這是測試回覆")
+                self.assertEqual(finished_text, ["這是測試回覆"])
+
+            # 2. 測試 AIContinuationWorker.run()
+            with patch.object(AIService, 'call_api', return_value="接續的內容"):
+                cont_worker = AIContinuationWorker(context_text="前情提要")
+                cont_results = []
+                cont_worker.finished_signal.connect(cont_results.append)
+                cont_worker.run()
+                self.assertEqual(cont_results, ["接續的內容"])
+
+            # 3. 測試 AIStreamWorker.run()
+            with patch.object(AIService, 'call_api_stream', return_value=iter(["流式", "產出"])):
+                stream_worker = AIStreamWorker(system_prompt="sys", user_content="usr")
+                stream_chunks = []
+                stream_results = []
+                stream_worker.chunk_received_signal.connect(stream_chunks.append)
+                stream_worker.finished_signal.connect(stream_results.append)
+                stream_worker.run()
+                self.assertEqual("".join(stream_chunks), "流式產出")
+                self.assertEqual(stream_results, ["流式產出"])
+
+            # 4. 測試 AIWorker.run()
+            with patch.object(AIService, 'call_api_stream', return_value=iter(["分析", "完成"])):
+                analysis_worker = AIWorker(task_type="impression", text_content="短文分析內容")
+                analysis_results = []
+                analysis_worker.finished_signal.connect(analysis_results.append)
+                analysis_worker.run()
+                self.assertEqual(len(analysis_results), 1)
+                self.assertEqual(analysis_results[0]["content"], "分析完成")
+
 
 if __name__ == "__main__":
     unittest.main()

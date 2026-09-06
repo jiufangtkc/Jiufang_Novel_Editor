@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-06，完成 JSON 相容性移除，全面限縮繁體中文為台灣語境，並確保測試通過。
+> 最後更新：2026-09-06，長文本分析 HRCI 演算法最佳化（動態實體檢索與 8GB 記憶體防溢出），全套測試擴充至 236 項 100% 綠燈通過，重新替換發布 v0.1.3-Beta 資產檔案。
 
 ### 陷阱 17：寫作打卡熱力圖（Heatmap）網格與星期對齊
 - 熱力圖的網格繪製為 24 欄（週）× 7 列（星期一至日）。計算起始日時，必須以「本週一」為基準向前推 23 週（共 24 週）：`curr_monday = today - datetime.timedelta(days=today.weekday())`，`start_date = curr_monday - datetime.timedelta(weeks=23)`。切勿額外加上 `days=6`，否則會多扣除 6 天使最後一格停留在上週，導致當週歷史打卡全部落在網格之外。
@@ -28,6 +28,22 @@
   遍歷章節內文時（如跨章節全文搜尋、大綱檢視操作等），判斷式**絕對不可**只寫 `node_type == "file"`，必須寫 `node_type in ("file", "scene")`，否則所有幕節點的內文將被全面略過。
 - **跳轉高亮校準**：
   從搜尋結果跳轉時，Markdown 標籤在渲染成富文本後可能導致字元位移，`navigate_to_global_match` 應以 `match_text` 與 `document().find()` 進行智慧校準，確保游標精確選取目標關鍵字。
+
+### 陷阱 23：ai_worker.py 與 ai_service.py 之解耦與循環引用防護
+- **問題根源**：
+  在進行架構模組化拆分時，`services/ai_service.py` 為了向後相容性在模組結尾處 re-export 背景執行緒類別（`AIWorker`, `AIChatWorker`, `AIContinuationWorker`, `AIStreamWorker`）。若 `services/ai_worker.py` 在頂層直接 `from services.ai_service import AIService`，在特定載入順序下會造成尚未完成類別定義的循環引用失敗；但若僅在局部函數內宣告，會導致各背景 Worker 於執行階段拋出 `NameError: name 'AIService' is not defined`。
+- **現行架構處理**：
+  `services/ai_worker.py` 採用 `_AIServiceProxy` 動態代理模式，於屬性調用時才延遲解析 `AIService`，既避免模組初始化時的循環引用問題，又確保所有靜態與類別方法（如 `load_settings`、`call_api_stream` 等）在各背景執行緒中正常運作。
+
+### 陷阱 24：8GB 顯卡環境下 Local LLM 長文本分析之 Context 預算與實體檢索
+- **問題根源**：
+  在對 5 萬字以上超長篇小說進行人物分析時，若分段階段輸出過長，或在最終階段將所有分段（例如 17 段）的文字分析暴力拼接送往 LLM，Prompt 長度會高達 1.6 萬 tokens，撞上 16,384 tokens 的上下文限制引發 `finish_reason: length` 截斷崩潰；且在 8GB VRAM 下會引發系統記憶體置換，導致電腦嚴重卡頓。
+- **現行架構處理**：
+  - **分塊調優**：`DEFAULT_CHUNK_SIZE` 設為 2,800 字（約 2,000 tokens），`DEFAULT_OVERLAP` 設為 200 字。
+  - **輸出長度約束**：分段 Prompt 強制要求模型將【本段分析結論】控制在 300~500 字，條列摘要每條不超過 35 字。
+  - **突破實體數量限制**：`CompactState` 全局無上限儲存所有登場人物與設定，但在調用 `get_relevant_summary(chunk_text)` 時，由 Python 在記憶體中掃描當前段落正文，**僅將當前段落有登場的活躍實體**注入 Prompt（500 字以內），休眠實體沉澱在全局資料庫中，徹底突破數量限制且不佔用 Context。
+  - **全域總結動態預算（Context Budget Controller）**：`build_synthesis_prompt` 依據總分段數分配單段額度，限制傳入 LLM 的各段要點總長度在 3,200 字（約 2,200 tokens）以內，並透過 `_format_final_state_summary` 提供依出場次數排序的高密度全景人物與設定索引，預留 2,500+ tokens 生成空間，徹底根絕 16k 溢出截斷問題。
+- **本地 llama.cpp 啟動建議**：建議加入 `-np 1 -c 8192 -fa`，限制單一推論通道以避免 4 個 slot 搶佔 VRAM，並開啟 Flash Attention 節省顯存。
 
 ---
 
@@ -279,15 +295,18 @@
      - 全專案 37 個測試模組、235 項單元測試 100% 通過（`pytest tests/` 235 passed in 46.92s）。
      - 同步維護 `.agents/docs/TEST_SUITE.md` 與本交接文件。
 
-- **本次完成事項 (移除 JSON 舊檔相容性與 Workspace 規則更新，全套 233 項單元測試 100% 綠燈)**：
-  1. **完全棄用 JSON**：移除了 `services/storage.py` 以及所有的 JSON 載入和 fallback 邏輯，應用程式現在只支援載入和儲存 SQLite `.db`。
-  2. **Workspace 規則更新**：移除了保留 `StorageService` 的限制，並增加了必須強制使用台灣語境的繁體中文（如優化應寫最佳化）的絕對遵守事項。
-  3. **測試與文件同步**：移除了 `test_p0_bug_fixes.py` 中的 JSON 相容性測試，並更新了 `TEST_SUITE.md` 與 `HANDOVER.md`。
+- **本次完成事項 (長文分析 HRCI 演算法最佳化、動態實體命中檢索與 8GB 顯存防溢出，全套 236 項測試 100% 綠燈)**：
+  1. **分塊常數調優**：將 `DEFAULT_CHUNK_SIZE` 由 4,000 字下調至 2,800 字（約 2,000 tokens），重疊區間設為 200 字，符合 8GB GPU 小模型的推論安全預算。
+  2. **突破實體數量限制**：重構 `CompactState` 與 `get_relevant_summary(chunk_text)`，全局無上限收納上百位角色與設定，透過正文命中掃描僅動態注入當前段落活躍實體（500 字以內），徹底解決長篇小說龐大人物與名詞遺漏問題。
+  3. **終端總結預算控制（Context Budget Controller）**：重構 `build_synthesis_prompt` 與 `_format_final_state_summary`，動態分配各分段摘要額度（上限 3,200 字），以出場頻次排序展示全景高密度索引，徹底根治 16k context window 爆表（`finish_reason: length`）截斷問題。
+  4. **測試套件擴充與全量通過**：在 `test_long_text_analyzer.py` 新增 50+ 實體動態命中測試與 17 段超長篇總結長度控制測試，全專案 37 個測試模組、236 項單元測試 100% 綠燈通過。
 
 - **當前任務狀態**：
-  1. 第一階段（P0 缺陷修復）、第二階段（P1 技術債與功能連結補完）、第三階段（P2 專案精簡與架構重構）已全部 100% 交付完畢。
-  2. 全套 235 項自動化單元測試維持 100% 綠燈通過。
+  1. 長文本分層捲動壓縮分析器重構與 8GB 顯存適配已全部完成。
+  2. 全套 236 項自動化單元測試維持 100% 綠燈通過。
+  3. 程式碼與交接文件已提交並推送到 GitHub 遠端 main 分支，Git Tag v0.1.3-beta 已強制更新並推送到遠端。
+  4. GitHub Release v0.1.3-beta 之預發布資產（Setup.exe 與 .zip）已全數替換更新。
 - **下一個 Agent 的任務指引**：
-  1. 本輪《進步計劃》中定義之 P0、P1、P2 所有清單項目均已全數按標準落實。
-  2. 若後續要進行新功能開發或發布新版本，請依照 `workspace_rules.md` 之版本發布標準作業流程 (Release SOP) 進行。
+  1. 若使用者回饋本機推論環境仍有顯存壓力，請指導其在 `llama.cpp` / 本地服務啟動參數中加入 `-np 1 -c 8192 -fa`，防止多 Slot 同時開闢 KV Cache 爭搶 VRAM。
+  2. 所有測試與說明文件（`TEST_SUITE.md`、`HANDOVER.md`）皆已同步更新至最新版本。
 

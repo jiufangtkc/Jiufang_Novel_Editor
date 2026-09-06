@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
 > **最後更新**：2026-09-06  
-> **測試總數**：233 項自動化測試（37 個測試模組）  
+> **測試總數**：236 項自動化測試（37 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,17 +11,17 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 235 項測試
+# 執行全部 236 項測試
 pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
 C:\Python314\python.exe -m pytest tests/ --collect-only -q
 
 # 執行單一測試檔案
-C:\Python314\python.exe -m pytest tests/test_typewriter_mode.py
+C:\Python314\python.exe -m pytest tests/test_long_text_analyzer.py
 
 # 執行特定關鍵字測試
-C:\Python314\python.exe -m pytest tests/ -k "test_typewriter"
+C:\Python314\python.exe -m pytest tests/ -k "test_dynamic_entity"
 ```
 
 ---
@@ -30,7 +30,7 @@ C:\Python314\python.exe -m pytest tests/ -k "test_typewriter"
 
 | 分類領域 | 測試模組檔名 | 測試數 | 核心測試目標 |
 | :--- | :--- | :---: | :--- |
-| **1. AI 輔助與長文本分析** | `test_ai_character_extraction.py`<br>`test_ai_chat.py`<br>`test_ai_continuation.py`<br>`test_ai_service.py`<br>`test_ai_settings_and_worker.py`<br>`test_long_text_analyzer.py` | 30 | 結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、長文本滑動視窗分析與中斷機制、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試 |
+| **1. AI 輔助與長文本分析** | `test_ai_character_extraction.py`<br>`test_ai_chat.py`<br>`test_ai_continuation.py`<br>`test_ai_service.py`<br>`test_ai_settings_and_worker.py`<br>`test_long_text_analyzer.py` | 33 | 結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、長文本滑動視窗分析與中斷機制、大量實體正文動態命中檢索（突破角色與世界觀數量限制）、超多段落總結預算控制（防止 16k context window 溢出）、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試 |
 | **2. 編輯器與右側資料卡片** | `test_controllers.py`<br>`test_typewriter_mode.py`<br>`test_right_panel_split.py`<br>`test_card_detail_dialog.py` | 28 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
 | **3. 章節樹與三層結構（幕）** | `test_context_menus.py`<br>`test_scene.py` | 22 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記/轉換為卷章幕）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
 | **4. 資料庫、備份與路徑移轉** | `test_database.py`<br>`test_daily_progress_sync.py`<br>`test_backup.py`<br>`test_snapshot.py`<br>`test_tree_expansion_persistence.py`<br>`test_storage_path.py`<br>`test_save_rules.py` | 32 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則 |
@@ -45,7 +45,7 @@ C:\Python314\python.exe -m pytest tests/ -k "test_typewriter"
 
 ## 3. 各測試模組詳細項目清單
 
-### 3.1 AI 輔助與長文本分析（30 項）
+### 3.1 AI 輔助與長文本分析（33 項）
 
 #### `test_ai_character_extraction.py` (6 項)
 - `test_ai_dialogs_scale_and_styles`：測試 `AIScopeDialog` 與 `AICharacterReviewDialog` 支援 scale_factor 縮放與清晰外框。
@@ -75,15 +75,22 @@ C:\Python314\python.exe -m pytest tests/ -k "test_typewriter"
 - `test_get_settings_file_path_appdata`：驗證 AI 設定檔持久化路徑正確指向 AppData 本機資料夾。
 - `test_floating_hud_buttons_visibility`：驗證懸浮 HUD 右上角收折與關閉按鈕具備專屬 objectName、高對比文字與安全尺寸。
 
-#### `test_long_text_analyzer.py` (7 項)
+#### `test_long_text_analyzer.py` (9 項)
 - `test_split_into_chunks_short_text`：測試短文本的分塊處理（不切分）。
 - `test_split_into_chunks_long_text_with_overlap`：測試超長篇小說的分塊演算法，包含段落邊界保留與滑動重疊視窗（Overlap）。
 - `test_build_chunk_prompt`：測試動態注入角色摘要與當前分塊文字的 Prompt 建置。
+- `test_parse_chunk_response_standard`：測試標準 Markdown 結構化回應解析與狀態增量提煉。
+- `test_parse_chunk_response_fallback`：測試非標準回應容錯降級解析。
+- `test_full_pipeline_rolling_analysis`：測試完整長文捲動分析與最終報告整合管線。
+- `test_cancellation`：測試長文分析取消與中斷機制。
+- `test_dynamic_entity_retrieval_with_large_character_pool`：測試突破數量限制，50+ 角色與世界觀設定下的動態正文命中活化檢索與 Context 預算控制。
+- `test_build_synthesis_prompt_budget_control_for_many_chunks`：測試 17+ 個分段超長篇在全域總結階段的摘要預算控制與全景索引展示，防止 16k context window 爆表。
 
-#### `test_ai_settings_and_worker.py` (3 項)
+#### `test_ai_settings_and_worker.py` (4 項)
 - `test_settings_service_load_and_save`：測試 `AISettingsService` 設定檔儲存與讀取正確性。
 - `test_aiservice_delegates_to_settings_service`：測試 `AIService` 對外介面與 `AISettingsService` 委派調用保持一致。
 - `test_worker_initialization`：測試 `AIWorker`、`AIChatWorker`、`AIContinuationWorker` 與 `AIStreamWorker` 初始化與取消中斷狀態管理。
+- `test_workers_run_without_name_error`：測試 `AIChatWorker`、`AIContinuationWorker`、`AIStreamWorker`、`AIWorker` 在 `run()` 中正確透過 `AIService` 代理呼叫 API 且不發生 `NameError`。
 
 ---
 

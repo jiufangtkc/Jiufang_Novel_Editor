@@ -140,3 +140,64 @@ def test_cancellation():
             task_type="impression",
             is_cancelled_callback=lambda: True
         )
+
+
+def test_dynamic_entity_retrieval_with_large_character_pool():
+    """驗證突破數量限制：擁有 50 位角色與 20 個世界觀名詞時，動態命中檢索能精準注入且不爆 Context"""
+    characters = {f"角色{i}": f"這是第 {i} 位角色的詳細背景與狀態描述" for i in range(1, 51)}
+    world_elements = {f"勢力{j}": f"這是第 {j} 個勢力的組織架構說明" for j in range(1, 21)}
+
+    state = CompactState(
+        characters=characters,
+        character_mentions={f"角色{i}": i for i in range(1, 51)},
+        world_elements=world_elements
+    )
+
+    # 驗證全局庫保有所有 50 位角色，無一人被丟棄
+    assert len(state.characters) == 50
+    assert len(state.world_elements) == 20
+
+    # 當前正文僅提及「角色42」與「勢力15」
+    chunk_text = "在古老的荒原上，角色42 與神祕來客會面，商討對抗 勢力15 的策略。"
+    summary = state.get_relevant_summary(chunk_text=chunk_text, max_chars=600)
+
+    # 驗證命中被精準挑選出來
+    assert "角色42" in summary
+    assert "勢力15" in summary
+    # 驗證未出場角色不會擠佔過多版面，總長度嚴格受控
+    assert len(summary) <= 650
+
+
+def test_build_synthesis_prompt_budget_control_for_many_chunks():
+    """驗證 17 個分段（超長篇小說 6 萬字規模）在最後總結時的預算控制，杜絕 16k context window 爆表"""
+    analyzer = LongTextAnalyzer()
+    state = CompactState(
+        characters={"解璃": "主角劍仙", "越無憂": "女主角", "夏成舟": "核心幕後設計者"},
+        character_mentions={"解璃": 15, "越無憂": 14, "夏成舟": 8}
+    )
+
+    # 模擬 17 個階段，每個階段輸出 1200 字長文（原本拼接會達到 20,400 字）
+    chunk_results = []
+    for i in range(1, 18):
+        fake_analysis = f"第 {i} 段詳細分析：情節推進激烈，角色深度互動。" + ("敘事細節深入描寫。" * 60)
+        chunk_results.append(ChunkAnalysisResult(
+            chunk_index=i,
+            total_chunks=17,
+            char_count=3500,
+            partial_analysis=fake_analysis
+        ))
+
+    sys_p, user_p = analyzer.build_synthesis_prompt(
+        task_type="character",
+        final_state=state,
+        chunk_results=chunk_results,
+        total_chars=60000
+    )
+
+    # 驗證總結 Prompt 總字數嚴格控制在安全範圍（遠低於 16k token 約 12,000 字上限）
+    assert len(user_p) < 6000
+    assert "解璃（出場 15 次）" in user_p
+    assert "越無憂（出場 14 次）" in user_p
+    assert "第 1/17 階段核心要點" in user_p
+    assert "第 17/17 階段核心要點" in user_p
+

@@ -10,8 +10,9 @@ class LongTextAnalyzer:
     確保在小模型上下文視窗（Context Window）限制下，能穩定且無遺漏地分析超長小說文本。
     """
 
-    DEFAULT_CHUNK_SIZE = 4000
-    DEFAULT_OVERLAP = 300
+    DEFAULT_CHUNK_SIZE = 2800
+    DEFAULT_OVERLAP = 200
+    MAX_SYNTHESIS_SUMMARY_CHARS = 3200
 
     TASK_NAME_MAP = {
         "impression": "整體基調與評語建議",
@@ -27,8 +28,8 @@ class LongTextAnalyzer:
 
         Args:
             ai_caller: 呼叫 LLM 的函式，簽章為 (system_prompt: str, user_content: str) -> str
-            chunk_size: 單一分塊建議目標字數（預設 4,000 字）
-            overlap: 分塊間重疊滑動字數（預設 300 字）
+            chunk_size: 單一分塊建議目標字數（預設 2,800 字）
+            overlap: 分塊間重疊滑動字數（預設 200 字）
         """
         self.ai_caller = ai_caller
         self.chunk_size = chunk_size
@@ -117,7 +118,7 @@ class LongTextAnalyzer:
             f"你必須嚴格基於提供的前文「歷史摘要索引」與「當前片段」，進行客觀結構化分析，並輸出更新後的索引供下一階段使用。"
         )
 
-        history_summary = state.to_summary_text()
+        history_summary = state.get_relevant_summary(chunk_text=chunk_text, max_chars=600)
 
         specific_guideline = custom_prompt if custom_prompt else self._get_task_guidelines(task_type)
 
@@ -129,9 +130,9 @@ class LongTextAnalyzer:
             f"### 【強制輸出格式要求】：\n"
             f"請嚴格依據以下兩大標題格式輸出，不要有任何多餘開場白或閒聊：\n\n"
             f"### 【本段分析結論】\n"
-            f"（請針對本段內容提出具體深入的分析，涵蓋情節推進、細節特徵與分析發現）\n\n"
+            f"（請精簡扼要針對本段核心情節推進、角色互動與關鍵細節提出深入分析，字數嚴格控制在 300 至 500 字以內，切勿冗長發散）\n\n"
             f"### 【更新後摘要索引】\n"
-            f"- 人物狀態更新：[角色名：當前動態/性格表現/關係變化]\n"
+            f"- 人物狀態更新：[角色名：當前動態/性格表現/關係變化]（每位角色說明不超過 35 字）\n"
             f"- 世界觀設定增量：[新出現的名詞/規則/背景]\n"
             f"- 關鍵里程碑事件：[本段確定發生的重大情節]\n"
             f"- 當前未解懸念：[本段留下或仍在持續的伏筆]\n"
@@ -180,6 +181,7 @@ class LongTextAnalyzer:
         # 更新 CompactState（複製現有狀態並加入增量）
         new_state = CompactState(
             characters=dict(current_state.characters),
+            character_mentions=dict(current_state.character_mentions),
             world_elements=dict(current_state.world_elements),
             timeline_events=list(current_state.timeline_events),
             unresolved_threads=list(current_state.unresolved_threads),
@@ -206,7 +208,7 @@ class LongTextAnalyzer:
                 # 若同在一行包含冒號
                 content = re.sub(r'^.*?人物[^\s：:]*[：:]', '', line_str).strip()
                 if content and "：" in content:
-                    self._parse_kv_line(state.characters, content)
+                    self._parse_kv_line(state.characters, content, state.character_mentions)
                 continue
             elif "世界觀" in line_str or "設定" in line_str:
                 current_section = "world"
@@ -239,7 +241,7 @@ class LongTextAnalyzer:
                 continue
 
             if current_section == "characters":
-                self._parse_kv_line(state.characters, item_text)
+                self._parse_kv_line(state.characters, item_text, state.character_mentions)
             elif current_section == "world":
                 self._parse_kv_line(state.world_elements, item_text)
             elif current_section == "timeline":
@@ -257,32 +259,41 @@ class LongTextAnalyzer:
         if len(state.unresolved_threads) > 10:
             state.unresolved_threads = state.unresolved_threads[-10:]
 
-    def _parse_kv_line(self, target_dict: Dict[str, str], text: str):
+    def _parse_kv_line(self, target_dict: Dict[str, str], text: str,
+                       mentions_dict: Optional[Dict[str, int]] = None):
         """解析如『[張三：主角]、[李四：反派]』或『張三：主角，受傷撤退』之鍵值對"""
         bracket_matches = re.findall(r'\[\s*([^:：\]]+?)\s*[：:]\s*([^\]]+?)\s*\]', text)
         if bracket_matches:
             for k, v in bracket_matches:
-                k_clean = k.strip()
+                k_clean = k.strip().strip("*_#[] ")
                 v_clean = v.strip()
                 if k_clean and v_clean:
                     target_dict[k_clean] = v_clean
+                    if mentions_dict is not None:
+                        mentions_dict[k_clean] = mentions_dict.get(k_clean, 0) + 1
             return
 
         if "：" in text:
             parts = text.split("：", 1)
-            k, v = parts[0].strip("[]【】 "), parts[1].strip("[]【】 ")
+            k = parts[0].strip().strip("*_#[]【】 ")
+            v = parts[1].strip().strip("[]【】 ")
             if k and v:
                 target_dict[k] = v
+                if mentions_dict is not None:
+                    mentions_dict[k] = mentions_dict.get(k, 0) + 1
         elif ":" in text:
             parts = text.split(":", 1)
-            k, v = parts[0].strip("[]【】 "), parts[1].strip("[]【】 ")
+            k = parts[0].strip().strip("*_#[]【】 ")
+            v = parts[1].strip().strip("[]【】 ")
             if k and v:
                 target_dict[k] = v
+                if mentions_dict is not None:
+                    mentions_dict[k] = mentions_dict.get(k, 0) + 1
 
     def build_synthesis_prompt(self, task_type: str, final_state: CompactState,
                                chunk_results: List[ChunkAnalysisResult],
                                total_chars: int, custom_prompt: str = "") -> tuple[str, str]:
-        """建構長文捲動結束後的全局綜合整合 Prompt。"""
+        """建構長文捲動結束後的全局綜合整合 Prompt（具備動態上下文預算與保護機制）。"""
         task_name = self.TASK_NAME_MAP.get(task_type, "長篇小說綜合分析")
 
         system_prompt = (
@@ -290,17 +301,31 @@ class LongTextAnalyzer:
             f"撰寫一份全面、深入且具備高度洞察力的「{task_name}總結報告」。"
         )
 
+        # 動態分配摘要預算，防止超長篇（如十幾段至數十段）累計文本灌爆 Context Window
+        num_chunks = len(chunk_results)
+        header_reserve = 35  # 每段標題與格式保留字數
+        per_chunk_content_budget = max(50, (self.MAX_SYNTHESIS_SUMMARY_CHARS // max(num_chunks, 1)) - header_reserve)
+
         summaries = []
         for r in chunk_results:
-            summaries.append(f"#### 第 {r.chunk_index}/{r.total_chunks} 階段分析：\n{r.partial_analysis}\n")
+            analysis_text = r.partial_analysis.strip()
+            if len(analysis_text) > per_chunk_content_budget:
+                short_analysis = analysis_text[:per_chunk_content_budget].rstrip() + "..."
+            else:
+                short_analysis = analysis_text
+            summaries.append(f"#### 第 {r.chunk_index}/{r.total_chunks} 階段核心要點：\n{short_analysis}\n")
 
         all_summaries_text = "\n".join(summaries)
-        state_text = final_state.to_summary_text()
+        if len(all_summaries_text) > self.MAX_SYNTHESIS_SUMMARY_CHARS:
+            all_summaries_text = all_summaries_text[:self.MAX_SYNTHESIS_SUMMARY_CHARS] + "\n...（以下各階段要點已在全景索引中彙整）"
+
+        # 輸出高密度、全景式人物與設定清單
+        state_text = self._format_final_state_summary(final_state)
 
         extra_req = ""
         if task_type == "character":
             extra_req = (
-                "4. 針對每位登場角色，嚴格使用以下格式獨立輸出角色卡：\n"
+                "4. 針對登場核心角色，依據全景索引嚴格使用以下格式獨立輸出角色卡：\n"
                 "===CHARACTER_START===\n"
                 "【角色姓名】角色名字\n"
                 "【外觀年齡】推測的外觀年齡\n"
@@ -309,7 +334,7 @@ class LongTextAnalyzer:
                 "【已知行動】已知的行動軌跡與決策事蹟\n"
                 "【人事物關聯】相關的人、事、物\n"
                 "===CHARACTER_END===\n"
-                "（重複上述區塊輸出多位角色）\n\n"
+                "（重複上述區塊輸出多位主要角色）\n\n"
                 "5. 在所有角色輸出完畢後，獨立輸出角色關係網：\n"
                 "===RELATIONSHIP_START===\n"
                 "【卡片標題】全景角色關係網梳理\n"
@@ -319,8 +344,8 @@ class LongTextAnalyzer:
 
         user_content = (
             f"### 【長篇總結任務】：整篇共計約 {total_chars} 字，分為 {len(chunk_results)} 階段完成逐段分析。\n\n"
-            f"### 【各階段核心分析摘要】：\n{all_summaries_text}\n\n"
-            f"### 【最終全域索引】：\n{state_text}\n\n"
+            f"### 【各階段核心分析精華】：\n{all_summaries_text}\n\n"
+            f"### 【最終全域完整索引（人物全景與世界觀）】：\n{state_text}\n\n"
             f"### 【報告撰寫要求】：\n"
             f"請結合上述所有分析與全景索引，產出最終的完整結構化報告。要求：\n"
             f"1. 宏觀全局視野，避免單純重複各段細節。\n"
@@ -330,6 +355,44 @@ class LongTextAnalyzer:
         )
 
         return system_prompt, user_content
+
+    def _format_final_state_summary(self, state: CompactState) -> str:
+        """將最終全域狀態格式化為高密度索引，展示完整人物庫與設定庫。"""
+        lines = []
+        if state.characters:
+            lines.append("【登場人物全景索引】")
+            # 依提及次數降冪排序，確保高頻核心角色優先
+            sorted_chars = sorted(
+                state.characters.items(),
+                key=lambda x: state.character_mentions.get(x[0].strip("*_#[] "), 1),
+                reverse=True
+            )
+            for name, desc in sorted_chars:
+                clean_name = name.strip("*_#[] ")
+                freq = state.character_mentions.get(clean_name, 1)
+                short_desc = desc[:35] + "..." if len(desc) > 35 else desc
+                lines.append(f"- {clean_name}（出場 {freq} 次）：{short_desc}")
+
+        if state.world_elements:
+            lines.append("\n【核心世界觀與設定】")
+            for term, desc in list(state.world_elements.items())[:20]:
+                clean_term = term.strip("*_#[] ")
+                short_desc = desc[:30] + "..." if len(desc) > 30 else desc
+                lines.append(f"- {clean_term}：{short_desc}")
+
+        if state.timeline_events:
+            lines.append("\n【重大里程碑事件】")
+            for evt in state.timeline_events[-12:]:
+                short_evt = evt[:35] + "..." if len(evt) > 35 else evt
+                lines.append(f"- {short_evt}")
+
+        if state.unresolved_threads:
+            lines.append("\n【關鍵伏筆與未解懸念】")
+            for thread in state.unresolved_threads[-6:]:
+                short_thread = thread[:30] + "..." if len(thread) > 30 else thread
+                lines.append(f"- {short_thread}")
+
+        return "\n".join(lines) if lines else state.to_summary_text()
 
     def analyze_long_text(self, text: str, task_type: str,
                           custom_prompt: str = "",

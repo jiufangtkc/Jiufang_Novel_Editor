@@ -154,35 +154,104 @@ class JneProject:
 @dataclass
 class CompactState:
     """HRCI 捲動壓縮狀態物件（雙軌索引資料結構）"""
-    characters: Dict[str, str] = field(default_factory=dict)       # 人物名稱: 特徵/當前狀態
-    world_elements: Dict[str, str] = field(default_factory=dict)   # 世界觀名詞/設定: 說明
+    characters: Dict[str, str] = field(default_factory=dict)       # 人物名稱: 特徵/當前狀態（全局無上限儲存）
+    character_mentions: Dict[str, int] = field(default_factory=dict)  # 人物累計提及頻次
+    world_elements: Dict[str, str] = field(default_factory=dict)   # 世界觀名詞/設定: 說明（全局無上限儲存）
     timeline_events: List[str] = field(default_factory=list)       # 已發生的關鍵事件節點
     unresolved_threads: List[str] = field(default_factory=list)    # 當前懸念與伏筆
     current_scene_context: str = ""                                # 當前區塊結尾場景與狀態
 
-    def to_summary_text(self) -> str:
-        """將狀態序列化為精簡 Markdown 摘要文字供 LLM 上下文使用"""
-        lines = []
-        if self.characters:
-            lines.append("【已知人物與狀態】")
-            for name, desc in list(self.characters.items())[:15]:
-                lines.append(f"- {name}：{desc}")
-        if self.world_elements:
-            lines.append("【核心世界觀設定】")
-            for term, desc in list(self.world_elements.items())[:10]:
-                lines.append(f"- {term}：{desc}")
-        if self.timeline_events:
-            lines.append("【主要事件脈絡】")
-            for evt in self.timeline_events[-8:]:
-                lines.append(f"- {evt}")
-        if self.unresolved_threads:
-            lines.append("【當前伏筆與懸念】")
-            for thread in self.unresolved_threads[-5:]:
-                lines.append(f"- {thread}")
-        if self.current_scene_context:
-            lines.append(f"【前段結尾場景】\n{self.current_scene_context}")
+    def get_relevant_summary(self, chunk_text: str = "", max_chars: int = 600) -> str:
+        """依據當前段落文字進行動態實體命中檢索，產出精準且短小的上下文摘要。
 
-        return "\n".join(lines) if lines else "（目前為初始狀態，尚無歷史摘要索引）"
+        即使全域儲存了上百個角色與設定，此方法透過正文掃描，僅挑選當前段落活躍的角色與元素，
+        徹底突破實體個數限制，同時將 Context 長度嚴格限制在安全預算內。
+        """
+        lines = []
+
+        # 1. 人物動態命中篩選
+        if self.characters:
+            hit_chars = []
+            non_hit_chars = []
+
+            for name, desc in self.characters.items():
+                clean_name = name.strip("*_[] ")
+                if chunk_text and clean_name and clean_name in chunk_text:
+                    hit_chars.append((name, desc, self.character_mentions.get(name, 1)))
+                else:
+                    non_hit_chars.append((name, desc, self.character_mentions.get(name, 1)))
+
+            # 若本段命中角色不足 3 位，自非命中角色中依熱度/最新狀態補充，最多總計 5 位
+            selected_chars = list(hit_chars)
+            if len(selected_chars) < 3:
+                # 依頻次排序，優先取高頻角色或最新角色
+                non_hit_chars.sort(key=lambda x: x[2], reverse=True)
+                for item in non_hit_chars:
+                    if len(selected_chars) >= 5:
+                        break
+                    selected_chars.append(item)
+
+            if selected_chars:
+                lines.append("【本段相關人物狀態】")
+                for name, desc, _ in selected_chars[:6]:
+                    # 單條條目保護：最長 35 字
+                    short_desc = desc[:35] + "..." if len(desc) > 35 else desc
+                    lines.append(f"- {name}：{short_desc}")
+
+        # 2. 世界觀設定動態命中篩選
+        if self.world_elements:
+            hit_elements = []
+            non_hit_elements = []
+
+            for term, desc in self.world_elements.items():
+                clean_term = term.strip("*_[] ")
+                if chunk_text and clean_term and clean_term in chunk_text:
+                    hit_elements.append((term, desc))
+                else:
+                    non_hit_elements.append((term, desc))
+
+            selected_elements = list(hit_elements)
+            if len(selected_elements) < 2 and non_hit_elements:
+                # 補充最新的 2 個
+                selected_elements.extend(non_hit_elements[-2:])
+
+            if selected_elements:
+                lines.append("【相關世界觀設定】")
+                for term, desc in selected_elements[:4]:
+                    short_desc = desc[:30] + "..." if len(desc) > 30 else desc
+                    lines.append(f"- {term}：{short_desc}")
+
+        # 3. 關鍵事件脈絡（保留最近 4 筆）
+        if self.timeline_events:
+            lines.append("【近期重大事件】")
+            for evt in self.timeline_events[-4:]:
+                short_evt = evt[:35] + "..." if len(evt) > 35 else evt
+                lines.append(f"- {short_evt}")
+
+        # 4. 當前未解懸念（保留最近 3 筆）
+        if self.unresolved_threads:
+            lines.append("【當前核心伏筆】")
+            for thread in self.unresolved_threads[-3:]:
+                short_thread = thread[:30] + "..." if len(thread) > 30 else thread
+                lines.append(f"- {short_thread}")
+
+        # 5. 上段結尾場景
+        if self.current_scene_context:
+            short_scene = self.current_scene_context[:60] + "..." if len(self.current_scene_context) > 60 else self.current_scene_context
+            lines.append(f"【前段結尾場景】\n{short_scene}")
+
+        result = "\n".join(lines)
+        if not result:
+            return "（目前為初始狀態，尚無歷史摘要索引）"
+
+        # 安全閥截斷
+        if len(result) > max_chars:
+            return result[:max_chars] + "\n..."
+        return result
+
+    def to_summary_text(self) -> str:
+        """將狀態序列化為精簡摘要文字（向後相容預設調用）"""
+        return self.get_relevant_summary(chunk_text="", max_chars=800)
 
 
 @dataclass

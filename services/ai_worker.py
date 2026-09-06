@@ -2,9 +2,14 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from services.ai_settings_service import AISettingsService
 
 
-def _get_ai_service():
-    from services.ai_service import AIService
-    return AIService
+class _AIServiceProxy:
+    """延遲代理 AIService，避免與 ai_service.py 產生循環引用。"""
+    def __getattr__(self, name):
+        from services.ai_service import AIService
+        return getattr(AIService, name)
+
+
+AIService = _AIServiceProxy()
 
 
 class AIWorker(QThread):
