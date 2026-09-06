@@ -4,7 +4,6 @@ import os
 import uuid
 from typing import Dict, Any, List, Optional
 from models.models import JneProject, ProjectInfo, ChapterNode, CardNode, WritingLogEntry, BUILTIN_CATEGORIES
-from services.storage import StorageService
 from services.database_migrations import DatabaseMigrations
 
 class DatabaseService:
@@ -373,12 +372,6 @@ class DatabaseService:
 
             
         conn.close()
-        return project
-
-    @staticmethod
-    def migrate_json_to_sqlite(json_path: str, db_path: str):
-        project = StorageService.load_project_from_json(json_path)
-        DatabaseService.save_project(project, db_path)
         return project
 
     # =========================================================================

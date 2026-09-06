@@ -3,6 +3,8 @@ import sys
 import re
 import datetime
 import uuid
+import sqlite3
+import json
 from typing import Union
 from PyQt6.QtWidgets import (
     QMessageBox, QInputDialog, QFileDialog, QDialog
@@ -387,6 +389,9 @@ class ProjectController:
         self.view.lbl_current_file.setText("請選擇左側文件進行編輯")
 
         self.mc.file_word_stats.clear()
+        self.mc.trash_bin.clear()
+        if hasattr(self.view, "trash_list_widget"):
+            self.mc.tree.refresh_trash_ui()
         self.mc.today_target = getattr(project.project_info, 'daily_target_word_count', 1000)
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
         today_log = next((l for l in self.mc.writing_logs if l.date == today_str), None)
@@ -643,16 +648,12 @@ class ProjectController:
         os.makedirs(temp_dir, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(
             self.view, "讀取暫存檔", temp_dir,
-            "SQLite 資料庫 (*.db);;JSON 檔案 (*.json);;所有檔案 (*.*)"
+            "SQLite 資料庫 (*.db);;所有檔案 (*.*)"
         )
         if not file_path:
             return False
         try:
-            if file_path.lower().endswith(".json"):
-                from services.storage import StorageService
-                project = StorageService.load_data(file_path)
-            else:
-                project = DatabaseService.load_project(file_path)
+            project = DatabaseService.load_project(file_path)
 
             if project:
                 self.load_project_data(project)
@@ -663,6 +664,9 @@ class ProjectController:
             else:
                 QMessageBox.warning(self.view, "提示", "選取的暫存檔為空或格式無法辨識。")
                 return False
+        except (sqlite3.Error, OSError) as e:
+            QMessageBox.critical(self.view, "錯誤", f"讀取暫存檔損毀或無法開啟: {e}")
+            return False
         except Exception as e:
             QMessageBox.critical(self.view, "錯誤", f"讀取暫存檔失敗: {e}")
             return False

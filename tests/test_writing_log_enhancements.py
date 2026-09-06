@@ -1,8 +1,11 @@
 import os
+import sys
 import tempfile
 import unittest
 import sqlite3
 import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PyQt6.QtWidgets import QApplication, QTreeWidget, QTreeWidgetItem
 from PyQt6.QtCore import Qt
 from models.models import JneProject, WritingLogEntry, ChapterNode

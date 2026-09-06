@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-06，完成 GitHub 發布文案檢討改寫（去 Emoji、回歸同儕創作者平實語調）、增訂工作區發布規則，並發布 v0.1.3-Beta（包含 Setup.exe 與 Zip），全套 222 項單元測試維持 100% 通過。
+> 最後更新：2026-09-06，完成 JSON 相容性移除，全面限縮繁體中文為台灣語境，並確保測試通過。
 
 ### 陷阱 17：寫作打卡熱力圖（Heatmap）網格與星期對齊
 - 熱力圖的網格繪製為 24 欄（週）× 7 列（星期一至日）。計算起始日時，必須以「本週一」為基準向前推 23 週（共 24 週）：`curr_monday = today - datetime.timedelta(days=today.weekday())`，`start_date = curr_monday - datetime.timedelta(weeks=23)`。切勿額外加上 `days=6`，否則會多扣除 6 天使最後一格停留在上週，導致當週歷史打卡全部落在網格之外。
@@ -33,24 +33,26 @@
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項（GitHub 文案檢討改寫、增訂發布規則、程式碼推送與 v0.1.3-Beta 正式發布）**：
-  1. **文案風格檢討與全面改寫**：
-     - 全面檢視 `README.md`，保留作者親筆自述前言，將功能介紹徹底去除 Emoji 與行銷煽情詞，以同儕小說創作者視角平實說明功能設計初衷與已知限制。
-     - 透過 GitHub API 更新遠端歷次發布（`v0.1.0-beta`、`v0.1.1-beta`、`v0.1.2-beta`）之 Release 內文，全面剔除 Emoji 與誇飾字眼。
-  2. **工作區規則增訂 (`.agents/rules/workspace_rules.md`)**：
-     - 正式新增「發布規則與文案風格規範」，明文規定溝通定位、文字風格禁令（嚴禁 Emoji 與過度矯情）與 Release SOP 六步驟標準作業流程。
-  3. **專案變更推送與 v0.1.3-Beta 發布**：
-     - 提交包含節點類型轉換（卷/章/幕）、全文搜尋修復、文字排版工具、打字機模式微調、移除日常刪貼監控等完整更新至 Git 並推送到遠端。
-     - 建立 `v0.1.3-beta` 標籤並於 GitHub 建立 Pre-release，上傳 `Jiufang_Novel_Editor_0.1.3-Beta-Setup.exe` 與 `Jiufang_Novel_Editor_0.1.3-Beta-Setup.zip`。
+- **本次完成事項（進步計劃架構解耦拆分、清理技術債、全套測試擴充至 233 項、重新發布 v0.1.3-Beta 與 GitHub 文案台灣繁體在地化審核）**：
+  1. **架構解耦與技術債清理**：
+     - 將 God Object（`AIService`、`ThemeManager`、`RightPanelView`、`WritingLogDashboard`）進行模組化拆分：獨立出 `AISettingsService`、`AIWorker`、`ThemeTemplates`、`WritingLogService` 與 `RightPanelCardEditor`。
+     - 徹底移除過時的 `storage.py`（JSON 儲存服務），全專案統一且全面走向純 SQLite 現代化架構。
+     - 修復包括快照復原後未儲存狀態標記等多項 P0 問題。
+  2. **文案風格檢討與全面改寫（台灣繁體在地化審視）**：
+     - 審視 GitHub 專案說明與 `README.md`，統一專有名詞與台灣語境（如 GitHub、3.1 Pro、相依套件）。
+     - 審核並更新歷次 Release（`v0.1.0-beta`、`v0.1.1-beta`、`v0.1.2-beta`、`v0.1.3-beta`）之 Release Notes 內文，全面剔除「優化」、「反饋」等中國用語，改以純粹台灣繁體中文（如「最佳化」、「回饋」）。
+  3. **重新發布 v0.1.3-Beta 安裝檔與免安裝壓縮檔**：
+     - 上傳使用者重新置於 `pre-release/` 資料夾之 `Jiufang_Novel_Editor_0.1.3-Beta-Setup.exe` 與 `Jiufang_Novel_Editor_0.1.3-Beta.zip`，更新 GitHub Release 資產檔案。
+     - 更新 Release 說明，詳列階層轉換、全文搜尋最佳化、簡化寫作日誌、架構拆分與 233 項測試驗證等成果。
   4. **全套測試維持 100% 綠燈**：
-     - 222 項單元測試全數通過。
+     - 233 項單元測試全數通過（含新增之 `test_ai_settings_and_worker.py`、`test_p0_bug_fixes.py`、`test_writing_log_service.py`）。
 
 - **當前任務狀態**：
-  1. v0.1.3-Beta 發布完成，所有公開文件風格已對齊創作者同儕平實語氣。
-  2. 程式碼與標籤皆已同步至 GitHub 遠端儲存庫。
+  1. 程式碼變更與更新文件皆已提交並推送到 GitHub 遠端 `main` 分支。
+  2. GitHub Release `v0.1.3-beta` 資產已重新替換發布，文案全面完成台灣繁體中文純化。
 
 - **下一個 Agent 的任務指引**：
-  1. 後續所有對外文件或 Release Notes 必須遵守 `.agents/rules/workspace_rules.md` 中的發布規範，嚴禁使用 Emoji 與煽情行銷詞彙。
+  1. 後續所有對外文件或 Release Notes 必須遵守 `.agents/rules/workspace_rules.md` 中的發布規範，嚴禁使用 Emoji 與煽情行銷詞彙，嚴格使用台灣繁體中文。
   2. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
   3. 打包請一律使用 `.agents\build\build.bat`。產物必須置於 `pre-release/`，嚴禁放置於專案根目錄。
   4. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
@@ -153,7 +155,7 @@
 
 ### 陷阱 1：儲存架構已完全廢棄 JSON 格式
 - 專案存檔、另存新檔、Temp_doc/ 自動暫存檔全面採用 SQLite (.db)。
-- services/storage.py 僅供向後相容舊檔遷移使用，寫入方法已徹底封死。
+- JSON 舊檔相容讀取功能已完全移除，如果需要開啟極早期的 JSON 專案檔，將無法直接開啟，且 `services/storage.py` 已被刪除。
 
 ### 陷阱 2：AI 請求必須在非同步執行緒
 - 絕對不要在 Qt 主執行緒同步呼叫 API，避免介面卡頓。在單元測試中若測試 UI 流程，應 mock worker.start。
@@ -220,14 +222,72 @@
      - 全專案 31 個測試模組、193 項測試 100% 通過（`pytest tests/` 193 passed in 44.24s）。
      - 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
 
+- **本次完成事項 (進步計劃第一階段：P0 潛在缺陷修復，全套 226 項單元測試 100% 綠燈)**：
+  1. **BUG-1：修復 `StorageService.load_data` 方法不存在之缺陷**：
+     - 在 `project_controller.py`（L653）與 `autosave_controller.py`（L94）中，將不存在的 `StorageService.load_data` 替換為實際定義的 `StorageService.load_project_from_json`，徹底排除載入舊版 JSON 暫存檔時的 `AttributeError` 隱性異常。
+  2. **BUG-2：修復全書自動排版對節點類型的錯誤判定**：
+     - 在 `editor_controller.py`（L211）中，將錯誤的 `not data.get("is_folder", False)` 修正為 `data.get("type") != "folder"`，精確隔離資料夾節點，確保全書排版僅套用於文章與場景節點。
+  3. **BUG-3：統一 `save_temp_doc` 控制器呼叫路徑**：
+     - 在 `stats_controller.py`（L178, L189, L221, L332）中，將 `self.mc.save_temp_doc()` 統一為 `self.mc.project.save_temp_doc()`，符合專案既有各 Controller 調用慣例；同步更新 `test_daily_progress_sync.py` 與 `test_stats_ai_breakdown.py` 之 mock 與 Dummy 物件。
+  4. **測試套件擴充**：
+     - 新增 `tests/test_p0_bug_fixes.py`（4 項測試），完整覆蓋上述 3 項修復。
+     - 全套 35 個測試模組、226 項單元測試 100% 通過（`pytest tests/` 226 passed in 21.47s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md`。
+
+- **本次完成事項 (進步計劃第二階段：P1 技術債與功能連結補完，全套 228 項單元測試 100% 綠燈)**：
+  1. **DEBT-2：統一 `find_item_by_id` 邏輯**：
+     - 在 `search_controller.py` 中將冗餘的遞迴樹搜尋簡化為直接委派 `self.mc.tree.find_item_by_id(target_id)`，消除重複邏輯。
+  2. **DEBT-1：清理大量貼上/刪除殘留之殭屍欄位**：
+     - 從 `main_controller.py` 的 `get_writing_logs_as_dict` 字典序列化中移除 `paste_large_count` 與 `delete_large_count`。
+     - 從 `writing_chart_view.py` 中移除實例變數 `total_paste_large` 與 `total_delete_large`。
+     - 在 `models/models.py` 的 `WritingLogEntry` 中加入明確廢棄標記，保留欄位預設值確保資料庫與舊 JSON 檔案向後相容性。
+  3. **LINK-1：搜尋控制器呼叫路徑規範化**：
+     - 將 `search_controller.py` 中的 `self.mc.editor.save_current_editor_content()` 統一修正為 `self.mc.save_current_editor_content()`。
+  4. **LINK-2：大綱總覽模式即時雙向連動**：
+     - 在 `tree_controller.py` 封裝 `_sync_outline_view_if_active()`，並在節點新增、新增幕、更名、複製、上下移動、刪除與垃圾桶復原操作完成後即時觸發同步。
+     - 在大綱模式下執行新增時自動保持於 Page 3，確保使用者在瀏覽大綱時結構與統計即時更新。
+  5. **LINK-3：快照與垃圾桶整合防護**：
+     - 在 `project_controller.py` 的 `load_project_data` 開頭主動清空 `trash_bin` 並刷新 UI，徹底杜絕專案切換或快照還原後因殘留記憶體節點指針所引發的野指針異常。
+     - 更新快照還原提示訊息，明確告知使用者垃圾桶已同步重置。
+  6. **DEBT-4：關鍵路徑例外處理精確化**：
+     - 在 `project_controller.py` 與 `autosave_controller.py` 的暫存與存檔載入流程中，導入 `sqlite3.Error`、`json.JSONDecodeError` 與 `OSError` 具體例外捕獲，明確區隔資料損毀與未預期異常。
+  7. **測試套件擴充與全量通過**：
+     - 在 `test_focus_and_outline.py` 新增 `test_outline_view_realtime_sync_on_tree_operations`。
+     - 在 `test_snapshot.py` 新增 `test_restore_snapshot_clears_trash_bin`。
+     - 全專案 35 個測試模組、228 項單元測試 100% 通過（`pytest tests/` 228 passed in 23.73s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md`。
+
+- **本次完成事項 (進步計劃第三階段：P2 專案精簡與架構重構，全套 235 項單元測試 100% 綠燈)**：
+  1. **DEBT-3：統一 `save_temp_doc` 控制器呼叫鏈路**：
+     - 在 `main_controller.py`（L182）中將定時器呼叫統一為 `self.project.save_temp_doc(from_timer=True)`，使全專案所有子控制器與定時器完全收斂至統一鏈路。
+  2. **SLIM-3：拆分大型服務模組 `services/ai_service.py`（928 行 -> 525 行）**：
+     - 抽離設定讀寫與預設 Prompt 模板至 `services/ai_settings_service.py`（`AISettingsService`）。
+     - 抽離背景執行緒至 `services/ai_worker.py`（`AIWorker`, `AIChatWorker`, `AIContinuationWorker`, `AIStreamWorker`），並利用延遲解析消解循環相依。
+     - `AIService` 保持對外統一 Facade 介面與 re-export，所有呼叫端與既有測試 100% 向後相容。
+  3. **SLIM-4：主題樣式模板解耦外部化（`theme_manager.py` 667 行 -> 345 行）**：
+     - 將佔據 323 行的 `BASE_THEME_TEMPLATE` 提取至獨立模組 `utils/theme_templates.py`，大幅減輕主模組行數並提升樣式可維護性。
+  4. **SLIM-2：寫作日誌業務運算邏輯下沉至 Service 層**：
+     - 建立 `services/writing_log_service.py`（`WritingLogService`），將指標卡片統計、AI 細部面向彙整、圖表切片與日誌表格格式化下沉至純邏輯服務層。
+     - `WritingLogDashboard` 的 `refresh_data` 專注於 View 渲染，架構職責分明。
+  5. **DEBT-5：拆分大型 View 元件 `right_panel_view.py`（697 行 -> 567 行）**：
+     - 將富文本與 Markdown 雙向編輯器抽離至獨立模組 `views/components/right_panel_card_editor.py`（`RightPanelCardEditor`）。
+  6. **SLIM-1：評估舊版 JSON 讀取模組 `StorageService` 之留存**：
+     - 嚴格遵守 `workspace_rules.md` 之禁止事項：「不要刪除 StorageService——即使切換到 SQLite，仍需保留 JSON 讀取能力（舊檔相容）」，明確保留舊檔 JSON 遷移相容能力，並於文件載明結論。
+  7. **測試套件擴充與全量通過**：
+     - 新增 `tests/test_ai_settings_and_worker.py`（3 項測試）。
+     - 新增 `tests/test_writing_log_service.py`（4 項測試）。
+     - 全專案 37 個測試模組、235 項單元測試 100% 通過（`pytest tests/` 235 passed in 46.92s）。
+     - 同步維護 `.agents/docs/TEST_SUITE.md` 與本交接文件。
+
+- **本次完成事項 (移除 JSON 舊檔相容性與 Workspace 規則更新，全套 233 項單元測試 100% 綠燈)**：
+  1. **完全棄用 JSON**：移除了 `services/storage.py` 以及所有的 JSON 載入和 fallback 邏輯，應用程式現在只支援載入和儲存 SQLite `.db`。
+  2. **Workspace 規則更新**：移除了保留 `StorageService` 的限制，並增加了必須強制使用台灣語境的繁體中文（如優化應寫最佳化）的絕對遵守事項。
+  3. **測試與文件同步**：移除了 `test_p0_bug_fixes.py` 中的 JSON 相容性測試，並更新了 `TEST_SUITE.md` 與 `HANDOVER.md`。
+
 - **當前任務狀態**：
-  1. AI 介入度與誠信分析圖已不再包含非 AI 的文字剪貼與刪除行為，指標定義更嚴謹、客觀。
-  2. 創作日誌與寫作儀表板完整跟隨設定中的介面縮放百分比（100%、125%、150%、175%、200% 等）縮放與適配。
-  3. 全套 193 項測試維持 100% 通過。
+  1. 第一階段（P0 缺陷修復）、第二階段（P1 技術債與功能連結補完）、第三階段（P2 專案精簡與架構重構）已全部 100% 交付完畢。
+  2. 全套 235 項自動化單元測試維持 100% 綠燈通過。
 - **下一個 Agent 的任務指引**：
-  1. 系統 Python 3.14 統一安裝/對齊至 `C:\Python314`。
-  2. 打包請一律使用 `.agents\build\build.bat`。注意在 Windows 上執行 PyInstaller 時應透過 `python -m PyInstaller` 避免二進位 stub 寫死路徑之錯誤。
-  3. 存檔與路徑相關功能一律使用 `mc.get_storage_path()`、`mc.get_story_dir()`、`mc.get_temp_dir()`、`mc.get_export_dir()`，嚴禁硬編碼。
-  4. 執行 `pytest tests/` 時若被轉入背景任務請務必使用 `manage_task` 追蹤 status 直至 DONE。
-  5. **有新增、修改或刪除測試時，請務必隨同更新 `.agents/docs/TEST_SUITE.md`**。
+  1. 本輪《進步計劃》中定義之 P0、P1、P2 所有清單項目均已全數按標準落實。
+  2. 若後續要進行新功能開發或發布新版本，請依照 `workspace_rules.md` 之版本發布標準作業流程 (Release SOP) 進行。
 

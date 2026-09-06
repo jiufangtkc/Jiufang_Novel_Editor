@@ -160,14 +160,14 @@ class TestDailyProgressSync(unittest.TestCase):
 
     def test_set_daily_target_persists_and_saves(self):
         """驗證設定每日目標會同步更新 project_info 並觸發暫存。"""
-        self.mc.save_temp_doc = MagicMock()
+        self.mc.project.save_temp_doc = MagicMock()
 
         with patch("PyQt6.QtWidgets.QInputDialog.getInt", return_value=(4500, True)):
             self.mc.stats.set_daily_target()
 
         self.assertEqual(self.mc.today_target, 4500)
         self.assertEqual(self.mc.project_info.daily_target_word_count, 4500)
-        self.mc.save_temp_doc.assert_called_once()
+        self.mc.project.save_temp_doc.assert_called_once()
 
     def test_clear_daily_progress_clears_today_log_and_saves(self):
         """驗證清除今日進度時，同步將 writing_logs 中當日字數清為 0 並觸發暫存。"""
@@ -176,14 +176,14 @@ class TestDailyProgressSync(unittest.TestCase):
         self.mc.writing_logs = [
             WritingLogEntry(date=today_str, duration=600, word_count=500)
         ]
-        self.mc.save_temp_doc = MagicMock()
+        self.mc.project.save_temp_doc = MagicMock()
 
         with patch("PyQt6.QtWidgets.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
             self.mc.stats.clear_daily_progress()
 
         self.assertEqual(self.mc.today_written_count, 0)
         self.assertEqual(self.mc.writing_logs[0].word_count, 0)
-        self.mc.save_temp_doc.assert_called_once()
+        self.mc.project.save_temp_doc.assert_called_once()
 
     def test_flush_writing_session_syncs_with_today_written_count(self):
         """驗證結束寫作 Session (flush) 時，當日日誌字數與 today_written_count 保持一致。"""

@@ -179,7 +179,7 @@ class MainController:
         # 設定自動儲存計時器
         self.auto_save_timer = QTimer(self.view)
         self.auto_save_timer.setInterval(self.autosave_interval_minutes * 60 * 1000)
-        self.auto_save_timer.timeout.connect(lambda: self.save_temp_doc(from_timer=True))
+        self.auto_save_timer.timeout.connect(lambda: self.project.save_temp_doc(from_timer=True))
         self.auto_save_timer.start()
 
     def _handle_startup_choice(self):
@@ -220,9 +220,7 @@ class MainController:
                 "ai_continuation_count": getattr(log, "ai_continuation_count", 0),
                 "ai_continuation_chars": getattr(log, "ai_continuation_chars", 0),
                 "ai_chat_count": getattr(log, "ai_chat_count", 0),
-                "ai_details": dict(getattr(log, "ai_details", {})),
-                "paste_large_count": getattr(log, "paste_large_count", 0),
-                "delete_large_count": getattr(log, "delete_large_count", 0)
+                "ai_details": dict(getattr(log, "ai_details", {}))
             }
             for log in self.writing_logs
         ]

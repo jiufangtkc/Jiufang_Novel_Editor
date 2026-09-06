@@ -242,7 +242,7 @@ class SearchController:
     def execute_global_search(self, query: str, match_case: bool, whole_word: bool, is_regex: bool):
         """執行跨章節全文搜尋。"""
         # 先儲存當前編輯器內容，確保資料最新
-        self.mc.editor.save_current_editor_content()
+        self.mc.save_current_editor_content()
 
         pattern = self._build_regex_pattern(query, match_case, whole_word, is_regex)
         if pattern is None:
@@ -353,18 +353,5 @@ class SearchController:
         self.editor.setFocus()
 
     def _find_tree_item_by_id(self, target_id: str) -> Optional[QTreeWidgetItem]:
-        """依據 ID 在章節樹中尋找項目。"""
-        tree_widget = self.mc.view.tree_widget
-
-        def _search(parent_item):
-            count = parent_item.childCount() if parent_item else tree_widget.topLevelItemCount()
-            for i in range(count):
-                item = parent_item.child(i) if parent_item else tree_widget.topLevelItem(i)
-                if self.mc.tree.get_item_id(item) == target_id:
-                    return item
-                found = _search(item)
-                if found:
-                    return found
-            return None
-
-        return _search(None)
+        """依據 ID 在章節樹中尋找項目（委派至 TreeController）。"""
+        return self.mc.tree.find_item_by_id(target_id)

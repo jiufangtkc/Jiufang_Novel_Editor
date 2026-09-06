@@ -93,7 +93,7 @@ class SnapshotController:
             QMessageBox.information(
                 self.view,
                 "還原成功",
-                "專案已成功還原至所選快照狀態！\n（原狀態已自動存為保護快照）"
+                "專案已成功還原至所選快照狀態！\n（原狀態已自動存為保護快照，垃圾桶已同步重置）"
             )
         except Exception as e:
             QMessageBox.critical(self.view, "錯誤", f"還原快照時發生錯誤：{e}")

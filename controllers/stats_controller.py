@@ -175,7 +175,7 @@ class StatsController:
             self.mc.project_info.daily_target_word_count = target
             self.view.progress_bar.setMaximum(self.mc.today_target)
             self.update_status_bar()
-            self.mc.save_temp_doc()
+            self.mc.project.save_temp_doc()
 
     def set_project_target(self):
         curr_target = getattr(self.mc.project_info, "target_word_count", 100000)
@@ -186,7 +186,7 @@ class StatsController:
         if ok and target > 0:
             self.mc.project_info.target_word_count = target
             self.update_status_bar()
-            self.mc.save_temp_doc()
+            self.mc.project.save_temp_doc()
 
     def open_word_count_settings_dialog(self):
         count_half = bool(self.mc.app_settings.get("stat_count_half_alnum_and_sym", False)) if hasattr(self.mc, "app_settings") else False
@@ -218,7 +218,7 @@ class StatsController:
                     log.word_count = 0
                     break
             self.update_status_bar()
-            self.mc.save_temp_doc()
+            self.mc.project.save_temp_doc()
 
     def on_document_contents_change(self, position, charsRemoved, charsAdded):
         if self.view.editor.signalsBlocked():
@@ -329,7 +329,7 @@ class StatsController:
                 ai_chat_count=chat_count,
                 ai_details=details
             ))
-        self.mc.save_temp_doc()
+        self.mc.project.save_temp_doc()
         if getattr(self.view, 'writing_log_dashboard', None) is not None:
             self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())
 

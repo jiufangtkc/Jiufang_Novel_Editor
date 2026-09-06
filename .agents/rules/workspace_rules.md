@@ -6,7 +6,7 @@ trigger: always_on
 
 ## 專案慣例
 
-- 程式碼變數名、函式名用英文；UI 上顯示給使用者的文字用繁體中文。
+- 絕對遵守事項：無論是發布文案、程式碼註解、程式內容、UI 顯示文字等，只要使用到繁體中文，都必須嚴格使用「台灣語境」的繁體中文。（例如：使用「最佳化」而非「優化」、「專案」而非「項目」等）。
 - commit message、程式註解、文件一律使用繁體中文（台灣用語）。
 - 所有新增或修改的程式碼應遵循既有的 MVC 分層：
   - `views/`：純 UI 佈局與 signal 發射，不包含業務邏輯。
@@ -23,6 +23,7 @@ trigger: always_on
 - **開發規劃**：`.agents/docs/ROADMAP.md`
 - **實施計畫**：`.agents/docs/IMPLEMENTATION_PLAN.md`（Phase 1-16 系統規格與修復紀錄）
 - **最佳化與二期計畫**：`.agents/docs/OPTIMIZATION_PLAN.md`、`.agents/docs/implementation_plan_02.md`
+- **最佳化與三期計畫**：`.agents/docs/20260906_進步計劃_plan`
 
 ## 修改前必讀
 
@@ -34,7 +35,6 @@ trigger: always_on
 
 - **不要**將 `services/` 中的 `StorageService` 或 `DatabaseService` 改為直接操作 UI 元件。
 - **不要**在 `views/` 的元件中直接 import `MainController`。View 與 Controller 之間的溝通應透過 signal。
-- **不要**刪除 `StorageService`——即使切換到 SQLite，仍需保留 JSON 讀取能力（舊檔相容）。
 - **不要**將打包或發布腳本（例如 `build.bat`、`Jiufang_Novel_Editor.spec`、`setup.iss` 等）放置於專案根目錄。所有打包相關工具與設定檔必須嚴格收納於 `.agents/build/` 中。
 
 ## 執行後必做

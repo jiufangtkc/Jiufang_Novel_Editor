@@ -177,6 +177,43 @@ class TestSnapshotService(unittest.TestCase):
             self.assertIsNotNone(selected_id)
             dlg.close()
 
+    def test_restore_snapshot_clears_trash_bin(self):
+        """驗證還原快照時垃圾桶被安全清空，避免指向已清除樹節點的野指標引發異常。"""
+        from views.main_window import MainWindow
+        from controllers.main_controller import MainController
+        from controllers.snapshot_controller import SnapshotController
+        from unittest.mock import patch
+
+        view = MainWindow()
+        mc = MainController(view)
+        snap_ctrl = SnapshotController(mc)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = os.path.join(tmpdir, "trash_test.db")
+            sample_project = self._create_sample_project()
+            DatabaseService.save_project(sample_project, db_path)
+            snap_id = DatabaseService.save_snapshot(db_path, "基準快照", "無垃圾項目", sample_project)
+
+            # 模擬垃圾桶內殘留已刪除的節點項目
+            mc.trash_bin.append({
+                "item": None,
+                "name": "待刪項目",
+                "path": "根目錄",
+                "type": "file"
+            })
+            self.assertEqual(len(mc.trash_bin), 1)
+
+            with patch.object(mc.project, "get_active_db_path", return_value=db_path), \
+                 patch("PyQt6.QtWidgets.QMessageBox.information"):
+                snap_ctrl.restore_snapshot(snap_id)
+
+            # 驗證垃圾桶已被安全清空
+            self.assertEqual(len(mc.trash_bin), 0)
+
+        mc.writing_timer.stop()
+        mc.auto_save_timer.stop()
+        view.close()
+
 
 if __name__ == "__main__":
     unittest.main()

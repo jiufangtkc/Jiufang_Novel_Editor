@@ -224,6 +224,7 @@ class TreeController:
             item.setText(0, new_name)
             if item == self.mc.current_file_item:
                 self.view.lbl_current_file.setText(new_name)
+            self._sync_outline_view_if_active()
             self.mc.project.save_temp_doc()
 
     def duplicate_tree_node(self, item: QTreeWidgetItem):
@@ -247,6 +248,7 @@ class TreeController:
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
         self.view.tree_widget.setCurrentItem(clone_item)
         self.on_tree_item_clicked(clone_item, 0)
+        self._sync_outline_view_if_active()
         self.mc.project.save_temp_doc()
 
     def _clone_item_recursive(self, src_item: QTreeWidgetItem, is_root: bool = True) -> QTreeWidgetItem:
@@ -386,15 +388,7 @@ class TreeController:
         item.setData(0, Qt.ItemDataRole.UserRole, data)
         self.view.tree_widget.blockSignals(False)
 
-        # 若大綱視圖開啟中，同步更新
-        if hasattr(self.view, "outline_view") and hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3:
-            self.view.outline_view.populate_from_tree(
-                self.view.tree_widget,
-                self.view.folder_icon_color,
-                self.view.file_icon_color,
-                self.view.scale_factor
-            )
-
+        self._sync_outline_view_if_active()
         self.mc.project.save_temp_doc()
 
     def move_item_up(self, item: QTreeWidgetItem):
@@ -408,6 +402,7 @@ class TreeController:
                 parent.takeChild(idx)
                 parent.insertChild(idx - 1, item)
                 self.view.tree_widget.setCurrentItem(item)
+                self._sync_outline_view_if_active()
                 self.mc.project.save_temp_doc()
         else:
             idx = self.view.tree_widget.indexOfTopLevelItem(item)
@@ -415,6 +410,7 @@ class TreeController:
                 self.view.tree_widget.takeTopLevelItem(idx)
                 self.view.tree_widget.insertTopLevelItem(idx - 1, item)
                 self.view.tree_widget.setCurrentItem(item)
+                self._sync_outline_view_if_active()
                 self.mc.project.save_temp_doc()
 
     def move_item_down(self, item: QTreeWidgetItem):
@@ -428,6 +424,7 @@ class TreeController:
                 parent.takeChild(idx)
                 parent.insertChild(idx + 1, item)
                 self.view.tree_widget.setCurrentItem(item)
+                self._sync_outline_view_if_active()
                 self.mc.project.save_temp_doc()
         else:
             idx = self.view.tree_widget.indexOfTopLevelItem(item)
@@ -435,6 +432,7 @@ class TreeController:
                 self.view.tree_widget.takeTopLevelItem(idx)
                 self.view.tree_widget.insertTopLevelItem(idx + 1, item)
                 self.view.tree_widget.setCurrentItem(item)
+                self._sync_outline_view_if_active()
                 self.mc.project.save_temp_doc()
 
     def _set_item_expanded_recursive(self, item: QTreeWidgetItem, expanded: bool):
@@ -477,8 +475,13 @@ class TreeController:
             self.mc.update_status_bar()
             self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
 
+        was_outline_active = hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3
         self.view.tree_widget.setCurrentItem(new_item)
         self.on_tree_item_clicked(new_item, 0)
+        if was_outline_active:
+            self.view.center_stack.setCurrentIndex(3)
+        self._sync_outline_view_if_active()
+        self.mc.project.save_temp_doc()
 
     def add_scene_node(self, parent_item):
         """新增一個 scene 節點。"""
@@ -493,8 +496,13 @@ class TreeController:
         if item_id:
             self.mc.file_word_stats[item_id] = {"valid": 0, "spaces": 0, "alpha": 0, "sym": 0}
         self.mc.update_status_bar()
+        was_outline_active = hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3
         self.view.tree_widget.setCurrentItem(new_item)
         self.on_tree_item_clicked(new_item, 0)
+        if was_outline_active:
+            self.view.center_stack.setCurrentIndex(3)
+        self._sync_outline_view_if_active()
+        self.mc.project.save_temp_doc()
 
     def edit_scene_metadata(self, item):
         """開啟 SceneMetadataDialog 編輯場景屬性，並將結果寫回 UserRole data。"""
@@ -581,6 +589,8 @@ class TreeController:
 
         self.mc.update_status_bar()
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+        self._sync_outline_view_if_active()
+        self.mc.project.save_temp_doc()
 
     def set_item_mark(self, item, color_code: str, mark_value: str):
         data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -728,6 +738,8 @@ class TreeController:
         self.refresh_trash_ui()
         self.mc.update_status_bar()
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
+        self._sync_outline_view_if_active()
+        self.mc.project.save_temp_doc()
         QMessageBox.information(self.view, "成功", f"已成功復原「{trash_info['name']}」！")
 
     def delete_selected_trash_item_permanently(self):
@@ -809,6 +821,16 @@ class TreeController:
             if found:
                 return found
         return None
+
+    def _sync_outline_view_if_active(self):
+        """若全書大綱總覽模式開啟中 (Page 3)，即時重新填入大綱資料。"""
+        if hasattr(self.view, "outline_view") and hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3:
+            self.view.outline_view.populate_from_tree(
+                self.view.tree_widget,
+                getattr(self.view, "folder_icon_color", None),
+                getattr(self.view, "file_icon_color", None),
+                getattr(self.view, "scale_factor", 1.0)
+            )
 
     def show_outline_page(self):
         """切換至全書大綱總覽模式 (Page 3)。"""

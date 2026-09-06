@@ -4,6 +4,7 @@ import unittest
 import sqlite3
 import datetime
 from PyQt6.QtWidgets import QApplication
+from unittest.mock import MagicMock
 from models.models import JneProject, WritingLogEntry
 from services.database import DatabaseService
 from services.database_migrations import DatabaseMigrations
@@ -17,6 +18,7 @@ class DummyMainWindow:
         self.writing_logs = []
         self.today_written_count = 0
         self.active_session = None
+        self.project = MagicMock()
 
     def save_temp_doc(self):
         pass

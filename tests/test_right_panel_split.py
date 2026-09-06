@@ -3,6 +3,8 @@ import tempfile
 import os
 import shutil
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from unittest.mock import MagicMock
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt

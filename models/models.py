@@ -123,8 +123,9 @@ class WritingLogEntry:
     ai_continuation_chars: int = 0    # AI 續寫字數
     ai_chat_count: int = 0            # AI 對話次數
     ai_details: Dict[str, int] = field(default_factory=dict)  # AI 細部功能面向次數 (例: chat, character, proofread 等)
-    paste_large_count: int = 0        # 大量貼上文字次數（短時間超過300字）
-    delete_large_count: int = 0       # 大量刪除文字次數（短時間超過300字）
+    # [已廢棄] 僅供舊版 SQLite/JSON 向後相容反序列化，新業務邏輯與統計不再使用
+    paste_large_count: int = 0
+    delete_large_count: int = 0
 
 
 @dataclass

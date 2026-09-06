@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt, QSize
 
 from views.components.writing_chart_view import WritingChartView
 from utils.font_manager import FontManager
+from services.writing_log_service import WritingLogService
 
 class MetricCard(QFrame):
     """簡約數據指標卡片。"""
@@ -249,58 +250,12 @@ class WritingLogDashboard(QWidget):
         elif theme == "forest":
             self.chart_view.set_theme_colors(QColor("#81c784"), QColor("#388e3c"))
 
-        # 計算指標卡片總數值
-        total_duration = sum(l.get("duration", 0) for l in self.logs)
-        total_words = sum(l.get("word_count", 0) for l in self.logs)
-        total_ai_chars = sum(l.get("ai_continuation_chars", 0) for l in self.logs)
-        total_ai_chats = sum(l.get("ai_chat_count", 0) for l in self.logs)
-        total_manual_words = max(0, total_words - total_ai_chars)
-
-        # 彙整 AI 細部面向
-        total_structuring = 0
-        total_editorial = 0
-        total_brainstorming = 0
-        for l in self.logs:
-            details = l.get("ai_details", {})
-            if isinstance(details, dict):
-                total_structuring += details.get("character", 0) + details.get("world", 0) + details.get("timeline", 0)
-                total_editorial += details.get("proofread", 0) + details.get("impression", 0)
-                total_brainstorming += details.get("chat", 0)
-
-        all_interactions = total_ai_chats if total_ai_chats > 0 else (total_structuring + total_editorial + total_brainstorming)
-        if total_structuring == 0 and total_editorial == 0 and total_brainstorming == 0 and total_ai_chats > 0:
-            total_brainstorming = total_ai_chats
-
-        active_days = len([l for l in self.logs if l.get("word_count", 0) > 0 or l.get("duration", 0) > 0])
-        avg_words = int(total_words / max(1, active_days))
-
-        total_hours = total_duration // 3600
-        total_mins = (total_duration % 3600) // 60
-        self.card_duration.update_values(f"{total_hours} 小時 {total_mins} 分", f"活躍寫作 {active_days} 天")
-        self.card_total_words.update_values(f"{total_words:,} 字", f"含手寫 {total_manual_words:,} 字")
-        self.card_avg_words.update_values(f"{avg_words:,} 字 / 天", f"連續紀錄中")
-
-        handcrafted_pct = 100 if total_words == 0 else int((total_manual_words / max(1, total_words)) * 100)
-        if total_ai_chars == 0:
-            card_main_val = f"{handcrafted_pct}% 純手創"
-        else:
-            card_main_val = f"{handcrafted_pct}% 手創 (代筆 {total_ai_chars:,}字)"
-
-        if all_interactions == 0 and total_ai_chars == 0:
-            card_sub_val = "100% 獨立原創 | 零 AI 介入"
-        else:
-            if total_ai_chars > 0:
-                card_sub_val = f"含正文擴寫 | 輔助 {all_interactions} 次"
-            elif total_editorial >= total_structuring and total_editorial > 0:
-                card_sub_val = f"定位：文字校審評語 ({all_interactions} 次)"
-            elif total_structuring > 0:
-                card_sub_val = f"定位：設定架構整理 ({all_interactions} 次)"
-            elif total_brainstorming > 0:
-                card_sub_val = f"定位：靈感對話助手 ({all_interactions} 次)"
-            else:
-                card_sub_val = f"輔助互動 {all_interactions} 次 | 0 字代筆"
-
-        self.card_ai_ratio.update_values(card_main_val, card_sub_val)
+        # 計算指標卡片總數值（委派至 WritingLogService）
+        metrics = WritingLogService.calculate_dashboard_metrics(self.logs)
+        self.card_duration.update_values(metrics["duration_main"], metrics["duration_sub"])
+        self.card_total_words.update_values(metrics["words_main"], metrics["words_sub"])
+        self.card_avg_words.update_values(metrics["avg_main"], metrics["avg_sub"])
+        self.card_ai_ratio.update_values(metrics["ai_main"], metrics["ai_sub"])
 
         # 填充表格
         self.table.clearContents()
@@ -390,20 +345,13 @@ class WritingLogDashboard(QWidget):
             self.table.setItem(row_idx, 3, ai_item)
             self.table.setItem(row_idx, 4, chat_item)
 
-        # 傳遞數據至 ChartView（含全量歷史打卡查找表）
-        sorted_logs_asc = sorted(self.logs, key=lambda x: x.get("date", ""))
-        recent_logs = sorted_logs_asc[-14:] if len(sorted_logs_asc) > 14 else sorted_logs_asc
-        recent_dates = [x.get("date", "") for x in recent_logs]
-        recent_values = [max(0, x.get("word_count", 0)) for x in recent_logs]
-        recent_ai_chars = [max(0, x.get("ai_continuation_chars", 0)) for x in recent_logs]
-        recent_ai_chats = [max(0, x.get("ai_chat_count", 0)) for x in recent_logs]
-        recent_ai_details = [x.get("ai_details", {}) for x in recent_logs]
-
-        full_date_map = {x.get("date", ""): max(0, x.get("word_count", 0)) for x in self.logs if x.get("date")}
-
+        # 傳遞數據至 ChartView（透過 WritingLogService 整理）
+        r_dates, r_vals, r_ai_chars, r_ai_chats, r_ai_details, full_map = (
+            WritingLogService.prepare_chart_data(self.logs)
+        )
         self.chart_view.set_data(
-            recent_dates, recent_values, recent_ai_chars, recent_ai_chats, recent_ai_details,
-            full_date_map=full_date_map
+            r_dates, r_vals, r_ai_chars, r_ai_chats, r_ai_details,
+            full_date_map=full_map
         )
 
         # 傳遞章節統計數據

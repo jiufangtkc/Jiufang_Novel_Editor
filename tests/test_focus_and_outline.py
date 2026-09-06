@@ -1,7 +1,11 @@
 import unittest
 import sys
-from PyQt6.QtWidgets import QApplication, QTreeWidgetItem
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from PyQt6.QtWidgets import QApplication, QTreeWidgetItem, QMessageBox
 from PyQt6.QtCore import Qt
+from unittest.mock import patch
 
 from views.main_window import MainWindow
 from controllers.main_controller import MainController
@@ -138,6 +142,30 @@ class TestFocusAndOutline(unittest.TestCase):
         self.assertTrue(self.view.is_focus_mode)
         self.view.toggle_focus_mode()
         self.assertFalse(self.view.is_focus_mode)
+
+    def test_outline_view_realtime_sync_on_tree_operations(self):
+        """驗證當大綱總覽模式開啟時 (Page 3)，樹節點的增刪與更名會即時同步大綱。"""
+        # 切換至大綱模式
+        self.mc.tree.show_outline_page()
+        self.assertEqual(self.view.center_stack.currentIndex(), 3)
+
+        init_count = self.view.outline_view.tree_widget.topLevelItemCount()
+
+        # 1. 新增章節即時同步
+        self.mc.tree.add_tree_node(None, is_folder=False)
+        self.assertEqual(self.view.outline_view.tree_widget.topLevelItemCount(), init_count + 1)
+
+        # 2. 重新命名即時同步
+        new_item = self.view.tree_widget.topLevelItem(self.view.tree_widget.topLevelItemCount() - 1)
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("即時同步測試章節", True)):
+            self.mc.tree.rename_tree_node(new_item)
+        last_outline_item = self.view.outline_view.tree_widget.topLevelItem(self.view.outline_view.tree_widget.topLevelItemCount() - 1)
+        self.assertEqual(last_outline_item.text(0), "即時同步測試章節")
+
+        # 3. 刪除節點即時同步
+        with patch("PyQt6.QtWidgets.QMessageBox.question", return_value=QMessageBox.StandardButton.Yes):
+            self.mc.tree.delete_tree_node(new_item)
+        self.assertEqual(self.view.outline_view.tree_widget.topLevelItemCount(), init_count)
 
 if __name__ == '__main__':
     unittest.main()

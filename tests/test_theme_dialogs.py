@@ -1,4 +1,9 @@
+import os
+import sys
 import pytest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PyQt6.QtWidgets import QApplication, QRadioButton, QCheckBox, QWidget
 from utils.theme_manager import ThemeManager, THEME_COLORS
 from views.dialogs.initial_scale_dialog import InitialScaleDialog

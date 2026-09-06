@@ -208,7 +208,7 @@ class EditorController:
 
                 def process_item(item):
                     data = item.data(0, Qt.ItemDataRole.UserRole)
-                    if data and not data.get("is_folder", False):
+                    if data and data.get("type") != "folder":
                         content = data.get("content", "")
                         if content:
                             new_content = TextFormatterService.format_text(content, options)

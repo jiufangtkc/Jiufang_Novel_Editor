@@ -1,6 +1,8 @@
 import os
 import sys
 import datetime
+import sqlite3
+import json
 from typing import Optional
 from PyQt6.QtWidgets import QMessageBox, QDialog
 from PyQt6.QtCore import QTimer
@@ -77,28 +79,12 @@ class AutosaveController:
                         if loaded_project and (loaded_project.tree or (loaded_project.project_info and loaded_project.project_info.title)):
                             self.mc.project.load_project_data(loaded_project)
                             return True
+                    except (sqlite3.Error, OSError) as e:
+                        print(f"嘗試載入暫存檔 {db_file} 失敗 (檔案/資料庫損毀): {e}", file=sys.stderr)
                     except Exception as e:
-                        print(f"嘗試載入暫存檔 {db_file} 失敗: {e}", file=sys.stderr)
+                        print(f"嘗試載入暫存檔 {db_file} 發生未預期錯誤: {e}", file=sys.stderr)
 
-            # 2. 若無可用 .db 檔案，檢查是否有舊版 .json 暫存檔
-            json_files = [
-                os.path.join(temp_dir, f) for f in os.listdir(temp_dir)
-                if f.lower().endswith(".json") and os.path.isfile(os.path.join(temp_dir, f))
-            ]
-            json_files = [f for f in json_files if os.path.getsize(f) > 0]
-            if json_files:
-                json_files.sort(key=get_temp_db_sort_key, reverse=True)
-                for json_file in json_files:
-                    try:
-                        from services.storage import StorageService
-                        data = StorageService.load_data(json_file)
-                        if data:
-                            self.mc.project.load_project_data(data)
-                            return True
-                    except Exception as e:
-                        print(f"嘗試載入舊版 JSON 暫存檔 {json_file} 失敗: {e}", file=sys.stderr)
-
-        # 3. 若 Temp_doc 無可用暫存檔，檢查 story/ 正式存檔目錄作為保底
+        # 2. 若 Temp_doc 無可用暫存檔，檢查 story/ 正式存檔目錄作為保底
         story_dir = self.mc.get_story_dir()
         if os.path.exists(story_dir):
             story_files = []

@@ -23,8 +23,6 @@ class WritingChartView(QWidget):
         self.ai_chats = []
         self.ai_details = []
         self.full_date_map = {}
-        self.total_paste_large = 0
-        self.total_delete_large = 0
         self.chapter_names = []
         self.chapter_words = []
 
@@ -51,8 +49,6 @@ class WritingChartView(QWidget):
         self.ai_chats = ai_chats if ai_chats is not None else [0] * len(values)
         self.ai_details = ai_details if ai_details is not None else [{}] * len(values)
         self.full_date_map = full_date_map if full_date_map is not None else {d: v for d, v in zip(dates, values)}
-        self.total_paste_large = total_paste_large
-        self.total_delete_large = total_delete_large
         self.update()
 
     def set_chapter_stats(self, chapter_names, chapter_words):
