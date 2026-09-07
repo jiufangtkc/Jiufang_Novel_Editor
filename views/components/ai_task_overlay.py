@@ -11,6 +11,7 @@ class AITaskOverlay(QWidget):
     非強制佔用的浮動視窗，用來顯示 AI 任務狀態與流式輸出。
     """
     signal_insert_text = pyqtSignal(str)
+    signal_cancel = pyqtSignal()
 
     def __init__(self, parent=None, title="AI 工作狀態"):
         # 使用 Window 屬性讓它可以浮動，但保留父視窗關聯以便跟隨關閉
@@ -18,6 +19,7 @@ class AITaskOverlay(QWidget):
         self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.setWindowTitle(title)
         self.resize(400, 500)
+        self._current_status = "idle"
         
         # 若有 parent，複製其 stylesheet 以保持風格
         if parent:
@@ -93,6 +95,7 @@ class AITaskOverlay(QWidget):
         self.show()
 
     def set_status(self, status: str):
+        self._current_status = status
         if status == "understanding":
             self.lbl_status.setText("🧠 理解中...")
             self.lbl_status.setStyleSheet("color: #2196F3;")
@@ -138,3 +141,9 @@ class AITaskOverlay(QWidget):
         text = self.text_output.toPlainText()
         if text:
             QApplication.clipboard().setText(text)
+
+    def closeEvent(self, event):
+        if self._current_status in ("understanding", "thinking", "working"):
+            self.signal_cancel.emit()
+        self.timer.stop()
+        super().closeEvent(event)

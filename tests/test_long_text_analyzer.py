@@ -201,3 +201,92 @@ def test_build_synthesis_prompt_budget_control_for_many_chunks():
     assert "第 1/17 階段核心要點" in user_p
     assert "第 17/17 階段核心要點" in user_p
 
+
+def test_calculate_dynamic_chunk_size_normal(monkeypatch):
+    """驗證充足記憶體（8GB）環境下之動態分塊計算"""
+    monkeypatch.setattr("services.hardware_detector.get_available_memory_mb", lambda: 8192.0)
+    chunk_size, max_tokens = LongTextAnalyzer.calculate_dynamic_chunk_size()
+    assert max_tokens == 8000
+    assert chunk_size == 6000
+
+
+def test_calculate_dynamic_chunk_size_low_memory(monkeypatch):
+    """驗證記憶體嚴重不足（< 1500MB）時應拋出 MemoryError"""
+    monkeypatch.setattr("services.hardware_detector.get_available_memory_mb", lambda: 1024.0)
+    with pytest.raises(MemoryError) as exc_info:
+        LongTextAnalyzer.calculate_dynamic_chunk_size()
+    assert "低於 1.5GB" in str(exc_info.value)
+
+
+def test_calculate_dynamic_chunk_size_custom_tokens():
+    """驗證傳入自訂 max_context_tokens 時應精確扣除框架預留"""
+    chunk_size, max_tokens = LongTextAnalyzer.calculate_dynamic_chunk_size(max_context_tokens=6000)
+    assert max_tokens == 6000
+    assert chunk_size == 4000
+
+
+def test_chunk_text_truncation_on_token_overflow():
+    """驗證當 chunk_text token 數超過安全上限（max_tokens 的 75%）時，analyze_long_text 會截斷並加入截斷提示標記"""
+    intercepted_prompts = []
+
+    def mock_ai_caller(sys_p: str, user_p: str) -> str:
+        intercepted_prompts.append(user_p)
+        if "長篇總結任務" in user_p or "總結報告" in sys_p:
+            return "【全書最終總結】完成。"
+        return (
+            "### 【本段分析結論】\n截斷測試通過。\n\n"
+            "### 【更新後摘要索引】\n- 關鍵里程碑事件：測試事件\n"
+        )
+
+    # token_counter 對超過 50 字的文字回傳 10000（遠超 max_tokens 75%）
+    def big_token_counter(text: str) -> int:
+        if len(text) > 50:
+            return 10000
+        return int(len(text) * 2.5)
+
+    analyzer = LongTextAnalyzer(
+        ai_caller=mock_ai_caller,
+        chunk_size=100,
+        overlap=10,
+        token_counter=big_token_counter
+    )
+    text = "主角進入遺跡，發現了古老的神器，並遭遇了強敵。一場激烈的戰鬥就此展開。" * 3
+
+    import unittest.mock as _mock
+    with _mock.patch.object(
+        LongTextAnalyzer, 'calculate_dynamic_chunk_size',
+        return_value=(1000, 8000)
+    ):
+        result = analyzer.analyze_long_text(text=text, task_type="impression")
+
+    truncation_marker = "本段因長度超出安全上限已截斷"
+    assert any(truncation_marker in p for p in intercepted_prompts), \
+        f"預期至少一個 Prompt 含截斷提示，但未找到。各 Prompt 前 100 字：{[p[:100] for p in intercepted_prompts]}"
+
+
+def test_dynamic_timeline_event_hit_filtering():
+    """驗證 get_dynamic_summary 中包含正文關鍵詞的事件被優先選取"""
+    state = CompactState(
+        timeline_events=[
+            "王城東門爆發夜間刺殺事件",
+            "主角在古老遺跡發現神器",
+            "守護者在荒原設下陷阱",
+        ],
+        unresolved_threads=[
+            "刺客背後的委託人身分不明",
+            "荒原守護者的真實目的",
+        ]
+    )
+
+    chunk_text = "主角獨自踏上荒原，尋找失蹤的同伴。"
+
+    def tight_token_counter(text: str) -> int:
+        return len(text)
+
+    summary = state.get_dynamic_summary(
+        chunk_text=chunk_text,
+        token_budget=200,
+        token_counter=tight_token_counter
+    )
+
+    assert "荒原" in summary, f"預期摘要包含命中關鍵詞「荒原」的事件，實際摘要：\n{summary}"

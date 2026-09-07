@@ -1,6 +1,14 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-06，長文本分析 HRCI 演算法最佳化（動態實體檢索與 8GB 記憶體防溢出），全套測試擴充至 236 項 100% 綠燈通過，重新替換發布 v0.1.3-Beta 資產檔案。
+> 最後更新：2026-09-08，完成全系列 AI 任務取消與 Socket 連線主動中斷（Active Connection Abort）機制，全套 254 項單元測試維持 100% 綠燈通過。
+
+### 階段 23：實作全系列 AI 功能的滾動式抽取演算法
+- **實作 `LongTextPipelineWorker`**：
+  在 `services/ai_pipeline_workers.py` 實作了 4 階段滾動式抽取演算法（分段、預掃描、滾動抽取、收尾）。此 Worker 動態支援 `"character", "impression", "world", "timeline"` 等不同任務類型的 JSON diff 抽取，並最終轉換成卡片相容格式。
+- **整合 `AIController` 與 `AIScopeDialog`**：
+  將所有分析任務與 `AIScopeDialog` 綁定。現在包含文學評語、世界觀、時間線梳理等功能，在啟動前皆可選擇範圍與切換「前沿大模型 / 本地小模型」。
+- **工具建立**：
+  在 `utils/text_splitter.py` 建立了 `chunk_text_with_overlap` 函式，專司處理長篇文字的分段，支援 overlap 控制以防脈絡截斷。通過。
 
 ### 陷阱 17：寫作打卡熱力圖（Heatmap）網格與星期對齊
 - 熱力圖的網格繪製為 24 欄（週）× 7 列（星期一至日）。計算起始日時，必須以「本週一」為基準向前推 23 週（共 24 週）：`curr_monday = today - datetime.timedelta(days=today.weekday())`，`start_date = curr_monday - datetime.timedelta(weeks=23)`。切勿額外加上 `days=6`，否則會多扣除 6 天使最後一格停留在上週，導致當週歷史打卡全部落在網格之外。
@@ -45,23 +53,32 @@
   - **全域總結動態預算（Context Budget Controller）**：`build_synthesis_prompt` 依據總分段數分配單段額度，限制傳入 LLM 的各段要點總長度在 3,200 字（約 2,200 tokens）以內，並透過 `_format_final_state_summary` 提供依出場次數排序的高密度全景人物與設定索引，預留 2,500+ tokens 生成空間，徹底根絕 16k 溢出截斷問題。
 - **本地 llama.cpp 啟動建議**：建議加入 `-np 1 -c 8192 -fa`，限制單一推論通道以避免 4 個 slot 搶佔 VRAM，並開啟 Flash Attention 節省顯存。
 
+### 陷阱 25：AI 任務取消與 Socket 連線主動關閉（嚴禁使用 QThread.terminate()）
+- **問題根源**：
+  當使用者點選浮動進度 HUD、擴寫對話框或聊天視窗右上角的「✕」取消任務時，若在 Controller 端直接呼叫 `self.ai_worker.terminate()`，會強行殺死 OS 執行緒。這會使 Python 的 `with`、`finally` 區塊完全無法執行，底層由 `requests` 建立的 TCP Socket 依舊處於 ESTABLISHED 狀態。本地模型伺服器（LM Studio、Ollama、llama.cpp）依賴「寫入 TCP Socket 失敗（EPIPE / ECONNRESET）」來中止推論；Socket 未斷會導致模型伺服器在後台持續生成完畢，造成嚴重的 GPU/CPU 資源浪費。
+- **現行架構處理**：
+  - **嚴禁使用 `terminate()`**：取消任務一律改為 `worker.cancel()` 搭配 `worker.wait(1000)` 平穩終止。
+  - **Active Connection Abort 機制**：`BaseAIWorker` 維護 `self._active_response`。在 `cancel()` 被觸發時，由主執行緒主動呼叫 `active_response.raw.close()` 與 `active_response.close()`，強制向本機服務器發送 TCP FIN/RST，使 LM Studio 在下一個 Token 寫入時瞬間感知斷線並立刻中止推論。
+  - **Safe Generator Close**：呼叫串流 Generator 後，在 `finally` 區塊檢查 `if hasattr(generator, "close"): generator.close()`，確保無論正常結束或提早中斷皆即時釋放連線資源。
+  - **全功能防護覆蓋**：`AIWorker`、`LongTextPipelineWorker`、`AIChatWorker`、`AIStreamWorker`、`AIContinuationWorker` 全面繼承 `BaseAIWorker`，對話視窗與擴寫視窗關閉事件（`closeEvent`）皆自動連動取消。
+
 ---
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項（進步計劃架構解耦拆分、清理技術債、全套測試擴充至 233 項、重新發布 v0.1.3-Beta 與 GitHub 文案台灣繁體在地化審核）**：
-  1. **架構解耦與技術債清理**：
-     - 將 God Object（`AIService`、`ThemeManager`、`RightPanelView`、`WritingLogDashboard`）進行模組化拆分：獨立出 `AISettingsService`、`AIWorker`、`ThemeTemplates`、`WritingLogService` 與 `RightPanelCardEditor`。
-     - 徹底移除過時的 `storage.py`（JSON 儲存服務），全專案統一且全面走向純 SQLite 現代化架構。
-     - 修復包括快照復原後未儲存狀態標記等多項 P0 問題。
-  2. **文案風格檢討與全面改寫（台灣繁體在地化審視）**：
-     - 審視 GitHub 專案說明與 `README.md`，統一專有名詞與台灣語境（如 GitHub、3.1 Pro、相依套件）。
-     - 審核並更新歷次 Release（`v0.1.0-beta`、`v0.1.1-beta`、`v0.1.2-beta`、`v0.1.3-beta`）之 Release Notes 內文，全面剔除「優化」、「反饋」等中國用語，改以純粹台灣繁體中文（如「最佳化」、「回饋」）。
-  3. **重新發布 v0.1.3-Beta 安裝檔與免安裝壓縮檔**：
-     - 上傳使用者重新置於 `pre-release/` 資料夾之 `Jiufang_Novel_Editor_0.1.3-Beta-Setup.exe` 與 `Jiufang_Novel_Editor_0.1.3-Beta.zip`，更新 GitHub Release 資產檔案。
-     - 更新 Release 說明，詳列階層轉換、全文搜尋最佳化、簡化寫作日誌、架構拆分與 233 項測試驗證等成果。
+- **本次完成事項（全系列 AI 任務取消與 Socket 連線主動中斷修復、全面剔除危險 terminate、全套測試擴充至 254 項 100% 綠燈）**：
+  1. **問題排查與根本原因鎖定**：
+     - 使用者在浮動進度 HUD 點選「✕」取消時，模型後台依舊在生成，係因 `AIController.cancel_ai_analysis()` 呼叫了 `QThread.terminate()`。該函式強行中斷 OS 執行緒，導致 Python 的 `with` 與 `finally` 區塊完全未執行，HTTP Socket 保持 ESTABLISHED，本地模型（llama.cpp / LM Studio）未收到 broken pipe 而繼續生成完畢。
+     - `LongTextPipelineWorker` 在階段 1（預掃描）與階段 2（滾動抽取）呼叫 `AIService.call_api` 時漏傳 `is_cancelled_callback`。
+  2. **Active Connection Abort 機制實作**：
+     - 在 `AIService.call_api` 與 `call_api_stream` 引入 `on_response_ready` 回呼，在取得 response 物件時註冊至 Worker 的 active response。
+     - 抽象出 `BaseAIWorker` 基類，所有 AI Worker（`AIWorker`, `LongTextPipelineWorker`, `AIChatWorker`, `AIStreamWorker`, `AIContinuationWorker`）全面繼承。當外界呼叫 `worker.cancel()` 時，主動呼叫 `active_response.raw.close()` 與 `active_response.close()`，向伺服器發送 TCP FIN/RST，使 LM Studio 於毫秒級中止推論。
+     - 生成器以 `try...finally: if hasattr(generator, "close"): generator.close()` 進行防禦性釋放，相容 Mock 與一般迭代器。
+  3. **UI 與 Controller 連動健全化**：
+     - 徹底移除 `cancel_ai_analysis()` 中的 `terminate()`，改為 `cancel()` 搭配 `wait(1000)` 平穩退出。
+     - `AIChatDialog` 與 `AITaskOverlay`（擴寫視窗）皆加入 `closeEvent` 與 `signal_cancel`，確保視窗關閉時自動中斷背景推論。
   4. **全套測試維持 100% 綠燈**：
-     - 233 項單元測試全數通過（含新增之 `test_ai_settings_and_worker.py`、`test_p0_bug_fixes.py`、`test_writing_log_service.py`）。
+     - 撰寫 `tests/test_ai_cancellation.py`，全套 254 項單元測試 100% 通過。同步維護更新 `TEST_SUITE.md` 與 `HANDOVER.md`。
 
 - **當前任務狀態**：
   1. 程式碼變更與更新文件皆已提交並推送到 GitHub 遠端 `main` 分支。
@@ -301,12 +318,87 @@
   3. **終端總結預算控制（Context Budget Controller）**：重構 `build_synthesis_prompt` 與 `_format_final_state_summary`，動態分配各分段摘要額度（上限 3,200 字），以出場頻次排序展示全景高密度索引，徹底根治 16k context window 爆表（`finish_reason: length`）截斷問題。
   4. **測試套件擴充與全量通過**：在 `test_long_text_analyzer.py` 新增 50+ 實體動態命中測試與 17 段超長篇總結長度控制測試，全專案 37 個測試模組、236 項單元測試 100% 綠燈通過。
 
+- **本次完成事項 (AI 中斷請求與網路連線層串流重構，全套 236 項測試 100% 綠燈)**：
+  1. **替換網路底層**：將 `urllib.request` 替換為現代化的 `requests`，解決同步阻塞無法中斷的問題。
+  2. **全面串流化 (Streaming by Default)**：將所有 LLM API 的呼叫（包含原本阻塞式的 `call_api`）全部改由底層的 `call_api_stream` 實作，並保留相容性。
+  3. **實作即時連線中斷**：加入 `is_cancelled_callback` 機制。現在當使用者點擊取消時，系統會立即中斷網路迴圈並關閉 tcp socket 連線，強制截斷伺服器端的運算。
+  4. **相容性修復與加固**：確保了串流模式下對「思考型模型」（如 DeepSeek R1）的 `reasoning_content` 的相容性，並補齊了 `AIContinuationWorker` 的 `cancel` 介面。
+  5. **測試驗證**：全專案 236 項單元測試維持 100% 綠燈通過。
+
 - **當前任務狀態**：
-  1. 長文本分層捲動壓縮分析器重構與 8GB 顯存適配已全部完成。
-  2. 全套 236 項自動化單元測試維持 100% 綠燈通過。
-  3. 程式碼與交接文件已提交並推送到 GitHub 遠端 main 分支，Git Tag v0.1.3-beta 已強制更新並推送到遠端。
-  4. GitHub Release v0.1.3-beta 之預發布資產（Setup.exe 與 .zip）已全數替換更新。
+  1. 長文本分析與 AI 對話之「中斷請求」問題已徹底修復。
+  2. 程式碼已重構完畢，測試通過。
+
 - **下一個 Agent 的任務指引**：
-  1. 若使用者回饋本機推論環境仍有顯存壓力，請指導其在 `llama.cpp` / 本地服務啟動參數中加入 `-np 1 -c 8192 -fa`，防止多 Slot 同時開闢 KV Cache 爭搶 VRAM。
-  2. 所有測試與說明文件（`TEST_SUITE.md`、`HANDOVER.md`）皆已同步更新至最新版本。
+  1. 若後續需要新增 AI 供應商或實作新 API，必須遵循目前 `ai_service.py` 內基於 `requests` 與串流中斷的架構。
+  2. 所有測試與說明文件皆已同步更新至最新版本。
+
+- **本次完成事項 (動態硬體感知與長文自適應切分計畫 - Phase 1：工具層基礎建設)**：
+  1. 在 `requirements.txt` 中新增 `pynvml` 與 `psutil` 依賴。
+  2. 實作 `services/hardware_detector.py` 建立 `get_available_memory_mb()`，支援 NVIDIA GPU VRAM 偵測、System RAM 偵測與安全 Fallback。
+  3. 新增 `tests/test_hardware_detector.py` 單元測試並透過 Mock 完成 3 種情境驗證，測試 100% 通過。
+
+- **本次完成事項 (動態硬體感知與長文自適應切分計畫 - Phase 2：分析器架構約束與事前動態切分，全套 245 項測試 100% 綠燈)**：
+  1. **修復文字切分死循環**：在 `utils/text_splitter.py` 的 `chunk_text_with_overlap` 中，加入字元切分到達末尾時（`end_idx >= len(p)`）的 `break` 判斷，徹底根治文字無換行時的無窮迴圈問題。
+  2. **架構約束與動態分塊計算**：
+     - 在 `services/long_text_analyzer.py` 的 `LongTextAnalyzer` 類別註解中明確宣告「絕對無狀態（Stateless）」與「單一佇列序列化（Serialized）」之架構約束。
+     - 實作 `calculate_dynamic_chunk_size` 演算法，對接 `services/hardware_detector.py` 的 `get_available_memory_mb()`，當可用記憶體 < 1.5GB 時主動拋出 `MemoryError` 觸發防護。
+     - 在 `analyze_long_text` 中實作安全下限策略 `min(self._custom_chunk_size, dynamic_chunk_size)`，既保障不超過硬體極限，又相容外部自訂參數與單元測試。
+  3. **背景 Worker 記憶體不足攔截與 UI 降級回饋**：
+     - 在 `services/ai_worker.py` 的 `AIWorker.run()` 中擴充 `except MemoryError`，發送包含「關閉佔用程式」與「切換較小模型」建議之繁體中文友善提示。
+  4. **實體動態檢索預算平衡**：
+     - 修復 `models/models.py` 中 `CompactState.get_dynamic_summary` 的人物與世界觀預算分配，限制非命中補充上限，確保「相關世界觀設定」能獲得公平預算，修復測試斷言失敗。
+  5. **清理與轉發模組**：
+     - 將 `utils/hardware_detector.py` 轉發至 `services/hardware_detector.py`，保持架構單一職責與向後相容。
+  6. **測試套件擴充**：
+     - 在 `tests/test_long_text_analyzer.py` 新增 3 項動態切分與邊界測試（總數增至 12 項）。
+     - 在 `tests/test_ai_settings_and_worker.py` 新增 1 項 MemoryError 攔截測試（總數增至 5 項）。
+     - 全專案 39 個測試模組、245 項單元測試 100% 綠燈通過。
+
+- **陷阱 25：長文切分與動態記憶體感知安全約束**：
+  - **字元切分邊界防護**：在 `utils/text_splitter.py` 進行單段超長字元切分時，當 `end_idx >= len(p)` 必須立即中斷迴圈，切勿在末尾計算 `idx = end_idx - overlap_size` 造成指標倒退與無窮迴圈死鎖。
+  - **動態 Chunk 計算與外部參數優先級**：在 `LongTextAnalyzer` 中，當呼叫端有手動指定自訂 `chunk_size`（如單元測試傳入 100 字）時，應採取安全下限策略 `min(self._custom_chunk_size, dynamic_chunk_size)`，既保障不超出硬體記憶體預算，又確保外部客製參數不被強制覆寫。
+  - **實體摘要預算平衡**：在 `CompactState.get_dynamic_summary` 中，未命中實體最多補充 3~5 位，避免無上限追加擠爆 Token 預算，確保世界觀設定與關鍵事件能獲得公平預算。
+
+- **本次完成事項 (動態硬體感知與長文自適應切分計畫 - Phase 3：執行期 Token 防護與動態抓取，全套 249 項測試 100% 綠燈)**：
+  1. **Ollama tokenize 端點補完**：
+     - 在 `services/ai_service.py` 的 `count_tokens` 中，Ollama 分支從直接 fallback 升級為嘗試呼叫 `/api/tokenize` 端點（Ollama 0.2+ 支援）。
+     - 端點回應 `{"tokens": [...]}` 時，精確回傳列表長度作為 token 數；連線失敗或回應格式不符時，無聲靜默 fallback 到 `int(len(text) * 2.5)` 保守估算值。
+  2. **chunk_text 自身 Token 截斷防護（Runtime Token 硬上限攔截）**：
+     - 在 `services/long_text_analyzer.py` 的 `analyze_long_text` 逐段迴圈中，計算 `chunk_token_count` 後與 `max_tokens * 0.75` 安全上限比較。
+     - 若超出上限，主動截斷 chunk_text 至安全字數並附加「【注意：本段因長度超出安全上限已截斷…】」提示標記，重新計算 token 數後再組裝 Prompt，杜絕 Context Window 溢出。
+  3. **timeline_events 與 unresolved_threads 動態命中篩選**：
+     - 在 `models/models.py` 的 `get_dynamic_summary` 中，新增 `_sort_by_hit` 函式，以 bigram（連續 2 字中文字元）比對策略，篩選與當前正文相關的歷史事件與懸念優先排序。
+     - 命中的事件/懸念排在前方，未命中者保持由新到舊順序作為補充，確保在 Token 預算有限時最相關的脈絡被優先保留。
+  4. **測試套件擴充與全量通過**：
+     - 在 `tests/test_ai_service.py` 新增 `test_count_tokens_ollama_fallback_on_missing_endpoint` 與 `test_count_tokens_ollama_success`（2 項）。
+     - 在 `tests/test_long_text_analyzer.py` 新增 `test_chunk_text_truncation_on_token_overflow` 與 `test_dynamic_timeline_event_hit_filtering`（2 項）。
+     - 全專案 39 個測試模組、249 項單元測試 100% 綠燈通過（`pytest tests/` 249 passed in 35.09s）。
+     - 同步更新 `.agents/docs/TEST_SUITE.md` 與本交接文件。
+
+- **陷阱 26：bigram 命中比對必須從事件描述側抽取詞彙**：
+  - 在 `get_dynamic_summary` 的 `_sort_by_hit` 中，正確做法是從「事件/懸念描述文字」抽取中文 bigram，判斷是否出現在 chunk_text 中（`bigram in chunk_text`）。
+  - 切勿反向從 chunk_text 抽取整段詞組（如 `re.findall(r'[\u4e00-\u9fff]{2,}', chunk_text)`），因為中文連續字元不含非中文字元時整串會被視為一個詞組，無法比對到短詞。
+
+- **本次完成事項 (停止任務功能異常排查與連線中斷健全性加固，全套 254 項測試 100% 綠燈)**：
+  1. **底層連線 Socket 即時中斷機制**：
+     - 在 `services/ai_worker.py` 的 `BaseAIWorker` 實作 `_set_active_response` 與 `cancel`，取消時除了切換 `_is_cancelled` 標記外，主動關閉 requests response 與底層 `raw.close()`，強制截斷伺服器端運算與 socket 連線。
+     - 在 `services/ai_pipeline_workers.py` 的 `LongTextPipelineWorker` 整合該機制，確保長文本分析中斷時立即停止。
+  2. **取消時防護訊號漏發**：
+     - 確保各 Worker 在被中斷時絕不發出 `finished_signal`，避免覆蓋既有介面或引發狀態錯亂。
+     - 在 `views/components/ai_task_overlay.py` 與 `views/dialogs/ai_chat_dialog.py` 強化停止按鈕事件回應與 UI 狀態還原。
+  3. **測試套件擴充**：
+     - 新增 `tests/test_ai_cancellation.py`（5 項測試），驗證 BaseAIWorker、LongTextPipelineWorker、AIWorker、AIChatWorker、AIStreamWorker 取消連線中斷行為。
+     - 全專案 40 個測試模組、254 項單元測試 100% 綠燈通過。
+     - 同步更新 `.agents/docs/TEST_SUITE.md`。
+
+- **當前任務狀態**：
+  1. 動態硬體感知與長文自適應切分計畫（Phase 1~3）以及 AI 任務停止與取消機制已全數完成。
+  2. 全套 254 項單元測試 100% 綠燈通過。
+
+- **下一個 Agent 的任務指引**：
+  1. 後續若新增 AI 供應商或調整背景工作 Worker，請務必繼承 `BaseAIWorker` 並維持連線關閉與取消中斷機制。
+  2. 提交或推送前務必確認全套測試維持通過，並維護相關交接文件。
+
+
 

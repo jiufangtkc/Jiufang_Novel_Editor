@@ -387,3 +387,9 @@ class AIChatDialog(QDialog):
             title = f"AI 對話摘要 ({len(self.messages)//2}輪)"
             self.signal_save_as_card.emit(title, self.last_assistant_reply)
             self.lbl_status.setText("✅ 已儲存至資料卡片")
+
+    def closeEvent(self, event):
+        if self.worker and self.worker.isRunning():
+            self.worker.cancel()
+            self.worker.wait(500)
+        super().closeEvent(event)

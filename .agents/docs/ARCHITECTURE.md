@@ -1,13 +1,13 @@
 # 九方小說編輯器 (Jiufang Novel Editor) — 系統總體架構與 Agent 導航手冊
 
-> 最後更新：2026-09-03
+> 最後更新：2026-09-08
 > 本文件專為後續接手的開發者與 AI Agent 設計，提供由上而下的「上帝視角 (Bird's-eye view)」，協助快速掌握專案全貌與架構紅線。
 
 ## 一、 專案規模與定位
 
 本專案屬於**中型 (Medium-scale)** 桌面端應用程式：
 - **技術棧**：Python 3.10+、PyQt6 (GUI)、SQLite (本地資料庫)。
-- **架構特徵**：擁有超過 30 個 Python 模組、143 項完整單元測試、嚴格的 MVC 分層架構。
+- **架構特徵**：擁有超過 30 個 Python 模組、236 項完整單元測試、嚴格的 MVC 分層架構。
 - **核心定位**：為長篇小說創作者打造的「一站式、純本地、AI 賦能」桌面寫作軟體，強調無干擾純文字寫作與結構化資料管理。
 
 ---
@@ -39,8 +39,9 @@ Jiufang_Novel_Editor/
 ├── services/                       # [Service 層] 資料存取與外部通訊 (Data & External API)
 │   ├── database.py                 # ★ 唯一真實資料來源 (Source of Truth)：處理 SQLite (.db) 的 CRUD 操作
 │   ├── database_migrations.py      # SQLite schema_version 版本化升級與 Migration Pipeline
-│   ├── storage.py                  # 僅限舊版 JSON 專案向後相容讀取（已封存寫入功能）
+│   ├── storage_migration_service.py # 處理舊版 JSON 至新版 SQLite 的遷移服務
 │   ├── ai_service.py               # 處理 OpenAI/Gemini/Claude/本地端 LLM 的 API 請求
+│   ├── ai_settings_service.py      # AI 設定檔的存取與管理
 │   ├── app_settings_service.py     # 應用程式全域設定讀取與儲存
 │   ├── backup_service.py           # ZIP 專案打包與還原備份
 │   └── lint_service.py             # 繁中贅詞與文風檢查
@@ -77,7 +78,7 @@ Jiufang_Novel_Editor/
 - 專案在 Phase 3 經歷了重大重構，**已完全廢棄 JSON 作為專案存檔格式**。
 - 所有的暫存檔 (`Temp_doc/`) 與正式存檔 (`story/`) 皆為標準的 SQLite 資料庫 (`.db`)。
 - `services/database.py` 內建 `schema_version` 版本化 Migration Pipeline，升級可追溯且不可逆。
-- `services/storage.py` 僅作為**歷史包袱的相容讀取**（已封死寫入路徑），嚴禁在其中開發新功能。
+- 舊有的 `services/storage.py` 已被徹底移除，專案全面走向純 SQLite 架構，遺留的舊版 JSON 遷移已由 `storage_migration_service.py` 專職處理。
 
 ### 2. Dataclass 作為記憶體內快取
 - 軟體運行時，整個專案的資料樹會被反序列化為 `models.py` 中的 `JneProject` dataclass 結構（存在記憶體中）。

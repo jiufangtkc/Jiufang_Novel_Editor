@@ -170,12 +170,18 @@ class AIController:
 
     def handle_editor_ai_analyze(self, task_type: str, text: str):
         """處理編輯器右鍵或選單觸發的 AI 分析。"""
-        if task_type == "character":
+        if task_type in ["character", "impression", "world", "timeline"]:
             self.mc.save_current_editor_content()
-            dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=text)
+            dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=text, task_type=task_type)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 scope_data = dlg.get_scope_content()
-                self.start_ai_analysis(task_type, scope_data["text_content"], scope_data["scope_title"])
+                self.start_ai_analysis(
+                    task_type, 
+                    scope_data["text_content"], 
+                    scope_data["scope_title"],
+                    algorithm_mode=scope_data.get("algorithm_mode", "large_model"),
+                    candidate_threshold=scope_data.get("candidate_threshold", 3)
+                )
             return
 
         chapter_title = self.mc.current_file_item.text(0) if self.mc.current_file_item else ""
@@ -186,13 +192,19 @@ class AIController:
         cursor = self.view.editor.textCursor()
         selected_text = cursor.selectedText().strip()
 
-        # 登場角色提取：彈出專屬範圍選擇對話框（可選全文、當前章節、部分章節）
-        if task_type == "character":
+        # 彈出專屬範圍與演算法選擇對話框（可選全文、當前章節、部分章節）
+        if task_type in ["character", "impression", "world", "timeline"]:
             self.mc.save_current_editor_content()
-            dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=selected_text)
+            dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=selected_text, task_type=task_type)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 scope_data = dlg.get_scope_content()
-                self.start_ai_analysis(task_type, scope_data["text_content"], scope_data["scope_title"])
+                self.start_ai_analysis(
+                    task_type, 
+                    scope_data["text_content"], 
+                    scope_data["scope_title"],
+                    algorithm_mode=scope_data.get("algorithm_mode", "large_model"),
+                    candidate_threshold=scope_data.get("candidate_threshold", 3)
+                )
             return
 
         target_text = selected_text if selected_text else self.view.editor.toPlainText().strip()
@@ -203,7 +215,7 @@ class AIController:
         chapter_title = self.mc.current_file_item.text(0) if self.mc.current_file_item else ""
         self.start_ai_analysis(task_type, target_text, chapter_title)
 
-    def start_ai_analysis(self, task_type: str, text: str, chapter_title: str = ""):
+    def start_ai_analysis(self, task_type: str, text: str, chapter_title: str = "", algorithm_mode: str = "large_model", candidate_threshold: int = 3):
         """啟動非同步 AI 分析執行緒，並展示無焦點浮動進度 HUD。"""
         if self.ai_worker and self.ai_worker.isRunning():
             QMessageBox.warning(self.view, "提示", "AI 分析進行中，請稍候完成後再發起新請求。")
@@ -224,7 +236,12 @@ class AIController:
             t_name = f"{t_name} — {chapter_title}"
         self.ai_floating_hud.start(t_name)
 
-        self.ai_worker = AIWorker(task_type, text, chapter_title=chapter_title)
+        if algorithm_mode == "small_model":
+            from services.ai_pipeline_workers import LongTextPipelineWorker
+            self.ai_worker = LongTextPipelineWorker(task_type, text, chapter_title=chapter_title, threshold=candidate_threshold)
+        else:
+            self.ai_worker = AIWorker(task_type, text, chapter_title=chapter_title)
+            
         self.ai_worker.progress_signal.connect(self.on_ai_analysis_progress)
         self.ai_worker.finished_signal.connect(self.on_ai_analysis_finished)
         self.ai_worker.error_signal.connect(self.on_ai_analysis_error)
@@ -234,7 +251,7 @@ class AIController:
         """取消正在進行中的 AI 分析背景任務。"""
         if self.ai_worker and self.ai_worker.isRunning():
             self.ai_worker.cancel()
-            self.ai_worker.terminate()
+            self.ai_worker.wait(1000)
             self.mc.update_status_bar()
 
     def on_ai_analysis_progress(self, current: int, total: int, message: str):
@@ -322,6 +339,7 @@ class AIController:
         if not self.ai_task_overlay:
             self.ai_task_overlay = AITaskOverlay(self.view, title="✨ AI 擴寫任務")
             self.ai_task_overlay.signal_insert_text.connect(self._insert_streamed_text)
+            self.ai_task_overlay.signal_cancel.connect(self._cancel_ai_expansion)
         
         preceding = data.get("preceding", "")
         succeeding = data.get("succeeding", "")
@@ -366,6 +384,12 @@ class AIController:
     def _insert_streamed_text(self, text: str):
         self.insert_text_to_editor(text)
         self.ai_task_overlay.close()
+
+    def _cancel_ai_expansion(self):
+        """取消正在進行中的 AI 擴寫任務。"""
+        if self.stream_worker and self.stream_worker.isRunning():
+            self.stream_worker.cancel()
+            self.stream_worker.wait(1000)
 
     def add_card_from_ai(self, category: str, title: str, content: str, summary: str = "", tags: list = None):
         """將 AI 生成的資料新增為資料集卡片（Data-driven，直接操作 CardNode）。"""

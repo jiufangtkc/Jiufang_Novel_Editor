@@ -2,7 +2,7 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTreeWidget, QTreeWidgetItem, QRadioButton, QButtonGroup,
-    QLineEdit, QWidget, QFrame, QMessageBox
+    QLineEdit, QWidget, QFrame, QMessageBox, QSpinBox
 )
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
@@ -18,15 +18,25 @@ class AIScopeDialog(QDialog):
     3. 自訂勾選部分章節（樹狀多選）
     """
 
-    def __init__(self, parent=None, current_item=None, selected_text=""):
+    def __init__(self, parent=None, current_item=None, selected_text="", task_type="character"):
         super().__init__(parent)
         self.main_window = parent
         self.current_item = current_item
         self.selected_text = selected_text
+        self.task_type = task_type
         self.item_map = {}
         self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
 
-        self.setWindowTitle("AI 登場角色提取 — 分析範圍選擇")
+        task_name_map = {
+            "character": "登場角色提取",
+            "impression": "文學評語與寫作建議",
+            "world": "世界觀設定提取",
+            "timeline": "時間線與事件梳理",
+            "proofread": "AI 校稿"
+        }
+        self.task_name = task_name_map.get(task_type, "AI 分析")
+
+        self.setWindowTitle(f"AI {self.task_name} — 分析範圍選擇")
         self.resize(int(540 * self.scale_factor), int(640 * self.scale_factor))
         self.setMinimumSize(int(460 * self.scale_factor), int(520 * self.scale_factor))
         self.setModal(True)
@@ -44,7 +54,7 @@ class AIScopeDialog(QDialog):
         layout.setSpacing(int(12 * sf))
 
         # 頂部提示
-        lbl_hint = QLabel("請選擇 AI 角色提取與分析的範圍：")
+        lbl_hint = QLabel(f"請選擇 {self.task_name} 的分析範圍：")
         lbl_hint.setFont(FontManager.get_font(size=int(10 * sf), weight=QFont.Weight.Bold))
         layout.addWidget(lbl_hint)
 
@@ -184,12 +194,60 @@ class AIScopeDialog(QDialog):
         self.tree_container.setVisible(False)
         layout.addWidget(self.tree_container, 1)
 
+        # 演算法模式選擇
+        algo_box = QFrame()
+        algo_box.setObjectName("algo_mode_card")
+        algo_box.setStyleSheet(mode_box.styleSheet().replace("scope_mode_card", "algo_mode_card"))
+        algo_layout = QVBoxLayout(algo_box)
+        algo_layout.setContentsMargins(int(8 * sf), int(8 * sf), int(8 * sf), int(8 * sf))
+        algo_layout.setSpacing(int(8 * sf))
+        
+        lbl_algo = QLabel("角色抽取演算法選擇：")
+        lbl_algo.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
+        algo_layout.addWidget(lbl_algo)
+        
+        self.algo_btn_group = QButtonGroup(self)
+        
+        self.radio_algo_large = QRadioButton("🧠 適合前沿大模型（單次全篇抽取，速度快但耗 Token）")
+        self.radio_algo_large.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.algo_btn_group.addButton(self.radio_algo_large)
+        algo_layout.addWidget(self.radio_algo_large)
+        
+        self.radio_algo_small = QRadioButton("🤖 適合本地小模型（四階段滾動抽取，省 VRAM 且抗遺忘）")
+        self.radio_algo_small.setFont(FontManager.get_font(size=int(9 * sf)))
+        self.algo_btn_group.addButton(self.radio_algo_small)
+        algo_layout.addWidget(self.radio_algo_small)
+        
+        # 閾值設定
+        thresh_layout = QHBoxLayout()
+        thresh_layout.setContentsMargins(int(24 * sf), 0, 0, 0)
+        lbl_thresh = QLabel("候選發現閾值（出現次數）：")
+        lbl_thresh.setFont(FontManager.get_font(size=int(8 * sf)))
+        self.spin_thresh = QSpinBox()
+        self.spin_thresh.setRange(1, 20)
+        self.spin_thresh.setValue(3)
+        self.spin_thresh.setFixedWidth(int(60 * sf))
+        thresh_layout.addWidget(lbl_thresh)
+        thresh_layout.addWidget(self.spin_thresh)
+        thresh_layout.addStretch()
+        
+        self.widget_thresh = QWidget()
+        self.widget_thresh.setLayout(thresh_layout)
+        algo_layout.addWidget(self.widget_thresh)
+        
+        self.radio_algo_small.setChecked(True)
+        self.radio_algo_large.toggled.connect(self._on_algo_changed)
+        self.radio_algo_small.toggled.connect(self._on_algo_changed)
+        self._on_algo_changed()
+        
+        layout.addWidget(algo_box)
+
         # 分析標題自訂
         title_box = QHBoxLayout()
         title_box.setSpacing(int(8 * sf))
         lbl_title = QLabel("分析範圍名稱：")
         lbl_title.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
-        self.txt_title = QLineEdit("全書角色分析")
+        self.txt_title = QLineEdit(f"全書{self.task_name}")
         self.txt_title.setFont(FontManager.get_font(size=int(9 * sf)))
         self.txt_title.setStyleSheet(f"""
             QLineEdit {{
@@ -299,17 +357,20 @@ class AIScopeDialog(QDialog):
             dest.addChild(self._copy_tree_item(src_item.child(i)))
         return dest
 
+    def _on_algo_changed(self):
+        self.widget_thresh.setVisible(self.radio_algo_small.isChecked())
+
     def _on_mode_changed(self):
         is_custom = self.radio_custom.isChecked()
         self.tree_container.setVisible(is_custom)
 
         if self.radio_all.isChecked():
-            self.txt_title.setText("全書角色分析")
+            self.txt_title.setText(f"全書{self.task_name}")
         elif self.radio_current.isChecked():
             current_name = self.current_item.text(0) if self.current_item else "當前章節"
-            self.txt_title.setText(f"【{current_name}】角色分析")
+            self.txt_title.setText(f"【{current_name}】{self.task_name}")
         else:
-            self.txt_title.setText("自訂章節角色分析")
+            self.txt_title.setText(f"自訂章節{self.task_name}")
 
         self.update_statistics()
 
@@ -407,9 +468,11 @@ class AIScopeDialog(QDialog):
             if self.selected_text:
                 return {
                     "scope_mode": "selection",
-                    "scope_title": self.txt_title.text().strip() or "選取片段角色分析",
+                    "scope_title": self.txt_title.text().strip() or f"選取片段{self.task_name}",
                     "text_content": self.selected_text,
-                    "chapter_count": 1
+                    "chapter_count": 1,
+                    "algorithm_mode": "small_model" if self.radio_algo_small.isChecked() else "large_model",
+                    "candidate_threshold": self.spin_thresh.value()
                 }
             else:
                 curr_name = self.current_item.text(0) if self.current_item else "當前章節"
@@ -438,9 +501,11 @@ class AIScopeDialog(QDialog):
                 full_text = "\n\n---\n\n".join(combined_texts)
                 return {
                     "scope_mode": "current",
-                    "scope_title": self.txt_title.text().strip() or f"【{curr_name}】角色分析",
+                    "scope_title": self.txt_title.text().strip() or f"【{curr_name}】{self.task_name}",
                     "text_content": full_text,
-                    "chapter_count": len(curr_chapters)
+                    "chapter_count": len(curr_chapters),
+                    "algorithm_mode": "small_model" if self.radio_algo_small.isChecked() else "large_model",
+                    "candidate_threshold": self.spin_thresh.value()
                 }
 
         # 全文 (all) 或自訂勾選 (custom)
@@ -477,9 +542,11 @@ class AIScopeDialog(QDialog):
         full_text = "\n\n---\n\n".join(combined_texts)
         return {
             "scope_mode": "all" if is_all else "custom",
-            "scope_title": self.txt_title.text().strip() or ("全書角色分析" if is_all else "自訂章節角色分析"),
+            "scope_title": self.txt_title.text().strip() or (f"全書{self.task_name}" if is_all else f"自訂章節{self.task_name}"),
             "text_content": full_text,
-            "chapter_count": len(collected_chapters)
+            "chapter_count": len(collected_chapters),
+            "algorithm_mode": "small_model" if self.radio_algo_small.isChecked() else "large_model",
+            "candidate_threshold": self.spin_thresh.value()
         }
 
     def _on_start_clicked(self):

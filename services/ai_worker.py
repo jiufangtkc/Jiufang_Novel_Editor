@@ -1,3 +1,4 @@
+import threading
 from PyQt6.QtCore import QThread, pyqtSignal
 from services.ai_settings_service import AISettingsService
 
@@ -12,7 +13,36 @@ class _AIServiceProxy:
 AIService = _AIServiceProxy()
 
 
-class AIWorker(QThread):
+class BaseAIWorker(QThread):
+    """具備主動中斷與連線 Socket 立即關閉機制的 AI 背景執行緒基類"""
+    def __init__(self):
+        super().__init__()
+        self._is_cancelled = False
+        self._active_response = None
+        self._cancel_lock = threading.Lock()
+
+    def _set_active_response(self, response):
+        with self._cancel_lock:
+            self._active_response = response
+
+    def cancel(self):
+        """主動中斷任務並立即關閉底層 HTTP 連線與 Socket"""
+        self._is_cancelled = True
+        with self._cancel_lock:
+            if self._active_response is not None:
+                try:
+                    if hasattr(self._active_response, "raw") and self._active_response.raw:
+                        try:
+                            self._active_response.raw.close()
+                        except Exception:
+                            pass
+                    self._active_response.close()
+                except Exception:
+                    pass
+                self._active_response = None
+
+
+class AIWorker(BaseAIWorker):
     """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線，支援長文捲動壓縮 HRCI）"""
     finished_signal = pyqtSignal(dict)
     progress_signal = pyqtSignal(int, int, str)  # (current_step, total_steps, message)
@@ -26,11 +56,6 @@ class AIWorker(QThread):
         self.chapter_title = chapter_title
         self.custom_prompt = custom_prompt
         self.chunk_threshold = chunk_threshold
-        self._is_cancelled = False
-
-    def cancel(self):
-        """取消背景分析任務"""
-        self._is_cancelled = True
 
     def run(self):
         try:
@@ -62,7 +87,9 @@ class AIWorker(QThread):
                         model=model,
                         system_prompt=sys_p,
                         user_content=user_p,
-                        timeout=timeout
+                        timeout=timeout,
+                        is_cancelled_callback=check_cancelled,
+                        on_response_ready=self._set_active_response
                     )
 
                 def on_progress(cur: int, tot: int, msg: str):
@@ -71,7 +98,10 @@ class AIWorker(QThread):
                 def check_cancelled() -> bool:
                     return self._is_cancelled
 
-                analyzer = LongTextAnalyzer(ai_caller=api_caller)
+                def token_counter(text: str) -> int:
+                    return AIService.count_tokens(provider, api_url, text, timeout)
+
+                analyzer = LongTextAnalyzer(ai_caller=api_caller, token_counter=token_counter)
                 analysis_result = analyzer.analyze_long_text(
                     text=self.text_content,
                     task_type=self.task_type,
@@ -79,6 +109,8 @@ class AIWorker(QThread):
                     progress_callback=on_progress,
                     is_cancelled_callback=check_cancelled
                 )
+                if self._is_cancelled:
+                    return
                 result_text = analysis_result.final_synthesis
             else:
                 self.progress_signal.emit(1, 1, "🧠 正在連線模型並分析文本...")
@@ -90,20 +122,26 @@ class AIWorker(QThread):
                     model=model,
                     system_prompt=system_prompt,
                     user_content=self.text_content,
-                    timeout=timeout
+                    timeout=timeout,
+                    is_cancelled_callback=lambda: self._is_cancelled,
+                    on_response_ready=self._set_active_response
                 )
-                chunk_count = 0
-                for chunk in generator:
-                    if self._is_cancelled:
-                        break
-                    chunks.append(chunk)
-                    chunk_count += 1
-                    if chunk_count % 5 == 0:
-                        total_len = sum(len(c) for c in chunks)
-                        self.progress_signal.emit(1, 1, f"✨ 正在生成分析結果（已產出約 {total_len} 字）...")
+                try:
+                    chunk_count = 0
+                    for chunk in generator:
+                        if self._is_cancelled:
+                            break
+                        chunks.append(chunk)
+                        chunk_count += 1
+                        if chunk_count % 5 == 0:
+                            total_len = sum(len(c) for c in chunks)
+                            self.progress_signal.emit(1, 1, f"✨ 正在生成分析結果（已產出約 {total_len} 字）...")
+                finally:
+                    if hasattr(generator, "close"):
+                        generator.close()
 
                 if self._is_cancelled:
-                    raise RuntimeError("AI 分析已被使用者取消。")
+                    return
                 result_text = "".join(chunks)
 
             # 解析結構與卡片預設對應類別
@@ -153,12 +191,22 @@ class AIWorker(QThread):
                 result_dict["parsed_characters"] = parsed_res.get("characters", [])
                 result_dict["parsed_relationship"] = parsed_res.get("relationship_card")
 
+            if self._is_cancelled:
+                return
+
             self.finished_signal.emit(result_dict)
+        except MemoryError as e:
+            if not self._is_cancelled:
+                msg = str(e)
+                if not msg:
+                    msg = "系統可用記憶體（VRAM/RAM）不足以支撐當前長篇分析。建議您：1. 關閉其他佔用記憶體的應用程式以釋出資源；2. 或於 AI 設定中切換為參數量較小的模型。"
+                self.error_signal.emit(f"記憶體不足：{msg}")
         except Exception as e:
-            self.error_signal.emit(str(e))
+            if not self._is_cancelled:
+                self.error_signal.emit(str(e))
 
 
-class AIChatWorker(QThread):
+class AIChatWorker(BaseAIWorker):
     """AI 多輪對話背景執行緒（支援串流輸出與工作階段通知）"""
     chunk_signal = pyqtSignal(str)
     status_signal = pyqtSignal(str, str)  # (status_key, display_message)
@@ -169,10 +217,6 @@ class AIChatWorker(QThread):
         super().__init__()
         self.messages = list(messages)
         self.custom_system_prompt = custom_system_prompt
-        self._is_cancelled = False
-
-    def cancel(self):
-        self._is_cancelled = True
 
     def run(self):
         try:
@@ -209,20 +253,26 @@ class AIChatWorker(QThread):
                 api_key=api_key,
                 model=model,
                 messages=full_messages,
-                timeout=timeout
+                timeout=timeout,
+                is_cancelled_callback=lambda: self._is_cancelled,
+                on_response_ready=self._set_active_response
             )
 
-            for chunk in generator:
-                if self._is_cancelled:
-                    break
-                if not first_chunk_received:
-                    first_chunk_received = True
-                    self.status_signal.emit("generating", "✍️ 正在生成回覆中...")
-                full_chunks.append(chunk)
-                self.chunk_signal.emit(chunk)
+            try:
+                for chunk in generator:
+                    if self._is_cancelled:
+                        break
+                    if not first_chunk_received:
+                        first_chunk_received = True
+                        self.status_signal.emit("generating", "✍️ 正在生成回覆中...")
+                    full_chunks.append(chunk)
+                    self.chunk_signal.emit(chunk)
+            finally:
+                if hasattr(generator, "close"):
+                    generator.close()
 
             if self._is_cancelled:
-                self.error_signal.emit("對話生成已被使用者取消。")
+                self.status_signal.emit("finished", "⏹️ 對話已取消")
             else:
                 resp_text = "".join(full_chunks)
                 self.status_signal.emit("finished", "✅ 回覆完成")
@@ -232,7 +282,7 @@ class AIChatWorker(QThread):
                 self.error_signal.emit(str(e))
 
 
-class AIContinuationWorker(QThread):
+class AIContinuationWorker(BaseAIWorker):
     """AI 智慧續寫背景執行緒"""
     finished_signal = pyqtSignal(str)
     error_signal = pyqtSignal(str)
@@ -260,6 +310,9 @@ class AIContinuationWorker(QThread):
             sys_prompt = self.custom_prompt or prompts.get("continuation", "")
 
             user_prompt = f"【小說上文】\n{self.context_text}\n\n【請依據上文情節與風格，緊接著續寫正文】"
+            
+            def check_cancelled():
+                return self._is_cancelled
 
             resp_text = AIService.call_api(
                 provider=provider,
@@ -268,14 +321,18 @@ class AIContinuationWorker(QThread):
                 model=model,
                 system_prompt=sys_prompt,
                 user_content=user_prompt,
-                timeout=timeout
+                timeout=timeout,
+                is_cancelled_callback=check_cancelled,
+                on_response_ready=self._set_active_response
             )
-            self.finished_signal.emit(resp_text)
+            if not self._is_cancelled:
+                self.finished_signal.emit(resp_text)
         except Exception as e:
-            self.error_signal.emit(str(e))
+            if not self._is_cancelled:
+                self.error_signal.emit(str(e))
 
 
-class AIStreamWorker(QThread):
+class AIStreamWorker(BaseAIWorker):
     """通用 AI 流式生成背景執行緒"""
     chunk_received_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(str)
@@ -286,10 +343,6 @@ class AIStreamWorker(QThread):
         super().__init__()
         self.system_prompt = system_prompt
         self.user_content = user_content
-        self._is_cancelled = False
-
-    def cancel(self):
-        self._is_cancelled = True
 
     def run(self):
         try:
@@ -315,21 +368,27 @@ class AIStreamWorker(QThread):
                 model=model,
                 system_prompt=self.system_prompt,
                 user_content=self.user_content,
-                timeout=timeout
+                timeout=timeout,
+                is_cancelled_callback=lambda: self._is_cancelled,
+                on_response_ready=self._set_active_response
             )
 
-            for chunk in generator:
-                if self._is_cancelled:
-                    break
-                if not first_token_emitted:
-                    self.first_token_signal.emit()
-                    first_token_emitted = True
+            try:
+                for chunk in generator:
+                    if self._is_cancelled:
+                        break
+                    if not first_token_emitted:
+                        self.first_token_signal.emit()
+                        first_token_emitted = True
 
-                full_text.append(chunk)
-                self.chunk_received_signal.emit(chunk)
+                    full_text.append(chunk)
+                    self.chunk_received_signal.emit(chunk)
+            finally:
+                if hasattr(generator, "close"):
+                    generator.close()
 
             if self._is_cancelled:
-                self.error_signal.emit("使用者已取消生成")
+                return
             else:
                 self.finished_signal.emit("".join(full_text))
 

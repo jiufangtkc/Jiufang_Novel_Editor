@@ -9,3 +9,5 @@ python-docx==1.2.0
 requests==2.34.2
 typing_extensions==4.15.0
 urllib3==2.7.0
+pynvml==11.5.0
+psutil==6.0.0

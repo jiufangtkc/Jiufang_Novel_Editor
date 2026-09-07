@@ -91,5 +91,32 @@ class TestAIService(unittest.TestCase):
         hud.close()
 
 
+    def test_count_tokens_ollama_fallback_on_missing_endpoint(self):
+        """驗證 Ollama tokenize 端點不存在（連線異常）時靜默 fallback 到保守估算值"""
+        from unittest.mock import patch, MagicMock
+        import requests as req_module
+
+        text = "這是一段測試文字，用來驗證 Token 計算的 Fallback 機制。"
+        expected_fallback = int(len(text) * 2.5)
+
+        # 模擬端點連線失敗
+        with patch("services.ai_service.requests.post", side_effect=req_module.exceptions.ConnectionError("Connection refused")):
+            result = AIService.count_tokens("Ollama", "http://127.0.0.1:11434/api/generate", text, timeout=1)
+            self.assertEqual(result, expected_fallback)
+
+    def test_count_tokens_ollama_success(self):
+        """驗證 Ollama tokenize 端點成功回應時正確回傳 tokens 列表長度"""
+        from unittest.mock import patch, MagicMock
+
+        text = "主角在古老遺跡中發現了封印已久的神器。"
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"tokens": list(range(18))}  # 模擬 18 個 token
+
+        with patch("services.ai_service.requests.post", return_value=mock_response):
+            result = AIService.count_tokens("Ollama", "http://127.0.0.1:11434/api/generate", text, timeout=5)
+            self.assertEqual(result, 18)
+
+
 if __name__ == "__main__":
     unittest.main()

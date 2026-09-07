@@ -1,8 +1,7 @@
 import json
 import os
-import urllib.request
-import urllib.error
 import urllib.parse
+import requests
 
 from services.ai_settings_service import AISettingsService, DEFAULT_SETTINGS, SETTINGS_FILENAME
 
@@ -26,104 +25,42 @@ class AIService:
     @classmethod
     def call_api(cls, provider: str, api_url: str, api_key: str, model: str,
                  system_prompt: str = "", user_content: str = "",
-                 messages: list = None, timeout=300) -> str:
-        """發送請求至 LLM API 並回傳純文字結果（支援單次 prompt 或 messages 多輪歷史）"""
-        headers = {"Content-Type": "application/json"}
-
-        # 整理訊息陣列
-        if messages is not None and len(messages) > 0:
-            formatted_messages = list(messages)
-        else:
-            formatted_messages = []
-            if system_prompt:
-                formatted_messages.append({"role": "system", "content": system_prompt})
-            if user_content:
-                formatted_messages.append({"role": "user", "content": user_content})
-
-        if provider == "Anthropic":
-            if api_key:
-                headers["x-api-key"] = api_key
-            headers["anthropic-version"] = "2023-06-01"
-
-            # Anthropic 需要將 system 獨立提出
-            sys_text = ""
-            chat_msgs = []
-            for m in formatted_messages:
-                if m.get("role") == "system":
-                    sys_text = m.get("content", "")
-                else:
-                    chat_msgs.append({"role": m.get("role"), "content": m.get("content")})
-
-            payload = {
-                "model": model,
-                "max_tokens": 4096,
-                "messages": chat_msgs if chat_msgs else [{"role": "user", "content": user_content}]
-            }
-            if sys_text or system_prompt:
-                payload["system"] = sys_text or system_prompt
-
-        elif provider == "Ollama":
-            # Ollama /api/chat 格式
-            payload = {
-                "model": model,
-                "messages": formatted_messages,
-                "stream": False
-            }
-        else:
-            # OpenAI 相容介面 (Google, Grok, LM Studio, 標準 OpenAI)
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
-            elif provider == "LM Studio":
-                headers["Authorization"] = "Bearer not-needed"
-
-            payload = {
-                "model": model or "local-model",
-                "messages": formatted_messages
-            }
-
-        req_data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(api_url, data=req_data, headers=headers, method="POST")
-
+                 messages: list = None, timeout=300, is_cancelled_callback=None,
+                 on_response_ready=None) -> str:
+        """發送請求至 LLM API 並回傳純文字結果（底層全面使用串流以支援立即中斷）"""
+        generator = cls.call_api_stream(
+            provider=provider,
+            api_url=api_url,
+            api_key=api_key,
+            model=model,
+            system_prompt=system_prompt,
+            user_content=user_content,
+            messages=messages,
+            timeout=timeout,
+            is_cancelled_callback=is_cancelled_callback,
+            on_response_ready=on_response_ready
+        )
+        
+        full_text = []
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                resp_bytes = response.read()
-                resp_json = json.loads(resp_bytes.decode("utf-8"))
-
-                if provider == "Anthropic":
-                    contents = resp_json.get("content", [])
-                    texts = [c.get("text", "") for c in contents if c.get("type") == "text"]
-                    return "\n".join(texts)
-                elif provider == "Ollama":
-                    return resp_json.get("message", {}).get("content", "")
-                else:
-                    # OpenAI 相容
-                    choices = resp_json.get("choices", [])
-                    if choices:
-                        msg = choices[0].get("message", {})
-                        content = msg.get("content", "")
-                        # 若模型為思考型模型且 content 為空，嘗試讀取 reasoning_content
-                        if not content and "reasoning_content" in msg:
-                            content = msg.get("reasoning_content", "")
-                        return content or ""
-                    return ""
-        except urllib.error.HTTPError as e:
-            err_msg = e.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"HTTP 錯誤 {e.code}: {err_msg}")
-        except urllib.error.URLError as e:
-            err_str = str(e.reason)
-            if "timed out" in err_str.lower():
-                raise RuntimeError(f"連線/生成超時（{timeout} 秒）。本地大型或思考型模型處理耗時較長，請確認服務狀態或調高逾時上限後重試。")
-            raise RuntimeError(f"連線失敗: {e.reason}")
-        except Exception as e:
-            err_str = str(e)
-            if "timed out" in err_str.lower():
-                raise RuntimeError(f"連線/生成超時（{timeout} 秒）。本地大型或思考型模型處理耗時較長，請確認服務狀態或調高逾時上限後重試。")
-            raise RuntimeError(f"API 請求異常: {err_str}")
+            for chunk in generator:
+                if is_cancelled_callback and is_cancelled_callback():
+                    break
+                full_text.append(chunk)
+                
+            if is_cancelled_callback and is_cancelled_callback():
+                raise RuntimeError("API 請求已被取消")
+                
+            return "".join(full_text)
+        finally:
+            if hasattr(generator, "close"):
+                generator.close()
 
     @classmethod
     def call_api_stream(cls, provider: str, api_url: str, api_key: str, model: str,
                  system_prompt: str = "", user_content: str = "",
-                 messages: list = None, timeout=300):
+                 messages: list = None, timeout=300, is_cancelled_callback=None,
+                 on_response_ready=None):
         """發送請求至 LLM API 並以 Generator 形式回傳文字片段"""
         headers = {"Content-Type": "application/json"}
 
@@ -178,27 +115,33 @@ class AIService:
                 "stream": True
             }
 
-        req_data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(api_url, data=req_data, headers=headers, method="POST")
-
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                for line in response:
-                    line = line.decode('utf-8').strip()
+            with requests.post(api_url, json=payload, headers=headers, stream=True, timeout=timeout) as response:
+                if on_response_ready:
+                    on_response_ready(response)
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if is_cancelled_callback and is_cancelled_callback():
+                        break
+                        
                     if not line:
                         continue
-                    
+                        
+                    line_str = line.decode('utf-8').strip()
+                    if not line_str:
+                        continue
+                        
                     if provider == "Ollama":
                         try:
-                            data = json.loads(line)
+                            data = json.loads(line_str)
                             content = data.get("message", {}).get("content", "")
                             if content:
                                 yield content
                         except json.JSONDecodeError:
                             pass
                     else:
-                        if line.startswith("data: "):
-                            data_str = line[6:]
+                        if line_str.startswith("data: "):
+                            data_str = line_str[6:]
                             if data_str == "[DONE]":
                                 break
                             try:
@@ -212,18 +155,29 @@ class AIService:
                                     choices = data.get("choices", [])
                                     if choices:
                                         delta = choices[0].get("delta", {})
+                                        reasoning = delta.get("reasoning_content", "")
                                         content = delta.get("content", "")
+                                        if reasoning:
+                                            yield reasoning
                                         if content:
                                             yield content
                             except json.JSONDecodeError:
                                 pass
-        except urllib.error.URLError as e:
-            err_str = str(e.reason)
-            if "timed out" in err_str.lower():
-                raise RuntimeError(f"連線/生成超時（{timeout} 秒）。")
-            raise RuntimeError(f"連線失敗: {e.reason}")
+        except requests.exceptions.Timeout:
+            if is_cancelled_callback and is_cancelled_callback():
+                return
+            raise RuntimeError(f"連線/生成超時（{timeout} 秒）。本地大型或思考型模型處理耗時較長，請確認服務狀態或調高逾時上限後重試。")
+        except requests.exceptions.RequestException as e:
+            if is_cancelled_callback and is_cancelled_callback():
+                return
+            raise RuntimeError(f"API 請求連線異常: {e}")
         except Exception as e:
-            raise RuntimeError(f"串流 API 請求異常: {str(e)}")
+            if is_cancelled_callback and is_cancelled_callback():
+                return
+            raise RuntimeError(f"串流 API 請求解析異常: {str(e)}")
+        finally:
+            if on_response_ready:
+                on_response_ready(None)
 
     @classmethod
     def test_connection(cls, provider: str, api_url: str, api_key: str, model: str, timeout=90) -> str:
@@ -239,6 +193,65 @@ class AIService:
         )
 
     @classmethod
+    def count_tokens(cls, provider: str, api_url: str, text: str, timeout=5) -> int:
+        """
+        向推理引擎查詢精確的 token 數量。
+        若不支援，則 fallback 到保守估算值（長度 * 2.5）。
+        """
+        if not text:
+            return 0
+            
+        fallback_tokens = int(len(text) * 2.5)
+        
+        if not api_url:
+            return fallback_tokens
+
+        parsed = urllib.parse.urlparse(api_url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else api_url
+
+        try:
+            if provider == "Ollama":
+                # Ollama 0.2+ 支援 /api/tokenize，嘗試呼叫後取得精確 token 數
+                # payload 格式：{"model": <model>, "prompt": <text>}
+                # 回應格式：{"tokens": [...]}，tokens 列表長度即為 token 數
+                tokenize_url = f"{base_url}/api/tokenize"
+                try:
+                    resp = requests.post(
+                        tokenize_url,
+                        json={"prompt": text},
+                        headers={"Content-Type": "application/json"},
+                        timeout=timeout
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        tokens_list = data.get("tokens", None)
+                        if isinstance(tokens_list, list):
+                            return len(tokens_list)
+                except Exception:
+                    pass
+                # 端點不存在或連線失敗時靜默 fallback
+                return fallback_tokens
+            elif provider == "LM Studio" or "1234" in api_url or "v1" in api_url:
+                tokenize_url = f"{base_url}/v1/tokenize"
+                payload = {"content": text}
+                # LM Studio v1/tokenize 只需要 content (或 prompt)
+                resp = requests.post(tokenize_url, json=payload, headers={"Content-Type": "application/json"}, timeout=timeout)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # 依據 LM Studio 格式 (通常返回 {"count": xxx})
+                    if "count" in data:
+                        return int(data["count"])
+                    elif "total_tokens" in data:
+                        return int(data["total_tokens"])
+                    # 若為 embedding 介面可能在 usage 裡面
+                    elif "usage" in data and "total_tokens" in data["usage"]:
+                        return int(data["usage"]["total_tokens"])
+                
+            return fallback_tokens
+        except Exception as e:
+            return fallback_tokens
+            
+    @classmethod
     def detect_local_models(cls, provider: str, api_url: str, timeout=5) -> list[str]:
         """向本地服務（Ollama / LM Studio）端點查詢可用模型清單"""
         if not api_url:
@@ -250,26 +263,26 @@ class AIService:
         try:
             if provider == "Ollama":
                 tags_url = f"{base_url}/api/tags"
-                req = urllib.request.Request(tags_url, headers={"User-Agent": "Jiufang-Novel-Editor"})
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-                    return models
+                resp = requests.get(tags_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+                models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+                return models
             elif provider == "LM Studio" or "1234" in api_url or "models" in api_url:
                 models_url = f"{base_url}/v1/models"
-                req = urllib.request.Request(models_url, headers={"User-Agent": "Jiufang-Novel-Editor"})
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
-                    return models
+                resp = requests.get(models_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+                models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+                return models
             else:
                 # 嘗試通用 OpenAI /v1/models 端點
                 models_url = f"{base_url}/v1/models"
-                req = urllib.request.Request(models_url, headers={"User-Agent": "Jiufang-Novel-Editor"})
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
-                    return models
+                resp = requests.get(models_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                resp.raise_for_status()
+                data = resp.json()
+                models = [m.get("id", "") for m in data.get("data", []) if m.get("id")]
+                return models
         except Exception as e:
             print(f"偵測本機模型失敗 ({provider}): {e}")
             return []

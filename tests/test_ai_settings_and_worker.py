@@ -132,6 +132,30 @@ class TestAISettingsAndWorker(unittest.TestCase):
                 self.assertEqual(len(analysis_results), 1)
                 self.assertEqual(analysis_results[0]["content"], "分析完成")
 
+    def test_ai_worker_handles_memory_error(self):
+        """測試 AIWorker 在遇到 MemoryError 時，能攔截並發射友善之 UI 降級提示訊號。"""
+        from unittest.mock import patch
+        from services.long_text_analyzer import LongTextAnalyzer
+
+        dummy_settings = {
+            "provider": "LM Studio",
+            "api_urls": {"LM Studio": "http://localhost:1234/v1/chat/completions"},
+            "api_keys": {"LM Studio": ""},
+            "models": {"LM Studio": "test-model"},
+            "prompts": {"impression": "請分析"}
+        }
+
+        with patch.object(AIService, 'load_settings', return_value=dummy_settings):
+            with patch.object(LongTextAnalyzer, 'calculate_dynamic_chunk_size', side_effect=MemoryError("系統記憶體不足")):
+                worker = AIWorker(task_type="impression", text_content="很長很長的文本" * 500, chunk_threshold=100)
+                error_msgs = []
+                worker.error_signal.connect(error_msgs.append)
+                worker.run()
+
+                self.assertEqual(len(error_msgs), 1)
+                self.assertIn("記憶體不足", error_msgs[0])
+                self.assertIn("系統記憶體不足", error_msgs[0])
+
 
 if __name__ == "__main__":
     unittest.main()

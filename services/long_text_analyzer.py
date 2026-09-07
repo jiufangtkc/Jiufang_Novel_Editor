@@ -8,6 +8,10 @@ class LongTextAnalyzer:
 
     針對 9B 以下本地小模型及長篇小說設計，透過「語義分塊 + 捲動狀態壓縮 + 雙軌索引」機制，
     確保在小模型上下文視窗（Context Window）限制下，能穩定且無遺漏地分析超長小說文本。
+
+    架構約束規範：
+    - **絕對無狀態（Stateless）**：LongTextAnalyzer 實例本身不持久化持有特定小說文本或狀態庫，每一次分析呼叫皆為獨立無副作用執行。
+    - **單一佇列序列化（Serialized）**：各分段分析與 LLM 推論請求必須依序序列化執行，嚴禁多執行緒並行呼叫本地模型以防 GPU 記憶體崩潰。
     """
 
     DEFAULT_CHUNK_SIZE = 2800
@@ -22,18 +26,54 @@ class LongTextAnalyzer:
     }
 
     def __init__(self, ai_caller: Optional[Callable[[str, str], str]] = None,
-                 chunk_size: int = DEFAULT_CHUNK_SIZE,
-                 overlap: int = DEFAULT_OVERLAP):
+                 chunk_size: Optional[int] = None,
+                 overlap: int = DEFAULT_OVERLAP,
+                 token_counter: Optional[Callable[[str], int]] = None):
         """初始化分析器。
 
         Args:
             ai_caller: 呼叫 LLM 的函式，簽章為 (system_prompt: str, user_content: str) -> str
-            chunk_size: 單一分塊建議目標字數（預設 2,800 字）
+            chunk_size: 單一分塊建議目標字數（若為 None 則於分析時依硬體動態推算，預設 2,800 字）
             overlap: 分塊間重疊滑動字數（預設 200 字）
+            token_counter: 計算字串 Token 數的函數
         """
         self.ai_caller = ai_caller
-        self.chunk_size = chunk_size
+        self._custom_chunk_size = chunk_size
+        self.chunk_size = chunk_size if chunk_size is not None else self.DEFAULT_CHUNK_SIZE
         self.overlap = overlap
+        self.token_counter = token_counter or (lambda x: int(len(x) * 2.5))
+
+    @classmethod
+    def calculate_dynamic_chunk_size(cls, max_context_tokens: Optional[int] = None) -> tuple[int, int]:
+        """推算最佳分段長度與安全 Token 上限。
+        
+        依據系統硬體可用記憶體（VRAM / 系統 RAM）動態推算：
+        - 若未手動傳入 max_context_tokens，則呼叫 services.hardware_detector.get_available_memory_mb()。
+        - 保守策略：每 1GB 可用記憶體約對應 1000 Tokens 上下文，上限截斷為 12000 Tokens。
+        - 預留輸出與系統 Prompt 空間（約 2000 Tokens）。
+        - 若可用記憶體低於 1500 MB 或安全分塊字數小於 500 字，拋出 MemoryError 以觸發 UI 降級防護。
+
+        Returns:
+            tuple[int, int]: (chunk_size, max_context_tokens)
+        """
+        if max_context_tokens is None:
+            from services.hardware_detector import get_available_memory_mb
+            free_mem_mb = get_available_memory_mb()
+
+            if free_mem_mb < 1500:
+                raise MemoryError("偵測到系統可用記憶體嚴重不足（低於 1.5GB），無法進行有效分析。請關閉其他佔用資源的程式，或於設定中選擇較小的模型。")
+
+            # 保守策略：每 1GB VRAM/RAM 容納約 1000 Token 上下文
+            max_context_tokens = int((free_mem_mb / 1024) * 1000)
+            if max_context_tokens > 12000:
+                max_context_tokens = 12000
+
+        # 預留輸出與系統 Prompt： 1500 輸出 + 300 系統 + 200 緩衝 = 2000
+        chunk_size = max_context_tokens - 2000
+        if chunk_size < 500:
+            raise MemoryError("偵測到系統可用記憶體嚴重不足，無法進行有效分析。請關閉其他佔用資源的程式，或於設定中選擇較小的模型。")
+
+        return chunk_size, max_context_tokens
 
     def split_into_chunks(self, text: str) -> List[str]:
         """依據自然語義段落將文本切分為具備重疊滑動區間的分塊清單。"""
@@ -108,7 +148,8 @@ class LongTextAnalyzer:
 
     def build_chunk_prompt(self, task_type: str, chunk_text: str,
                            chunk_index: int, total_chunks: int,
-                           state: CompactState, custom_prompt: str = "") -> tuple[str, str]:
+                           state: CompactState, custom_prompt: str = "",
+                           token_budget: int = 600) -> tuple[str, str]:
         """建構分塊分析的 System Prompt 與 User Prompt。"""
         task_name = self.TASK_NAME_MAP.get(task_type, "小說文本分析")
 
@@ -118,7 +159,7 @@ class LongTextAnalyzer:
             f"你必須嚴格基於提供的前文「歷史摘要索引」與「當前片段」，進行客觀結構化分析，並輸出更新後的索引供下一階段使用。"
         )
 
-        history_summary = state.get_relevant_summary(chunk_text=chunk_text, max_chars=600)
+        history_summary = state.get_dynamic_summary(chunk_text=chunk_text, token_budget=token_budget, token_counter=self.token_counter)
 
         specific_guideline = custom_prompt if custom_prompt else self._get_task_guidelines(task_type)
 
@@ -413,6 +454,17 @@ class LongTextAnalyzer:
         if not self.ai_caller:
             raise ValueError("未設定 ai_caller，無法執行 AI 分析。")
 
+        try:
+            dynamic_chunk_size, max_tokens = self.calculate_dynamic_chunk_size()
+            if self._custom_chunk_size is not None:
+                self.chunk_size = min(self._custom_chunk_size, dynamic_chunk_size)
+            else:
+                self.chunk_size = dynamic_chunk_size
+        except MemoryError as e:
+            if is_cancelled_callback and is_cancelled_callback():
+                raise InterruptedError("使用者已取消長文分析。")
+            raise e
+
         chunks = self.split_into_chunks(text)
         total_chunks = len(chunks)
         # 總步數 = 分塊分析數 + 1 (最終全域整合)
@@ -437,13 +489,31 @@ class LongTextAnalyzer:
                     f"✨ 正在分析長文（第 {chunk_idx}/{total_chunks} 段，約 {len(chunk)} 字）..."
                 )
 
+            # 動態推算剩餘可用的 Token 預算給履歷使用
+            # 扣除: 本段文字 token + 輸出預留 1500 + 系統與框架字數預估 300
+            chunk_token_count = self.token_counter(chunk)
+
+            # Runtime Token 硬上限攔截：若 chunk_text 自身超出安全上限（max_tokens 的 75%），
+            # 主動截斷以防止 Prompt 組裝後超出 Context Window
+            safe_chunk_token_limit = int(max_tokens * 0.75)
+            if chunk_token_count > safe_chunk_token_limit:
+                # 保守估算：每個中文字約 2.5 token，反推安全字數上限
+                safe_char_limit = int(safe_chunk_token_limit / 2.5)
+                chunk = chunk[:safe_char_limit] + "\n\n【注意：本段因長度超出安全上限已截斷，以下為前段核心內容，請基於已有內容進行分析。】"
+                chunk_token_count = self.token_counter(chunk)
+
+            available_history_budget = max_tokens - (chunk_token_count + 1500 + 300)
+            if available_history_budget < 200:
+                available_history_budget = 200
+
             sys_prompt, user_prompt = self.build_chunk_prompt(
                 task_type=task_type,
                 chunk_text=chunk,
                 chunk_index=chunk_idx,
                 total_chunks=total_chunks,
                 state=state,
-                custom_prompt=custom_prompt
+                custom_prompt=custom_prompt,
+                token_budget=available_history_budget
             )
 
             # 呼叫 LLM
