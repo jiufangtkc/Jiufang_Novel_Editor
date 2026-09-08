@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from services.ai_service import AIService
+from services.ai_settings_service import DEFAULT_SETTINGS
 from utils.font_manager import FontManager
 
 
@@ -127,9 +128,25 @@ class AISettingsDialog(QDialog):
         timeout_layout.addWidget(lbl_timeout_hint)
         timeout_layout.addStretch(1)
 
+        # Context 上限設定
+        self.spin_context_limit = QSpinBox()
+        self.spin_context_limit.setRange(1024, 2097152)  # 1,024 至 2,097,152 Tokens
+        self.spin_context_limit.setSingleStep(1024)
+        self.spin_context_limit.setValue(8192)
+        self.spin_context_limit.setSuffix(" Tokens")
+        self.spin_context_limit.setToolTip("設定目前 AI 服務之上下文長度 (Context Limit)。本機模型（LM Studio / Ollama）若偵測到已載入模型將自動同步；亦可在此手動調整。")
+
+        ctx_layout = QHBoxLayout()
+        ctx_layout.addWidget(self.spin_context_limit)
+        self.lbl_ctx_hint = QLabel("(本機模型偵測時可自動同步)")
+        self.lbl_ctx_hint.setStyleSheet("color: #a0aec0; font-size: 11px;")
+        ctx_layout.addWidget(self.lbl_ctx_hint)
+        ctx_layout.addStretch(1)
+
         basic_layout.addRow("API 端點網址:", self.input_url)
         basic_layout.addRow("API 金鑰 (Key):", key_layout)
         basic_layout.addRow("模型名稱 (Model):", model_layout)
+        basic_layout.addRow("Context 上限:", ctx_layout)
         basic_layout.addRow("請求逾時上限:", timeout_layout)
 
         # 連線測試按鈕與狀態標籤
@@ -240,6 +257,10 @@ class AISettingsDialog(QDialog):
             self.input_key.setPlaceholderText("請輸入 API Key")
             self.btn_detect_models.setEnabled(False)
 
+        context_limits = self.settings.get("context_limits", {})
+        default_ctx = DEFAULT_SETTINGS.get("context_limits", {}).get(provider, 8192)
+        self.spin_context_limit.setValue(int(context_limits.get(provider, default_ctx)))
+
     def _save_current_provider_fields(self, provider):
         if "api_urls" not in self.settings:
             self.settings["api_urls"] = {}
@@ -247,10 +268,13 @@ class AISettingsDialog(QDialog):
             self.settings["api_keys"] = {}
         if "models" not in self.settings:
             self.settings["models"] = {}
+        if "context_limits" not in self.settings:
+            self.settings["context_limits"] = {}
 
         self.settings["api_urls"][provider] = self.input_url.text().strip()
         self.settings["api_keys"][provider] = self.input_key.text().strip()
         self.settings["models"][provider] = self.input_model.text().strip()
+        self.settings["context_limits"][provider] = self.spin_context_limit.value()
 
     def _on_provider_changed(self, new_provider):
         self._load_provider_fields(new_provider)
@@ -306,15 +330,27 @@ class AISettingsDialog(QDialog):
             QMessageBox.information(self, "未找到模型", "端點已回應，但未發現任何已載入或已下載之可用模型。")
             return
 
+        provider = self.combo_provider.currentText()
+        url = self.input_url.text().strip()
+
+        def _update_model_and_context(name: str):
+            self.input_model.setText(name)
+            ctx = AIService.fetch_context_limit(provider, url, name)
+            if ctx:
+                self.spin_context_limit.setValue(ctx)
+                self.lbl_ctx_hint.setText(f"(已同步 Context: {ctx:,})")
+
         if len(models) == 1:
-            self.input_model.setText(models[0])
+            _update_model_and_context(models[0])
             QMessageBox.information(self, "偵測成功", f"已成功偵測並填入模型：{models[0]}")
         else:
             # 建立選擇選單
             menu = QMenu(self)
             for m in models:
                 act = menu.addAction(m)
-                act.triggered.connect(lambda checked=False, name=m: self.input_model.setText(name))
+                act.triggered.connect(lambda checked=False, name=m: _update_model_and_context(name))
+            if models:
+                _update_model_and_context(models[0])
             menu.exec(self.btn_detect_models.mapToGlobal(self.btn_detect_models.rect().bottomLeft()))
 
     def _test_connection(self):

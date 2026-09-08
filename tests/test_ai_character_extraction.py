@@ -16,6 +16,17 @@ class TestAICharacterExtraction(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def setUp(self):
+        from unittest.mock import patch
+        self.patcher_status = patch("services.ai_service.AIService.check_local_server_status", return_value=(True, "連線正常"))
+        self.mock_status = self.patcher_status.start()
+        self.patcher_limit = patch("services.ai_service.AIService.fetch_context_limit", return_value=131072)
+        self.mock_limit = self.patcher_limit.start()
+
+    def tearDown(self):
+        self.patcher_limit.stop()
+        self.patcher_status.stop()
+
     def test_structured_character_parsing_5_elements(self):
         """測試結構化標籤格式解析，確認 5 大要素與獨立關係卡解析無誤。"""
         sample_output = """
@@ -145,6 +156,10 @@ class TestAICharacterExtraction(unittest.TestCase):
         self.assertEqual(scope_dlg.radio_all.font().pointSize(), int(9 * 1.5))
         self.assertEqual(scope_dlg.txt_title.font().pointSize(), int(9 * 1.5))
         self.assertEqual(scope_dlg.btn_start.font().pointSize(), int(9 * 1.5))
+        # 驗證燈號與 RichText 格式
+        from PyQt6.QtCore import Qt
+        self.assertEqual(scope_dlg.lbl_stats.textFormat(), Qt.TextFormat.RichText)
+        self.assertIn("●", scope_dlg.lbl_stats.text())
         scope_dlg.close()
 
         # 2. 測試 AICharacterReviewDialog 縮放與樣式

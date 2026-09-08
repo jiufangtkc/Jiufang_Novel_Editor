@@ -28,32 +28,28 @@ def get_available_memory_mb() -> float:
         import pynvml
         pynvml.nvmlInit()
         
-        # 取得系統上的 NVIDIA 顯卡數量
-        device_count = pynvml.nvmlDeviceGetCount()
-        
-        if device_count > 0:
-            # 預設抓取第一張顯卡 (index 0)
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+        try:
+            # 取得系統上的 NVIDIA 顯卡數量
+            device_count = pynvml.nvmlDeviceGetCount()
             
-            # byte 轉 MB
-            available_vram_mb = info.free / (1024 * 1024)
-            logger.info(f"偵測到 NVIDIA GPU，可用 VRAM: {available_vram_mb:.2f} MB")
-            
-            # 清理
+            if device_count > 0:
+                # 預設抓取第一張顯卡 (index 0)
+                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                
+                # byte 轉 MB
+                available_vram_mb = info.free / (1024 * 1024)
+                logger.info(f"偵測到 NVIDIA GPU，可用 VRAM: {available_vram_mb:.2f} MB")
+                
+                return available_vram_mb
+        finally:
+            # 清理，無論是否有偵測到 GPU 或發生例外，都必須關閉以避免 handle leak 造成系統卡頓
             pynvml.nvmlShutdown()
-            return available_vram_mb
             
     except ImportError:
         logger.debug("未安裝 pynvml 套件，跳過 NVIDIA GPU 偵測。")
     except Exception as e:
         logger.warning(f"pynvml 偵測 NVIDIA GPU 失敗: {e}，切換為系統記憶體偵測。")
-        # 確保發生異常時也能關閉 nvml (如果已經 init)
-        try:
-            import pynvml
-            pynvml.nvmlShutdown()
-        except:
-            pass
 
     # 嘗試偵測 System RAM (UMA/Intel/AMD APU)
     try:

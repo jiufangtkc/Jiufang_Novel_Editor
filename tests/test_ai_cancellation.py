@@ -5,7 +5,6 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from services.ai_pipeline_workers import LongTextPipelineWorker
 from services.ai_worker import AIWorker, AIChatWorker, AIStreamWorker, BaseAIWorker
 
 
@@ -24,53 +23,6 @@ def test_base_ai_worker_cancel_closes_active_response():
     mock_raw.close.assert_called_once()
     mock_resp.close.assert_called_once()
     assert worker._active_response is None
-
-
-def test_long_text_pipeline_worker_cancellation():
-    """測試 LongTextPipelineWorker 在執行途中取消時不會發射 finished_signal，並主動中斷連線"""
-    text = "這是一段長篇小說測試文字。" * 150
-    worker = LongTextPipelineWorker(
-        task_type="character",
-        text_content=text,
-        chapter_title="測試章節",
-        threshold=2
-    )
-
-    mock_resp = MagicMock()
-    mock_raw = MagicMock()
-    mock_resp.raw = mock_raw
-
-    with patch("services.ai_pipeline_workers.AIService.load_settings") as mock_settings, \
-         patch("services.ai_pipeline_workers.AIService.call_api") as mock_call_api:
-
-        mock_settings.return_value = {
-            "provider": "LM Studio",
-            "api_urls": {"LM Studio": "http://localhost:1234/v1/chat/completions"},
-            "api_keys": {"LM Studio": ""},
-            "models": {"LM Studio": "qwen2.5"}
-        }
-
-        def mock_call(provider, api_url, api_key, model, system_prompt, user_content, timeout,
-                      is_cancelled_callback=None, on_response_ready=None):
-            if on_response_ready:
-                on_response_ready(mock_resp)
-            # 模擬收到取消
-            worker.cancel()
-            assert is_cancelled_callback() is True
-            return ""
-
-        mock_call_api.side_effect = mock_call
-
-        finished_signals = []
-        worker.finished_signal.connect(lambda res: finished_signals.append(res))
-
-        worker.run()
-
-        # 驗證連線被主動 close
-        mock_raw.close.assert_called_once()
-        mock_resp.close.assert_called_once()
-        # 驗證未發送 finished_signal
-        assert len(finished_signals) == 0
 
 
 def test_ai_worker_stream_cancellation():

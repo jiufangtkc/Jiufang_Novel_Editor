@@ -4,9 +4,11 @@ from PyQt6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QRadioButton, QButtonGroup,
     QLineEdit, QWidget, QFrame, QMessageBox, QSpinBox
 )
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor, QPalette
 from PyQt6.QtCore import Qt
 from utils.font_manager import FontManager
+from services.ai_service import AIService
+from services.token_estimator import TokenEstimator
 
 
 class AIScopeDialog(QDialog):
@@ -42,6 +44,33 @@ class AIScopeDialog(QDialog):
         self.setModal(True)
         if parent:
             self.setStyleSheet(parent.styleSheet())
+
+        # 載入設定與自動同步本機模型 Context 上限
+        self.settings = AIService.load_settings()
+        self.provider = self.settings.get("provider", "Ollama")
+        self.api_url = self.settings.get("api_urls", {}).get(self.provider, "")
+        self.model = self.settings.get("models", {}).get(self.provider, "")
+        self.context_limit = self.settings.get("context_limits", {}).get(self.provider, 8192)
+        self.context_synced_from_backend = False
+        self.local_server_online = True
+        self.local_server_msg = ""
+
+        if self.provider in ("LM Studio", "Ollama"):
+            self.local_server_online, self.local_server_msg = AIService.check_local_server_status(
+                self.provider, self.api_url, timeout=1.0
+            )
+            if self.local_server_online:
+                try:
+                    fetched_ctx = AIService.fetch_context_limit(self.provider, self.api_url, self.model, timeout=1.0)
+                    if fetched_ctx and fetched_ctx > 0:
+                        self.context_limit = fetched_ctx
+                        self.context_synced_from_backend = True
+                        if "context_limits" not in self.settings:
+                            self.settings["context_limits"] = {}
+                        self.settings["context_limits"][self.provider] = fetched_ctx
+                        AIService.save_settings(self.settings)
+                except Exception:
+                    pass
 
         self.init_ui()
         self.populate_tree()
@@ -94,21 +123,21 @@ class AIScopeDialog(QDialog):
 
         self.btn_group = QButtonGroup(self)
 
-        self.radio_all = QRadioButton("📚 全書全文（提取整部小說的所有章節）")
+        self.radio_all = QRadioButton("全書全文（提取整部小說的所有章節）")
         self.radio_all.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_group.addButton(self.radio_all)
         mode_layout.addWidget(self.radio_all)
 
         current_title = self.current_item.text(0) if self.current_item else "當前章節"
         if self.selected_text:
-            self.radio_current = QRadioButton(f"📄 當前選取文字片段（約 {len(self.selected_text)} 字）")
+            self.radio_current = QRadioButton(f"當前選取文字片段（約 {len(self.selected_text)} 字）")
         else:
-            self.radio_current = QRadioButton(f"📄 當前編輯章節（{current_title}）")
+            self.radio_current = QRadioButton(f"當前編輯章節（{current_title}）")
         self.radio_current.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_group.addButton(self.radio_current)
         mode_layout.addWidget(self.radio_current)
 
-        self.radio_custom = QRadioButton("📑 自訂勾選部分章節")
+        self.radio_custom = QRadioButton("自訂勾選部分章節")
         self.radio_custom.setFont(FontManager.get_font(size=int(9 * sf)))
         self.btn_group.addButton(self.radio_custom)
         mode_layout.addWidget(self.radio_custom)
@@ -146,14 +175,14 @@ class AIScopeDialog(QDialog):
             }}
         """
 
-        self.btn_select_all = QPushButton("☑ 全選")
+        self.btn_select_all = QPushButton("全選")
         self.btn_select_all.setFont(FontManager.get_font(size=int(8 * sf)))
         self.btn_select_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_select_all.setStyleSheet(btn_header_style)
         self.btn_select_all.clicked.connect(self.select_all_items)
         tree_header.addWidget(self.btn_select_all)
 
-        self.btn_deselect_all = QPushButton("☐ 全不選")
+        self.btn_deselect_all = QPushButton("全不選")
         self.btn_deselect_all.setFont(FontManager.get_font(size=int(8 * sf)))
         self.btn_deselect_all.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_deselect_all.setStyleSheet(btn_header_style)
@@ -194,54 +223,6 @@ class AIScopeDialog(QDialog):
         self.tree_container.setVisible(False)
         layout.addWidget(self.tree_container, 1)
 
-        # 演算法模式選擇
-        algo_box = QFrame()
-        algo_box.setObjectName("algo_mode_card")
-        algo_box.setStyleSheet(mode_box.styleSheet().replace("scope_mode_card", "algo_mode_card"))
-        algo_layout = QVBoxLayout(algo_box)
-        algo_layout.setContentsMargins(int(8 * sf), int(8 * sf), int(8 * sf), int(8 * sf))
-        algo_layout.setSpacing(int(8 * sf))
-        
-        lbl_algo = QLabel("角色抽取演算法選擇：")
-        lbl_algo.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
-        algo_layout.addWidget(lbl_algo)
-        
-        self.algo_btn_group = QButtonGroup(self)
-        
-        self.radio_algo_large = QRadioButton("🧠 適合前沿大模型（單次全篇抽取，速度快但耗 Token）")
-        self.radio_algo_large.setFont(FontManager.get_font(size=int(9 * sf)))
-        self.algo_btn_group.addButton(self.radio_algo_large)
-        algo_layout.addWidget(self.radio_algo_large)
-        
-        self.radio_algo_small = QRadioButton("🤖 適合本地小模型（四階段滾動抽取，省 VRAM 且抗遺忘）")
-        self.radio_algo_small.setFont(FontManager.get_font(size=int(9 * sf)))
-        self.algo_btn_group.addButton(self.radio_algo_small)
-        algo_layout.addWidget(self.radio_algo_small)
-        
-        # 閾值設定
-        thresh_layout = QHBoxLayout()
-        thresh_layout.setContentsMargins(int(24 * sf), 0, 0, 0)
-        lbl_thresh = QLabel("候選發現閾值（出現次數）：")
-        lbl_thresh.setFont(FontManager.get_font(size=int(8 * sf)))
-        self.spin_thresh = QSpinBox()
-        self.spin_thresh.setRange(1, 20)
-        self.spin_thresh.setValue(3)
-        self.spin_thresh.setFixedWidth(int(60 * sf))
-        thresh_layout.addWidget(lbl_thresh)
-        thresh_layout.addWidget(self.spin_thresh)
-        thresh_layout.addStretch()
-        
-        self.widget_thresh = QWidget()
-        self.widget_thresh.setLayout(thresh_layout)
-        algo_layout.addWidget(self.widget_thresh)
-        
-        self.radio_algo_small.setChecked(True)
-        self.radio_algo_large.toggled.connect(self._on_algo_changed)
-        self.radio_algo_small.toggled.connect(self._on_algo_changed)
-        self._on_algo_changed()
-        
-        layout.addWidget(algo_box)
-
         # 分析標題自訂
         title_box = QHBoxLayout()
         title_box.setSpacing(int(8 * sf))
@@ -267,9 +248,19 @@ class AIScopeDialog(QDialog):
         layout.addLayout(title_box)
 
         # 預估字數與階段說明
-        self.lbl_stats = QLabel("預估字數：統計中...")
+        self.lbl_stats = QLabel("預估 Token：計算中...")
+        self.lbl_stats.setTextFormat(Qt.TextFormat.RichText)
         self.lbl_stats.setFont(FontManager.get_font(size=int(9 * sf)))
-        self.lbl_stats.setStyleSheet("color: #61afef; font-weight: 500;")
+        self.lbl_stats.setStyleSheet(f"""
+            QLabel {{
+                background-color: #21252b;
+                border: 1px solid #3e4451;
+                border-radius: {int(4 * sf)}px;
+                padding: {int(8 * sf)}px {int(10 * sf)}px;
+                color: #abb2bf;
+            }}
+        """)
+        self.lbl_stats.setWordWrap(True)
         layout.addWidget(self.lbl_stats)
 
         # 分隔線
@@ -283,9 +274,31 @@ class AIScopeDialog(QDialog):
         # 底部按鈕
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(int(8 * sf))
+
+        if self.provider in ("LM Studio", "Ollama"):
+            self.btn_check_connection = QPushButton("重新檢查服務")
+            self.btn_check_connection.setFont(FontManager.get_font(size=int(9 * sf)))
+            self.btn_check_connection.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_check_connection.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #2c313a;
+                    color: #abb2bf;
+                    border: 1px solid #4b5263;
+                    border-radius: {int(4 * sf)}px;
+                    padding: {int(6 * sf)}px {int(12 * sf)}px;
+                }}
+                QPushButton:hover {{
+                    background-color: #3e4451;
+                    color: #61afef;
+                    border-color: #61afef;
+                }}
+            """)
+            self.btn_check_connection.clicked.connect(self._check_and_refresh_connection)
+            btn_layout.addWidget(self.btn_check_connection)
+
         btn_layout.addStretch()
 
-        self.btn_start = QPushButton("🚀 開始提取分析")
+        self.btn_start = QPushButton("開始提取分析")
         self.btn_start.setFont(FontManager.get_font(size=int(9 * sf), weight=QFont.Weight.Bold))
         self.btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_start.setStyleSheet(f"""
@@ -357,10 +370,13 @@ class AIScopeDialog(QDialog):
             dest.addChild(self._copy_tree_item(src_item.child(i)))
         return dest
 
-    def _on_algo_changed(self):
-        self.widget_thresh.setVisible(self.radio_algo_small.isChecked())
+
 
     def _on_mode_changed(self):
+        sender = self.sender()
+        if sender and isinstance(sender, QRadioButton) and not sender.isChecked():
+            return
+
         is_custom = self.radio_custom.isChecked()
         self.tree_container.setVisible(is_custom)
 
@@ -407,15 +423,114 @@ class AIScopeDialog(QDialog):
         char_count = len(data["text_content"])
         chapter_count = data["chapter_count"]
 
-        if char_count > 4000:
-            chunks = (char_count + 3999) // 4000
+        # 動態估算 Token
+        system_prompt = self.settings.get("prompts", {}).get(self.task_type, "")
+        result = TokenEstimator.estimate_request(
+            provider=self.provider,
+            api_url=self.api_url,
+            task_type=self.task_type,
+            novel_text=data["text_content"],
+            system_prompt=system_prompt,
+            user_prompt_overhead="【額外指示與標題等】",
+            context_limit=self.context_limit
+        )
+
+        # 優先檢查 1：本地模型服務（LM Studio / Ollama）是否未上線
+        if self.provider in ("LM Studio", "Ollama") and not self.local_server_online:
             self.lbl_stats.setText(
-                f"包含 {chapter_count} 個章節，總計約 {char_count:,} 字（長文捲動分析，預計分為 {chunks + 1} 階段）"
+                f"<div style='line-height: 145%;'>"
+                f"範圍：{chapter_count} 個章節，約 {char_count:,} 字<br>"
+                f"預估 Token：輸入 {result.input_tokens:,} + 預留 {result.reserved_output_tokens:,} = 總需求約 {result.total_estimated_tokens:,}<br>"
+                f"目前 {self.provider} 狀態：<span style='color:#e06c75; font-weight:bold;'>未連線（服務未啟動）</span><br><br>"
+                f"<span style='color:#e06c75; font-size:14px;'>●</span> "
+                f"<span style='color:#e06c75; font-weight:bold;'>狀態：Local LLM 服務未上線，請先啟動 {self.provider} 本機服務</span>"
+                f"</div>"
             )
+            self.btn_start.setEnabled(False)
+            self.btn_start.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #4b5263;
+                    color: #a0a0a0;
+                    padding: {int(6 * self.scale_factor)}px {int(18 * self.scale_factor)}px;
+                    border: 1px solid #282c34;
+                    border-radius: {int(4 * self.scale_factor)}px;
+                    font-weight: bold;
+                }}
+            """)
+            return
+
+        # 檢查 2：所選範圍是否無有效文字
+        if not data["text_content"].strip():
+            self.lbl_stats.setText(
+                f"<div style='line-height: 145%;'>"
+                f"範圍：0 個有效章節，0 字<br>"
+                f"目前 {self.provider} 設定之 Context 上限：{self.context_limit:,}<br><br>"
+                f"<span style='color:#e5c07b; font-size:14px;'>●</span> "
+                f"<span style='color:#e5c07b; font-weight:bold;'>狀態：所選範圍內無有效文字可供分析</span>"
+                f"</div>"
+            )
+            self.btn_start.setEnabled(False)
+            self.btn_start.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #4b5263;
+                    color: #a0a0a0;
+                    padding: {int(6 * self.scale_factor)}px {int(18 * self.scale_factor)}px;
+                    border: 1px solid #282c34;
+                    border-radius: {int(4 * self.scale_factor)}px;
+                    font-weight: bold;
+                }}
+            """)
+            return
+
+        status_color_map = {
+            "GREEN": "#98c379",  # 綠色
+            "YELLOW": "#e5c07b", # 黃色
+            "RED": "#e06c75"     # 紅色
+        }
+
+        color = status_color_map.get(result.status, "#61afef")
+        context_sync_hint = " <span style='color:#98c379;'>(已同步本機模型)</span>" if self.context_synced_from_backend else ""
+
+        status_html = (
+            f"<div style='line-height: 145%;'>"
+            f"範圍：{chapter_count} 個章節，約 {char_count:,} 字<br>"
+            f"預估 Token：輸入 {result.input_tokens:,} + 預留 {result.reserved_output_tokens:,} = 總需求約 {result.total_estimated_tokens:,}<br>"
+            f"目前 {self.provider} 設定之 Context 上限：{self.context_limit:,}{context_sync_hint}<br><br>"
+            f"<span style='color:{color}; font-size:14px;'>●</span> "
+            f"<span style='color:{color}; font-weight:bold;'>狀態：{result.status_message}</span>"
+            f"</div>"
+        )
+        
+        self.lbl_stats.setText(status_html)
+        
+        # 如果是 RED 狀態，禁用開始按鈕
+        self.btn_start.setEnabled(result.status != "RED")
+        if result.status == "RED":
+            self.btn_start.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #4b5263;
+                    color: #a0a0a0;
+                    padding: {int(6 * self.scale_factor)}px {int(18 * self.scale_factor)}px;
+                    border: 1px solid #282c34;
+                    border-radius: {int(4 * self.scale_factor)}px;
+                    font-weight: bold;
+                }}
+            """)
         else:
-            self.lbl_stats.setText(
-                f"包含 {chapter_count} 個章節，總計約 {char_count:,} 字（單次精確分析）"
-            )
+            self.btn_start.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: #0e639c;
+                    color: #ffffff;
+                    padding: {int(6 * self.scale_factor)}px {int(18 * self.scale_factor)}px;
+                    border: 1px solid #1177bb;
+                    border-radius: {int(4 * self.scale_factor)}px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: #1177bb;
+                    border-color: #4fc1ff;
+                }}
+            """)
 
     def _get_item_text_content(self, item: QTreeWidgetItem) -> str:
         """從記憶體節點、編輯器或資料庫獲取章節/幕內文"""
@@ -470,9 +585,7 @@ class AIScopeDialog(QDialog):
                     "scope_mode": "selection",
                     "scope_title": self.txt_title.text().strip() or f"選取片段{self.task_name}",
                     "text_content": self.selected_text,
-                    "chapter_count": 1,
-                    "algorithm_mode": "small_model" if self.radio_algo_small.isChecked() else "large_model",
-                    "candidate_threshold": self.spin_thresh.value()
+                    "chapter_count": 1
                 }
             else:
                 curr_name = self.current_item.text(0) if self.current_item else "當前章節"
@@ -503,9 +616,7 @@ class AIScopeDialog(QDialog):
                     "scope_mode": "current",
                     "scope_title": self.txt_title.text().strip() or f"【{curr_name}】{self.task_name}",
                     "text_content": full_text,
-                    "chapter_count": len(curr_chapters),
-                    "algorithm_mode": "small_model" if self.radio_algo_small.isChecked() else "large_model",
-                    "candidate_threshold": self.spin_thresh.value()
+                    "chapter_count": len(curr_chapters)
                 }
 
         # 全文 (all) 或自訂勾選 (custom)
@@ -544,12 +655,32 @@ class AIScopeDialog(QDialog):
             "scope_mode": "all" if is_all else "custom",
             "scope_title": self.txt_title.text().strip() or (f"全書{self.task_name}" if is_all else f"自訂章節{self.task_name}"),
             "text_content": full_text,
-            "chapter_count": len(collected_chapters),
-            "algorithm_mode": "small_model" if self.radio_algo_small.isChecked() else "large_model",
-            "candidate_threshold": self.spin_thresh.value()
+            "chapter_count": len(collected_chapters)
         }
 
+    def _check_and_refresh_connection(self):
+        if self.provider in ("LM Studio", "Ollama"):
+            self.local_server_online, self.local_server_msg = AIService.check_local_server_status(
+                self.provider, self.api_url, timeout=1.5
+            )
+            if self.local_server_online:
+                try:
+                    fetched_ctx = AIService.fetch_context_limit(self.provider, self.api_url, self.model, timeout=1.5)
+                    if fetched_ctx and fetched_ctx > 0:
+                        self.context_limit = fetched_ctx
+                        self.context_synced_from_backend = True
+                        if "context_limits" not in self.settings:
+                            self.settings["context_limits"] = {}
+                        self.settings["context_limits"][self.provider] = fetched_ctx
+                        AIService.save_settings(self.settings)
+                except Exception:
+                    pass
+            self.update_statistics()
+
     def _on_start_clicked(self):
+        if self.provider in ("LM Studio", "Ollama") and not self.local_server_online:
+            QMessageBox.warning(self, "服務未上線", f"目前 {self.provider} 服務未啟動或無法連線，請先啟動本機模型服務後重試。")
+            return
         data = self.get_scope_content()
         if not data["text_content"].strip():
             QMessageBox.warning(self, "提示", "所選範圍內無有效小說文字可供分析。")

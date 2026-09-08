@@ -26,7 +26,7 @@ class AIService:
     def call_api(cls, provider: str, api_url: str, api_key: str, model: str,
                  system_prompt: str = "", user_content: str = "",
                  messages: list = None, timeout=300, is_cancelled_callback=None,
-                 on_response_ready=None) -> str:
+                 on_response_ready=None, max_tokens: int = None) -> str:
         """發送請求至 LLM API 並回傳純文字結果（底層全面使用串流以支援立即中斷）"""
         generator = cls.call_api_stream(
             provider=provider,
@@ -38,7 +38,8 @@ class AIService:
             messages=messages,
             timeout=timeout,
             is_cancelled_callback=is_cancelled_callback,
-            on_response_ready=on_response_ready
+            on_response_ready=on_response_ready,
+            max_tokens=max_tokens
         )
         
         full_text = []
@@ -60,7 +61,7 @@ class AIService:
     def call_api_stream(cls, provider: str, api_url: str, api_key: str, model: str,
                  system_prompt: str = "", user_content: str = "",
                  messages: list = None, timeout=300, is_cancelled_callback=None,
-                 on_response_ready=None):
+                 on_response_ready=None, max_tokens: int = None):
         """發送請求至 LLM API 並以 Generator 形式回傳文字片段"""
         headers = {"Content-Type": "application/json"}
 
@@ -89,7 +90,7 @@ class AIService:
 
             payload = {
                 "model": model,
-                "max_tokens": 4096,
+                "max_tokens": max_tokens if max_tokens else 4096,
                 "stream": True,
                 "messages": chat_msgs if chat_msgs else [{"role": "user", "content": user_content}]
             }
@@ -102,6 +103,8 @@ class AIService:
                 "messages": formatted_messages,
                 "stream": True
             }
+            if max_tokens:
+                payload["options"] = {"num_predict": max_tokens}
         else:
             # OpenAI 相容介面
             if api_key:
@@ -114,6 +117,8 @@ class AIService:
                 "messages": formatted_messages,
                 "stream": True
             }
+            if max_tokens:
+                payload["max_tokens"] = max_tokens
 
         try:
             with requests.post(api_url, json=payload, headers=headers, stream=True, timeout=timeout) as response:
@@ -193,16 +198,39 @@ class AIService:
         )
 
     @classmethod
+    def fast_estimate_tokens(cls, text: str) -> int:
+        """
+        純本機零延遲 Token 估算。
+        針對中文（繁簡）、英文單字、標點符號與數字進行權重估算。
+        符合現代主流大模型（如 Qwen 2.5、LLaMA 3、DeepSeek 等）之 BPE 分詞特性。
+        """
+        if not text:
+            return 0
+        import re
+        # CJK 漢字數量（繁簡中文字元與擴展區）
+        cjk_count = len(re.findall(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', text))
+        # 移除非 CJK 以外的英數單字與詞元
+        non_cjk = re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', ' ', text)
+        words = len(non_cjk.split())
+        # 保守估算：中文字平均約 1.25 Token，英數單字約 1.3 Token
+        estimated = int(cjk_count * 1.25 + words * 1.3)
+        return max(1, estimated)
+
+    @classmethod
     def count_tokens(cls, provider: str, api_url: str, text: str, timeout=5) -> int:
         """
         向推理引擎查詢精確的 token 數量。
-        若不支援，則 fallback 到保守估算值（長度 * 2.5）。
+        若為不提供 tokenize 端點的服務（如 LM Studio / 雲端模型）或連線失敗，則使用純本機高精度估算。
         """
         if not text:
             return 0
             
-        fallback_tokens = int(len(text) * 2.5)
+        fallback_tokens = cls.fast_estimate_tokens(text)
         
+        # LM Studio 與 OpenAI 相容端點不提供 /v1/tokenize REST 端點，一律使用本機極速估算避免網路阻塞與報錯
+        if provider != "Ollama":
+            return fallback_tokens
+
         if not api_url:
             return fallback_tokens
 
@@ -212,8 +240,6 @@ class AIService:
         try:
             if provider == "Ollama":
                 # Ollama 0.2+ 支援 /api/tokenize，嘗試呼叫後取得精確 token 數
-                # payload 格式：{"model": <model>, "prompt": <text>}
-                # 回應格式：{"tokens": [...]}，tokens 列表長度即為 token 數
                 tokenize_url = f"{base_url}/api/tokenize"
                 try:
                     resp = requests.post(
@@ -229,26 +255,10 @@ class AIService:
                             return len(tokens_list)
                 except Exception:
                     pass
-                # 端點不存在或連線失敗時靜默 fallback
                 return fallback_tokens
-            elif provider == "LM Studio" or "1234" in api_url or "v1" in api_url:
-                tokenize_url = f"{base_url}/v1/tokenize"
-                payload = {"content": text}
-                # LM Studio v1/tokenize 只需要 content (或 prompt)
-                resp = requests.post(tokenize_url, json=payload, headers={"Content-Type": "application/json"}, timeout=timeout)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    # 依據 LM Studio 格式 (通常返回 {"count": xxx})
-                    if "count" in data:
-                        return int(data["count"])
-                    elif "total_tokens" in data:
-                        return int(data["total_tokens"])
-                    # 若為 embedding 介面可能在 usage 裡面
-                    elif "usage" in data and "total_tokens" in data["usage"]:
-                        return int(data["usage"]["total_tokens"])
                 
             return fallback_tokens
-        except Exception as e:
+        except Exception:
             return fallback_tokens
             
     @classmethod
@@ -268,7 +278,22 @@ class AIService:
                 data = resp.json()
                 models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
                 return models
-            elif provider == "LM Studio" or "1234" in api_url or "models" in api_url:
+            elif provider == "LM Studio" or "1234" in api_url:
+                # 優先嘗試 LM Studio 專用 /api/v0/models
+                try:
+                    v0_url = f"{base_url}/api/v0/models"
+                    resp = requests.get(v0_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                    if resp.status_code == 200:
+                        data = resp.json().get("data", [])
+                        loaded_models = [m.get("id", "") for m in data if m.get("state") == "loaded" and m.get("id")]
+                        other_models = [m.get("id", "") for m in data if m.get("state") != "loaded" and m.get("id")]
+                        all_models = loaded_models + other_models
+                        if all_models:
+                            return all_models
+                except Exception:
+                    pass
+
+                # Fallback 通用 OpenAI /v1/models 端點
                 models_url = f"{base_url}/v1/models"
                 resp = requests.get(models_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
                 resp.raise_for_status()
@@ -286,6 +311,104 @@ class AIService:
         except Exception as e:
             print(f"偵測本機模型失敗 ({provider}): {e}")
             return []
+
+    @classmethod
+    def check_local_server_status(cls, provider: str, api_url: str, timeout: float = 1.0) -> tuple[bool, str]:
+        """檢查本機推論引擎（LM Studio / Ollama）伺服器是否在線。
+        傳回 (is_online, message)。
+        """
+        if provider not in ("LM Studio", "Ollama"):
+            return True, "雲端服務"
+
+        if not api_url:
+            return False, f"尚未設定 {provider} API 網址"
+
+        parsed = urllib.parse.urlparse(api_url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else api_url
+
+        try:
+            if provider == "LM Studio" or "1234" in api_url:
+                probe_url = f"{base_url}/api/v0/models"
+                try:
+                    resp = requests.get(probe_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                    if resp.status_code == 200:
+                        return True, "連線正常"
+                except requests.exceptions.RequestException:
+                    pass
+                probe_url = f"{base_url}/v1/models"
+                resp = requests.get(probe_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                if resp.status_code == 200:
+                    return True, "連線正常"
+                return False, f"伺服器回應異常（HTTP {resp.status_code}）"
+
+            elif provider == "Ollama":
+                probe_url = f"{base_url}/api/tags"
+                resp = requests.get(probe_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                if resp.status_code == 200:
+                    return True, "連線正常"
+                return False, f"伺服器回應異常（HTTP {resp.status_code}）"
+        except (requests.exceptions.ConnectionError, requests.exceptions.ConnectTimeout):
+            return False, f"{provider} 服務未啟動（連線遭拒或超時）"
+        except requests.exceptions.Timeout:
+            return False, f"{provider} 服務連線超時"
+        except Exception as e:
+            return False, f"無法連線至 {provider} ({e})"
+
+        return False, f"{provider} 服務狀態未知"
+
+    @classmethod
+    def fetch_context_limit(cls, provider: str, api_url: str, model: str = "", timeout: float = 1.5) -> int | None:
+        """主動自本機端點（如 LM Studio / Ollama）查詢目前已載入模型的 Context 上限數值。
+        若查詢失敗或不支援動態查詢，則傳回 None。
+        """
+        if not api_url:
+            return None
+
+        parsed = urllib.parse.urlparse(api_url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else api_url
+
+        try:
+            if provider == "LM Studio" or "1234" in api_url:
+                v0_url = f"{base_url}/api/v0/models"
+                resp = requests.get(v0_url, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                if resp.status_code == 200:
+                    data = resp.json().get("data", [])
+                    target_item = None
+                    if model:
+                        for m in data:
+                            if m.get("id") == model:
+                                target_item = m
+                                break
+                    if not target_item:
+                        for m in data:
+                            if m.get("state") == "loaded":
+                                target_item = m
+                                break
+                    if not target_item and len(data) == 1:
+                        target_item = data[0]
+
+                    if target_item:
+                        loaded_ctx = target_item.get("loaded_context_length")
+                        if loaded_ctx and isinstance(loaded_ctx, int) and loaded_ctx > 0:
+                            return loaded_ctx
+                        max_ctx = target_item.get("max_context_length")
+                        if max_ctx and isinstance(max_ctx, int) and max_ctx > 0:
+                            return max_ctx
+
+            elif provider == "Ollama":
+                if model:
+                    show_url = f"{base_url}/api/show"
+                    resp = requests.post(show_url, json={"name": model}, headers={"User-Agent": "Jiufang-Novel-Editor"}, timeout=timeout)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        model_info = data.get("model_info", {})
+                        for k, v in model_info.items():
+                            if k.endswith(".context_length") and isinstance(v, int) and v > 0:
+                                return v
+        except Exception:
+            pass
+
+        return None
 
     @classmethod
     def parse_character_extraction_result(cls, raw_text: str, scope_title: str = "") -> dict:

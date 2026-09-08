@@ -132,29 +132,78 @@ class TestAISettingsAndWorker(unittest.TestCase):
                 self.assertEqual(len(analysis_results), 1)
                 self.assertEqual(analysis_results[0]["content"], "分析完成")
 
-    def test_ai_worker_handles_memory_error(self):
-        """測試 AIWorker 在遇到 MemoryError 時，能攔截並發射友善之 UI 降級提示訊號。"""
+    def test_ai_settings_dialog_context_limit(self):
+        """測試 AISettingsDialog 能夠正確讀取並儲存 Context 上限設定"""
+        from views.dialogs.ai_settings_dialog import AISettingsDialog
         from unittest.mock import patch
-        from services.long_text_analyzer import LongTextAnalyzer
+
+        fake_settings = dict(DEFAULT_SETTINGS)
+        fake_settings["provider"] = "LM Studio"
+        fake_settings["context_limits"]["LM Studio"] = 131072
+
+        with patch("services.ai_service.AIService.load_settings", return_value=fake_settings):
+            dlg = AISettingsDialog()
+            self.assertEqual(dlg.spin_context_limit.value(), 131072)
+
+            # 修改為 65536 並測試儲存
+            dlg.spin_context_limit.setValue(65536)
+            dlg._save_current_provider_fields("LM Studio")
+            self.assertEqual(dlg.settings["context_limits"]["LM Studio"], 65536)
+            dlg.close()
+
+    def test_ai_worker_long_text_single_request(self):
+        """測試超過 4000 字的長篇小說內文在 AIWorker 中一律透過單一串流請求完成，不發生 ModuleNotFoundError。"""
+        from unittest.mock import patch
 
         dummy_settings = {
             "provider": "LM Studio",
+            "timeout": 30,
             "api_urls": {"LM Studio": "http://localhost:1234/v1/chat/completions"},
             "api_keys": {"LM Studio": ""},
             "models": {"LM Studio": "test-model"},
-            "prompts": {"impression": "請分析"}
+            "prompts": {"impression": "請進行文學評語"}
         }
 
+        # 構造超過 8000 字的超長文本
+        long_text = "這是一段長篇小說情節測試內文。" * 600
+        self.assertGreater(len(long_text), 8000)
+
         with patch.object(AIService, 'load_settings', return_value=dummy_settings):
-            with patch.object(LongTextAnalyzer, 'calculate_dynamic_chunk_size', side_effect=MemoryError("系統記憶體不足")):
-                worker = AIWorker(task_type="impression", text_content="很長很長的文本" * 500, chunk_threshold=100)
-                error_msgs = []
-                worker.error_signal.connect(error_msgs.append)
+            with patch.object(AIService, 'call_api_stream', return_value=iter(["長篇評語", "分析結論"])) as mock_stream:
+                worker = AIWorker(task_type="impression", text_content=long_text, chapter_title="終章")
+                results = []
+                progress_reports = []
+                worker.finished_signal.connect(results.append)
+                worker.progress_signal.connect(lambda c, t, m: progress_reports.append((c, t, m)))
                 worker.run()
 
-                self.assertEqual(len(error_msgs), 1)
-                self.assertIn("記憶體不足", error_msgs[0])
-                self.assertIn("系統記憶體不足", error_msgs[0])
+                # 驗證串流 API 正確被單次呼叫且接收到完整長文本
+                mock_stream.assert_called_once()
+                self.assertEqual(mock_stream.call_args[1]["user_content"], long_text)
+
+                # 驗證分析結果與回傳資料結構
+                self.assertEqual(len(results), 1)
+                self.assertEqual(results[0]["content"], "長篇評語分析結論")
+                self.assertEqual(results[0]["title"], "【評語建議】 終章")
+                self.assertGreater(len(progress_reports), 0)
+
+    def test_ai_controller_starts_ai_worker_directly(self):
+        """測試 AIController.start_ai_analysis 一律直接實例化 AIWorker 並啟動。"""
+        from unittest.mock import MagicMock, patch
+        from controllers.ai_controller import AIController
+
+        mock_mc = MagicMock()
+        mock_mc.view = None
+
+        controller = AIController(mock_mc)
+        with patch.object(AIWorker, "start") as mock_start:
+            controller.start_ai_analysis(task_type="world", text="世界觀正文", chapter_title="設定集")
+            self.assertIsNotNone(controller.ai_worker)
+            self.assertIsInstance(controller.ai_worker, AIWorker)
+            self.assertEqual(controller.ai_worker.task_type, "world")
+            self.assertEqual(controller.ai_worker.text_content, "世界觀正文")
+            self.assertEqual(controller.ai_worker.chapter_title, "設定集")
+            mock_start.assert_called_once()
 
 
 if __name__ == "__main__":

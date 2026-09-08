@@ -43,7 +43,7 @@ class BaseAIWorker(QThread):
 
 
 class AIWorker(BaseAIWorker):
-    """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線，支援長文捲動壓縮 HRCI）"""
+    """通用 AI 分析背景執行緒（評語、角色、世界觀、時間線，採單一串流請求架構）"""
     finished_signal = pyqtSignal(dict)
     progress_signal = pyqtSignal(int, int, str)  # (current_step, total_steps, message)
     error_signal = pyqtSignal(str)
@@ -55,7 +55,7 @@ class AIWorker(BaseAIWorker):
         self.text_content = text_content
         self.chapter_title = chapter_title
         self.custom_prompt = custom_prompt
-        self.chunk_threshold = chunk_threshold
+        self.chunk_threshold = chunk_threshold  # 已廢棄：保留以維持向後相容性，不再執行長文分段
 
     def run(self):
         try:
@@ -74,75 +74,37 @@ class AIWorker(BaseAIWorker):
 
             system_prompt = self.custom_prompt or prompts.get(self.task_type, "")
 
-            # 判斷是否為長文（字數大於門檻）
-            text_len = len(self.text_content)
-            if text_len > self.chunk_threshold:
-                from services.long_text_analyzer import LongTextAnalyzer
+            # 單一串流請求（Single Streaming Request）
+            self.progress_signal.emit(1, 1, "正在連線模型並分析文本...")
+            chunks = []
+            generator = AIService.call_api_stream(
+                provider=provider,
+                api_url=api_url,
+                api_key=api_key,
+                model=model,
+                system_prompt=system_prompt,
+                user_content=self.text_content,
+                timeout=timeout,
+                is_cancelled_callback=lambda: self._is_cancelled,
+                on_response_ready=self._set_active_response
+            )
+            try:
+                chunk_count = 0
+                for chunk in generator:
+                    if self._is_cancelled:
+                        break
+                    chunks.append(chunk)
+                    chunk_count += 1
+                    if chunk_count % 5 == 0:
+                        total_len = sum(len(c) for c in chunks)
+                        self.progress_signal.emit(1, 1, f"正在生成分析結果（已產出約 {total_len} 字）...")
+            finally:
+                if hasattr(generator, "close"):
+                    generator.close()
 
-                def api_caller(sys_p: str, user_p: str) -> str:
-                    return AIService.call_api(
-                        provider=provider,
-                        api_url=api_url,
-                        api_key=api_key,
-                        model=model,
-                        system_prompt=sys_p,
-                        user_content=user_p,
-                        timeout=timeout,
-                        is_cancelled_callback=check_cancelled,
-                        on_response_ready=self._set_active_response
-                    )
-
-                def on_progress(cur: int, tot: int, msg: str):
-                    self.progress_signal.emit(cur, tot, msg)
-
-                def check_cancelled() -> bool:
-                    return self._is_cancelled
-
-                def token_counter(text: str) -> int:
-                    return AIService.count_tokens(provider, api_url, text, timeout)
-
-                analyzer = LongTextAnalyzer(ai_caller=api_caller, token_counter=token_counter)
-                analysis_result = analyzer.analyze_long_text(
-                    text=self.text_content,
-                    task_type=self.task_type,
-                    custom_prompt=self.custom_prompt,
-                    progress_callback=on_progress,
-                    is_cancelled_callback=check_cancelled
-                )
-                if self._is_cancelled:
-                    return
-                result_text = analysis_result.final_synthesis
-            else:
-                self.progress_signal.emit(1, 1, "🧠 正在連線模型並分析文本...")
-                chunks = []
-                generator = AIService.call_api_stream(
-                    provider=provider,
-                    api_url=api_url,
-                    api_key=api_key,
-                    model=model,
-                    system_prompt=system_prompt,
-                    user_content=self.text_content,
-                    timeout=timeout,
-                    is_cancelled_callback=lambda: self._is_cancelled,
-                    on_response_ready=self._set_active_response
-                )
-                try:
-                    chunk_count = 0
-                    for chunk in generator:
-                        if self._is_cancelled:
-                            break
-                        chunks.append(chunk)
-                        chunk_count += 1
-                        if chunk_count % 5 == 0:
-                            total_len = sum(len(c) for c in chunks)
-                            self.progress_signal.emit(1, 1, f"✨ 正在生成分析結果（已產出約 {total_len} 字）...")
-                finally:
-                    if hasattr(generator, "close"):
-                        generator.close()
-
-                if self._is_cancelled:
-                    return
-                result_text = "".join(chunks)
+            if self._is_cancelled:
+                return
+            result_text = "".join(chunks)
 
             # 解析結構與卡片預設對應類別
             category_map = {

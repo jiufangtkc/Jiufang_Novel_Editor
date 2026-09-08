@@ -178,9 +178,7 @@ class AIController:
                 self.start_ai_analysis(
                     task_type, 
                     scope_data["text_content"], 
-                    scope_data["scope_title"],
-                    algorithm_mode=scope_data.get("algorithm_mode", "large_model"),
-                    candidate_threshold=scope_data.get("candidate_threshold", 3)
+                    scope_data["scope_title"]
                 )
             return
 
@@ -201,9 +199,7 @@ class AIController:
                 self.start_ai_analysis(
                     task_type, 
                     scope_data["text_content"], 
-                    scope_data["scope_title"],
-                    algorithm_mode=scope_data.get("algorithm_mode", "large_model"),
-                    candidate_threshold=scope_data.get("candidate_threshold", 3)
+                    scope_data["scope_title"]
                 )
             return
 
@@ -215,7 +211,7 @@ class AIController:
         chapter_title = self.mc.current_file_item.text(0) if self.mc.current_file_item else ""
         self.start_ai_analysis(task_type, target_text, chapter_title)
 
-    def start_ai_analysis(self, task_type: str, text: str, chapter_title: str = "", algorithm_mode: str = "large_model", candidate_threshold: int = 3):
+    def start_ai_analysis(self, task_type: str, text: str, chapter_title: str = ""):
         """啟動非同步 AI 分析執行緒，並展示無焦點浮動進度 HUD。"""
         if self.ai_worker and self.ai_worker.isRunning():
             QMessageBox.warning(self.view, "提示", "AI 分析進行中，請稍候完成後再發起新請求。")
@@ -226,21 +222,17 @@ class AIController:
             self.ai_floating_hud.signal_cancel.connect(self.cancel_ai_analysis)
 
         task_name_map = {
-            "character": "👤 登場角色提取",
-            "impression": "📝 文學評語與寫作建議",
-            "world": "🌍 世界觀設定提取",
-            "timeline": "⏱️ 時間線與事件梳理"
+            "character": "登場角色提取",
+            "impression": "文學評語與寫作建議",
+            "world": "世界觀設定提取",
+            "timeline": "時間線與事件梳理"
         }
-        t_name = task_name_map.get(task_type, "✨ AI 文本分析")
+        t_name = task_name_map.get(task_type, "AI 文本分析")
         if chapter_title:
-            t_name = f"{t_name} — {chapter_title}"
+            t_name = f"{t_name}：{chapter_title}"
         self.ai_floating_hud.start(t_name)
 
-        if algorithm_mode == "small_model":
-            from services.ai_pipeline_workers import LongTextPipelineWorker
-            self.ai_worker = LongTextPipelineWorker(task_type, text, chapter_title=chapter_title, threshold=candidate_threshold)
-        else:
-            self.ai_worker = AIWorker(task_type, text, chapter_title=chapter_title)
+        self.ai_worker = AIWorker(task_type, text, chapter_title=chapter_title)
             
         self.ai_worker.progress_signal.connect(self.on_ai_analysis_progress)
         self.ai_worker.finished_signal.connect(self.on_ai_analysis_finished)
@@ -262,7 +254,7 @@ class AIController:
     def on_ai_analysis_finished(self, result_data: dict):
         """AI 分析成功回傳後的處理流程。"""
         if self.ai_floating_hud:
-            self.ai_floating_hud.finish("✅ 分析完成！")
+            self.ai_floating_hud.finish("分析完成！")
         self.mc.update_status_bar()
 
         task_type = result_data.get("task_type", "")
@@ -337,7 +329,7 @@ class AIController:
 
     def _start_ai_expansion(self, data: dict):
         if not self.ai_task_overlay:
-            self.ai_task_overlay = AITaskOverlay(self.view, title="✨ AI 擴寫任務")
+            self.ai_task_overlay = AITaskOverlay(self.view, title="AI 擴寫任務")
             self.ai_task_overlay.signal_insert_text.connect(self._insert_streamed_text)
             self.ai_task_overlay.signal_cancel.connect(self._cancel_ai_expansion)
         

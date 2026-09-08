@@ -92,12 +92,12 @@ class TestAIService(unittest.TestCase):
 
 
     def test_count_tokens_ollama_fallback_on_missing_endpoint(self):
-        """驗證 Ollama tokenize 端點不存在（連線異常）時靜默 fallback 到保守估算值"""
+        """驗證 Ollama tokenize 端點不存在（連線異常）時靜默 fallback 到本機保守估算值"""
         from unittest.mock import patch, MagicMock
         import requests as req_module
 
         text = "這是一段測試文字，用來驗證 Token 計算的 Fallback 機制。"
-        expected_fallback = int(len(text) * 2.5)
+        expected_fallback = AIService.fast_estimate_tokens(text)
 
         # 模擬端點連線失敗
         with patch("services.ai_service.requests.post", side_effect=req_module.exceptions.ConnectionError("Connection refused")):
@@ -117,6 +117,74 @@ class TestAIService(unittest.TestCase):
             result = AIService.count_tokens("Ollama", "http://127.0.0.1:11434/api/generate", text, timeout=5)
             self.assertEqual(result, 18)
 
+    def test_count_tokens_lm_studio_no_network(self):
+        """驗證 LM Studio 直接使用本機零延遲估算，絕不對外發送 /v1/tokenize 請求"""
+        from unittest.mock import patch
+
+        text = "這是一段測試小說內文，莫庸持劍走向星空深處。"
+        with patch("services.ai_service.requests.post") as mock_post:
+            result = AIService.count_tokens("LM Studio", "http://localhost:1234/v1/chat/completions", text)
+            mock_post.assert_not_called()
+            self.assertEqual(result, AIService.fast_estimate_tokens(text))
+            self.assertGreater(result, 0)
+
+    def test_fetch_context_limit_lm_studio(self):
+        """測試向 LM Studio /api/v0/models 正確解析 loaded_context_length"""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "data": [
+                {
+                    "id": "qwen3.5-9b-uncensored",
+                    "state": "loaded",
+                    "max_context_length": 262144,
+                    "loaded_context_length": 131072
+                }
+            ]
+        }
+
+        with patch("services.ai_service.requests.get", return_value=mock_resp):
+            limit = AIService.fetch_context_limit("LM Studio", "http://localhost:1234/v1/chat/completions")
+            self.assertEqual(limit, 131072)
+
+    def test_fetch_context_limit_offline(self):
+        """測試當本機端點離線或錯誤時，安全回傳 None"""
+        from unittest.mock import patch
+
+        with patch("services.ai_service.requests.get", side_effect=Exception("Connection refused")):
+            limit = AIService.fetch_context_limit("LM Studio", "http://localhost:1234/v1/chat/completions", timeout=0.1)
+            self.assertIsNone(limit)
+
+    def test_check_local_server_status_online(self):
+        """測試當本機端點正常回應時，check_local_server_status 回傳 (True, '連線正常')"""
+        from unittest.mock import MagicMock, patch
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+
+        with patch("services.ai_service.requests.get", return_value=mock_resp):
+            online, msg = AIService.check_local_server_status("LM Studio", "http://localhost:1234/v1/chat/completions")
+            self.assertTrue(online)
+            self.assertEqual(msg, "連線正常")
+
+    def test_check_local_server_status_offline(self):
+        """測試當本機端點連線遭拒時，check_local_server_status 正確回傳 (False, 錯誤訊息)"""
+        import requests
+        from unittest.mock import patch
+
+        with patch("services.ai_service.requests.get", side_effect=requests.exceptions.ConnectionError("Connection refused")):
+            online, msg = AIService.check_local_server_status("LM Studio", "http://localhost:1234/v1/chat/completions")
+            self.assertFalse(online)
+            self.assertIn("未啟動", msg)
+
+    def test_check_local_server_status_cloud_always_online(self):
+        """測試雲端模型服務（如 OpenAI/Google）不進行本地探測，直接視為在線"""
+        online, msg = AIService.check_local_server_status("OpenAI", "https://api.openai.com/v1")
+        self.assertTrue(online)
+
 
 if __name__ == "__main__":
     unittest.main()
+

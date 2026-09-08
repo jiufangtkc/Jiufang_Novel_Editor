@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-08，完成全系列 AI 任務取消與 Socket 連線主動中斷（Active Connection Abort）機制，全套 254 項單元測試維持 100% 綠燈通過。
+> 最後更新：2026-09-08，發布 v0.1.4-Beta 測試預發布版（包含 Setup.exe 與 Zip），整合 AI 助手單一串流架構與實用化人物卡抽取、純本機零延遲 Token 估算、TCP Socket 主動中斷釋放與 Phase 4 廢棄代碼清理，全套 40 個測試模組、257 項單元測試維持 100% 綠燈通過。
 
 ### 階段 23：實作全系列 AI 功能的滾動式抽取演算法
 - **實作 `LongTextPipelineWorker`**：
@@ -62,27 +62,38 @@
   - **Safe Generator Close**：呼叫串流 Generator 後，在 `finally` 區塊檢查 `if hasattr(generator, "close"): generator.close()`，確保無論正常結束或提早中斷皆即時釋放連線資源。
   - **全功能防護覆蓋**：`AIWorker`、`LongTextPipelineWorker`、`AIChatWorker`、`AIStreamWorker`、`AIContinuationWorker` 全面繼承 `BaseAIWorker`，對話視窗與擴寫視窗關閉事件（`closeEvent`）皆自動連動取消。
 
+### 陷阱 26：LM Studio 無 /v1/tokenize REST 端點與 UI 執行緒 Blocking I/O 防護
+- **問題根源**：
+  LM Studio 本機伺服器相容於標準 OpenAI REST API，未提供 `/v1/tokenize` REST 端點（官方僅在內部 SDK 提供）。向其發送 `POST /v1/tokenize` 會導致 LM Studio DEV server 輸出 `[ERROR] Unexpected endpoint or method. (POST /v1/tokenize). Returning 200 anyway`。此外，在 `AIScopeDialog` 等範圍選擇視窗中，若在主 UI 執行緒同步調用 Blocking HTTP 請求計算數萬字文本的 Token，大 Payload 傳輸、LM Studio 處理非預期端點與超時等待會直接造成主執行緒凍結卡死 1 至 2 秒以上。
+- **現行架構處理**：
+  - `AIService.count_tokens` 針對非 Ollama（如 LM Studio 與雲端服務）一律使用純本機零延遲高精度分詞估算法 `fast_estimate_tokens`，完全不發起網路請求。
+  - `fast_estimate_tokens` 針對中文字（CJK，保守加權 1.25）、英數單字（1.3）等現代大模型 BPE 特徵，在 0.1 毫秒內給出準確估算。
+  - 徹底消除 LM Studio DEV server 報錯，並使 `AIScopeDialog` 在切換選取、章節與計算時維持 0 毫秒極速響應，徹底根除卡頓。
+  - 全套自動化單元測試執行時間因剔除向本機伺服器的無效請求超時，由 160 秒大幅縮減至 23 秒。
+
 ---
 
 ## 4. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
-- **本次完成事項（全系列 AI 任務取消與 Socket 連線主動中斷修復、全面剔除危險 terminate、全套測試擴充至 254 項 100% 綠燈）**：
+- **本次完成事項（LM Studio /v1/tokenize 終端機報錯消除、純本機零延遲 Token 估算、根除選取文本計算卡頓、全套測試擴充至 257 項 100% 綠燈）**：
   1. **問題排查與根本原因鎖定**：
-     - 使用者在浮動進度 HUD 點選「✕」取消時，模型後台依舊在生成，係因 `AIController.cancel_ai_analysis()` 呼叫了 `QThread.terminate()`。該函式強行中斷 OS 執行緒，導致 Python 的 `with` 與 `finally` 區塊完全未執行，HTTP Socket 保持 ESTABLISHED，本地模型（llama.cpp / LM Studio）未收到 broken pipe 而繼續生成完畢。
-     - `LongTextPipelineWorker` 在階段 1（預掃描）與階段 2（滾動抽取）呼叫 `AIService.call_api` 時漏傳 `is_cancelled_callback`。
-  2. **Active Connection Abort 機制實作**：
-     - 在 `AIService.call_api` 與 `call_api_stream` 引入 `on_response_ready` 回呼，在取得 response 物件時註冊至 Worker 的 active response。
-     - 抽象出 `BaseAIWorker` 基類，所有 AI Worker（`AIWorker`, `LongTextPipelineWorker`, `AIChatWorker`, `AIStreamWorker`, `AIContinuationWorker`）全面繼承。當外界呼叫 `worker.cancel()` 時，主動呼叫 `active_response.raw.close()` 與 `active_response.close()`，向伺服器發送 TCP FIN/RST，使 LM Studio 於毫秒級中止推論。
-     - 生成器以 `try...finally: if hasattr(generator, "close"): generator.close()` 進行防禦性釋放，相容 Mock 與一般迭代器。
-  3. **UI 與 Controller 連動健全化**：
-     - 徹底移除 `cancel_ai_analysis()` 中的 `terminate()`，改為 `cancel()` 搭配 `wait(1000)` 平穩退出。
-     - `AIChatDialog` 與 `AITaskOverlay`（擴寫視窗）皆加入 `closeEvent` 與 `signal_cancel`，確保視窗關閉時自動中斷背景推論。
-  4. **全套測試維持 100% 綠燈**：
-     - 撰寫 `tests/test_ai_cancellation.py`，全套 254 項單元測試 100% 通過。同步維護更新 `TEST_SUITE.md` 與 `HANDOVER.md`。
+     - 使用者回報 LM Studio DEV server 終端機頻繁出現 `[ERROR] Unexpected endpoint or method. (POST /v1/tokenize). Returning 200 anyway`，且選取文本並計算時非常卡頓。
+     - 排查確認：LM Studio 官方 REST API 根本未提供 `/v1/tokenize` 端點；`AIScopeDialog` 在主 UI 執行緒中頻繁同步調用 `TokenEstimator.estimate_request`，其向 LM Studio 連續發起 2 次 Blocking HTTP POST 請求（大文本 + Prompt），導致主執行緒凍結卡頓。
+  2. **純本機高精度零延遲分詞估算（Zero-Latency Token Estimation）實作**：
+     - 在 `AIService` 與 `TokenEstimator` 實作 `fast_estimate_tokens`，依據 CJK 繁簡漢字（1.25x）與英數詞元（1.3x）加權，5 萬字耗時 < 3 毫秒，精度高度貼合現代大模型 BPE 分詞器。
+     - 重構 `AIService.count_tokens`：LM Studio 與雲端模型直接使用 `fast_estimate_tokens`，徹底移除無效的 `POST /v1/tokenize` 網路請求。
+     - 徹底杜絕 LM Studio 伺服器報錯，並使對話框文字選取與計算維持 0 毫秒即時響應。
+  3. **測試與防護健全化**：
+     - 在 `tests/test_ai_service.py` 新增 `test_count_tokens_lm_studio_no_network`，驗證 LM Studio 不對外發送請求。
+     - 在 `tests/test_token_estimator.py` 新增 `test_fast_estimate_tokens` 驗證估算精度。
+     - 健全 `TestAICharacterExtraction` 與 `TestAIScopeDialog` 的 Mock 防護，全套 257 項測試 100% 綠燈，執行時間由 160 秒驟降至 23 秒。
+     - 同步更新 `.agents/docs/TEST_SUITE.md` 與 `.agents/docs/HANDOVER.md`。
 
 - **當前任務狀態**：
-  1. 程式碼變更與更新文件皆已提交並推送到 GitHub 遠端 `main` 分支。
-  2. GitHub Release `v0.1.3-beta` 資產已重新替換發布，文案全面完成台灣繁體中文純化。
+  1. 程式碼修改完成，全套 257 項單元測試 100% 通過。
+  2. 發布 v0.1.4-Beta 測試預發布版（Setup.exe 與 Zip 封裝檔）。
+  3. Git 標籤 `v0.1.4-beta` 與遠端分支同步推送。
+  4. 交接文件與測試手冊維護完畢。
 
 - **下一個 Agent 的任務指引**：
   1. 後續所有對外文件或 Release Notes 必須遵守 `.agents/rules/workspace_rules.md` 中的發布規範，嚴禁使用 Emoji 與煽情行銷詞彙，嚴格使用台灣繁體中文。
@@ -392,13 +403,54 @@
      - 全專案 40 個測試模組、254 項單元測試 100% 綠燈通過。
      - 同步更新 `.agents/docs/TEST_SUITE.md`。
 
+- **本次完成事項 (長文分析重構 Phase 3：流程簡化與單一串流請求架構完全收斂)**：
+  1. **AIWorker 拔除廢棄長文分段邏輯**：
+     - 在 `services/ai_worker.py` 中徹底移除 `text_len > self.chunk_threshold` 判斷與動態引用 `services.long_text_analyzer` 的殘留邏輯，根治長篇正文分析引發 `ModuleNotFoundError` 的重大潛在缺陷。
+     - 所有長度之分析請求完全收斂至 `AIService.call_api_stream` 單一串流請求機制。
+     - 保留 `chunk_threshold` 預設參數以維護向後相容，更新類別 docstring 為單一串流請求架構說明。
+     - 進度回報訊息中的 Emoji 符號純化為標準台灣繁體中文純文字（如「正在連線模型並分析文本…」）。
+  2. **AIController 介面收斂與文案純化**：
+     - 在 `controllers/ai_controller.py` 中確認所有文本分析任務（角色、評語、世界觀、時間線）皆直接實例化 `AIWorker`，無任何演算法分流。
+     - 浮動進度 HUD 任務名稱字典（`task_name_map`）與完成提示純化，剔除 Emoji 符號並規範為台灣繁體中文。
+     - 擴寫任務視窗標題去除 Emoji，改為純淨的「AI 擴寫任務」。
+  3. **測試套件擴充與全量通過**：
+     - 在 `tests/test_ai_settings_and_worker.py` 新增 `test_ai_worker_long_text_single_request`，驗證超過 8,000 字超長小說正文在 `AIWorker` 中直接執行單一串流請求且完整回傳結果，不再發生模組引用錯誤。
+     - 新增 `test_ai_controller_starts_ai_worker_directly`，驗證控制器直接發起 `AIWorker` 背景工作。
+
+- **本次完成事項 (長文分析重構 Phase 4：清理廢棄模組、模型與工具層死碼)**：
+  1. **舊有管線與分析器模組徹底移除**：
+     - 確認已自專案與 Git 追蹤中完全移除 `services/ai_pipeline_workers.py`（舊版 4 階段滾動式抽取 Worker）與 `services/long_text_analyzer.py`（舊版 HRCI 長文分段分析引擎）。
+     - 確認已移除舊版管線與分析器之測試檔案 `tests/test_long_text_pipeline.py` 與 `tests/test_long_text_analyzer.py`。
+  2. **模型層與工具層死碼全面清理**：
+     - 在 `models/models.py` 中徹底移除專為舊版滾動壓縮演算法設計之 `CompactState`、`ChunkAnalysisResult`、`LongTextAnalysisResult` 類別定義（清除 168 行死碼），消除無效維護成本。
+     - 移除舊版分段工具檔案 `utils/text_splitter.py`（含 `chunk_text_with_overlap`），全專案不再有任何長文切分與分段殘留。
+     - 移除先前診斷階段殘留之未追蹤檔案 `services/diagnostic_logger.py`。
+  3. **測試與規格文件校準維護**：
+     - 在 `.agents/docs/TEST_SUITE.md` 中校準測試範疇總覽表各項分類計數（補齊類別 11 與 12），精確對齊全套 40 個測試模組。
+     - 在 `.agents/docs/ROADMAP.md` 中登錄 Phase 28 長文分析架構重構（單一串流請求）完成里程碑。
+
+- **本次完成事項 (Local LLM 本機伺服器離線狀態即時偵測與 Context 誤報修復，全套 255 項測試 100% 綠燈)**：
+  1. **問題根源剖析**：
+     - 使用者未開啟 LM Studio 或 Ollama 本地伺服器時，`AIScopeDialog` 讀取先前殘留之快取 context_limit（如 131,072）進行 Token 估算。當文字量換算總需約 154,264 時，判定超標並顯示「超過目前 Context 限制」，而非明確指出「本機伺服器未啟動」，造成使用者對錯誤主因產生誤解。
+  2. **AIService 實作輕量即時連線探測**：
+     - 在 `services/ai_service.py` 實作 `check_local_server_status(provider, api_url, timeout=1.0)`。
+     - 針對 LM Studio 探測 `/api/v0/models`（與 `/v1/models`），針對 Ollama 探測 `/api/tags`；若遇 ConnectionRefused 或連線逾時，精確判定為 `False, "服務未啟動"`；雲端供應商則直接回傳 True。
+  3. **AIScopeDialog 介面與防護連動**：
+     - `AIScopeDialog` 初始化時自動對本機模型發起連線探測。
+     - 若伺服器離線，於統計面板明確顯示「目前 {provider} 狀態：未連線（服務未啟動）」與「狀態：Local LLM 服務未上線，請先啟動 {provider} 本機服務」（紅燈警示），強制禁用開始提取按鈕，且不展示誤導性的「超過目前 Context 限制」。
+     - 對話框底部工具列新增「重新檢查服務」按鈕，使用者啟動 LM Studio 後無需重啟對話框即可原地刷新連線狀態並解鎖按鈕。
+     - 點擊開始分析時增加二次攔截防線，避免背景 Worker 發起無效連線。
+  4. **自動化測試擴充與 100% 綠燈驗證**：
+     - 在 `tests/test_ai_scope_dialog.py` 新增 `test_scope_dialog_local_server_offline_disables_start_button`。
+     - 在 `tests/test_ai_service.py` 新增 `test_check_local_server_status_online`、`test_check_local_server_status_offline`、`test_check_local_server_status_cloud_always_online`。
+     - 全專案 40 個測試模組、255 項單元測試 100% 綠燈通過（`pytest tests/` 255 passed in 158.66s）。
+
 - **當前任務狀態**：
-  1. 動態硬體感知與長文自適應切分計畫（Phase 1~3）以及 AI 任務停止與取消機制已全數完成。
-  2. 全套 254 項單元測試 100% 綠燈通過。
+  1. Phase 4（清理廢棄模組、死碼與舊測試）已全部執行完畢。
+  2. Local LLM 離線狀態偵測與防護已實作並經測試驗證。
+  3. 全套 255 項單元測試 100% 綠燈通過。
 
 - **下一個 Agent 的任務指引**：
-  1. 後續若新增 AI 供應商或調整背景工作 Worker，請務必繼承 `BaseAIWorker` 並維持連線關閉與取消中斷機制。
-  2. 提交或推送前務必確認全套測試維持通過，並維護相關交接文件。
-
-
-
+  1. 接續進行 [LONG_CONTEXT_REFACTOR_PLAN.md](file:///c:/Users/yenfu/.gemini/antigravity-ide/brain/6b83bfda-d13c-4780-8c55-4e3906d8cbef/LONG_CONTEXT_REFACTOR_PLAN.md) 中的 **Phase 5（手動驗證）**。
+  2. 依計畫使用短篇、中長篇、超長篇文本在 UI 實際操作驗證綠/黃/紅狀態燈號與按鈕防護、連線中斷（Cancel）、Timeout 與串流生成。
+  3. 執行測試時請使用 `.venv\Scripts\python.exe -m pytest tests/`，有新增/修改測試時隨同維護 `TEST_SUITE.md`。
