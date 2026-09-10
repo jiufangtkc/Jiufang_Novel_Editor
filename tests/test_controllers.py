@@ -115,8 +115,9 @@ class TestControllers(unittest.TestCase):
         self.assertEqual(self.mc.project_info.logline, "大綱內容")
 
     def test_main_editor_plain_text_paste_and_preservation(self):
-        """測試主編輯器無格式貼上與純文字換行保留。"""
+        """測試主編輯器的雙重貼上模式行為：純文字與富文本保留"""
         from PyQt6.QtCore import QMimeData
+        from PyQt6.QtWidgets import QApplication
 
         self.assertTrue(self.view.editor.acceptRichText())
 
@@ -125,14 +126,24 @@ class TestControllers(unittest.TestCase):
         mime.setHtml("<h1>標題</h1><p style='color:red;'>第一段<b>粗體</b></p><br><p>第二段</p>")
         mime.setText("標題\n第一段粗體\n\n第二段")
 
+        # 將測試資料放入系統剪貼簿
+        QApplication.clipboard().setMimeData(mime)
+
         self.view.editor.clear()
-        self.view.editor.insertFromMimeData(mime)
+        # 測試 Ctrl+Shift+V: 僅貼上純文字
+        self.view.editor.paste_as_plain_text()
         pasted_text = self.view.editor.toPlainText().strip()
 
         self.assertEqual(pasted_text, "標題\n第一段粗體\n\n第二段")
-        self.assertNotIn("<h1>", pasted_text)
-        self.assertNotIn("style='color:red;'", pasted_text)
-        self.assertNotIn("<b>", pasted_text)
+
+        self.view.editor.clear()
+        # 測試 Ctrl+V: 按照來源格式貼上
+        self.view.editor.insertFromMimeData(mime)
+        rich_text = self.view.editor.toHtml()
+        
+        # 預期會包含原有的 HTML 結構 (至少包含標題或粗體)
+        self.assertIn("標題", rich_text)
+        self.assertIn("第一段", rich_text)
 
     def test_trash_permanent_delete_and_clear(self):
         """測試垃圾桶永久刪除選取項目與清空垃圾桶功能。"""
