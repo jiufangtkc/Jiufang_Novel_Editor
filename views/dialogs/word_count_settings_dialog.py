@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QFrame
@@ -8,7 +9,7 @@ from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
 
 
-class WordCountSettingsDialog(QDialog):
+class WordCountSettingsDialog(BaseDialog):
     """字數統計規則設定對話框。
     
     提供作者自訂字數統計規則：
@@ -19,8 +20,6 @@ class WordCountSettingsDialog(QDialog):
     def __init__(self, parent=None, count_half_alnum_and_sym: bool = False, count_full_space: bool = False):
         super().__init__(parent)
         self.setWindowTitle("字數統計規則設定")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(460 * self.scale_factor), int(320 * self.scale_factor))
         self.setModal(True)
 

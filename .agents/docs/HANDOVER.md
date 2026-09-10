@@ -2,6 +2,16 @@
 
 > 最後更新：2026-09-10，完成編輯器底層重構、雙重貼上模式與資料集匯入匯出，並優化了 LM Studio 的零延遲 Token 估算，全套 257 項單元測試維持 100% 綠燈通過。
 
+### 階段 24：程式碼架構瘦身與精簡重構
+- **完全棄用舊版 JSON 格式存檔**：
+  移除了 `project_controller.py` 中龐大且不再被呼叫的 `_migrate_legacy_dict_to_jne_project` 與多餘的 JSON 相關邏輯，專案全面強制使用 SQLite。
+- **外部化 AI Prompt 模板**：
+  建立 `resources/prompts/` 將角色、印象、世界觀、時間線、延續寫作等 6 大 Prompt 從 `services/ai_settings_service.py` 剝離成純文字檔，降低核心程式碼負載。
+- **共用 UI 元件 `BaseDialog` 提取**：
+  新增 `views/common/base_dialog.py`，全數封裝 `ThemeManager.apply_theme_to_dialog(self)` 與 `self.scale_factor` 等邏輯，並成功重構 `views/dialogs/` 下的 22 個 `QDialog` 類別，大幅削減重複樣板程式碼。
+- **測試套件架構分層**：
+  將 `tests/` 底下 40 個測試檔重構至 `tests/unit/`、`tests/integration/`、`tests/ui/`，並修正所有 `sys.path` 問題，257 項測試維持 100% 綠燈。
+
 ### 階段 23：實作全系列 AI 功能的滾動式抽取演算法
 - **實作 `LongTextPipelineWorker`**：
   在 `services/ai_pipeline_workers.py` 實作了 4 階段滾動式抽取演算法（分段、預掃描、滾動抽取、收尾）。此 Worker 動態支援 `"character", "impression", "world", "timeline"` 等不同任務類型的 JSON diff 抽取，並最終轉換成卡片相容格式。

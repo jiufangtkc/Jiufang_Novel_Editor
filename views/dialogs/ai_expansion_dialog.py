@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QPushButton, QSpinBox, QMessageBox
@@ -6,7 +7,7 @@ from PyQt6.QtCore import Qt
 from utils.font_manager import FontManager
 
 
-class AIExpansionDialog(QDialog):
+class AIExpansionDialog(BaseDialog):
     """
     提供給使用者填寫擴寫參數的對話框（前文、後文、擴寫指引、預期字數）。
     輸入完畢後，點擊「開始擴寫」將觸發後續的浮動串流生成。
@@ -14,7 +15,6 @@ class AIExpansionDialog(QDialog):
     def __init__(self, parent=None, initial_preceding="", initial_succeeding=""):
         super().__init__(parent)
         self.setWindowTitle("✨ AI 智慧擴寫")
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.resize(int(600 * self.scale_factor), int(500 * self.scale_factor))
         self.setModal(True)
         if parent:

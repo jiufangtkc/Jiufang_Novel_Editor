@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QComboBox,
     QLineEdit, QTextEdit, QPushButton, QLabel, QTabWidget,
@@ -48,11 +49,10 @@ class DetectModelsWorker(QThread):
             self.result_signal.emit([], str(e))
 
 
-class AISettingsDialog(QDialog):
+class AISettingsDialog(BaseDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("AI 助手設定")
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.resize(int(580 * self.scale_factor), int(580 * self.scale_factor))
         self.setFont(FontManager.get_font(size=int(9 * self.scale_factor)))
         self.setModal(True)

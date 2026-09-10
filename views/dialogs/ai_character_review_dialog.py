@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QLineEdit, QTextEdit, QWidget,
@@ -11,7 +12,7 @@ from utils.markdown_highlighter import MarkdownHighlighter
 from utils.markdown_utils import markdown_to_html, document_to_markdown
 
 
-class AICharacterReviewDialog(QDialog):
+class AICharacterReviewDialog(BaseDialog):
     """
     AI 角色提取結果審核與批次建立對話框。
     左側：角色卡清單與關係卡（支援核取方塊多選）
@@ -23,7 +24,6 @@ class AICharacterReviewDialog(QDialog):
         self.main_window = parent
         self.result_data = result_data or {}
         self.cards_data = []
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
 
         self.setWindowTitle("AI 登場角色提取 — 結果審核與卡片建立")
         self.resize(int(960 * self.scale_factor), int(700 * self.scale_factor))

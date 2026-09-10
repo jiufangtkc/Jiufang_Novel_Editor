@@ -31,6 +31,7 @@ Jiufang_Novel_Editor/
 │   └── models.py                   # 定義 JneProject, ProjectInfo, ChapterNode, CardNode 等 dataclass 與 MARK_COLOR_MAP
 ├── views/                          # [View 層] 視覺與互動介面 (UI Components)
 │   ├── main_window.py              # 應用程式主視窗（僅負責頂層 Layout 組合與 Signal 橋接）
+│   ├── common/                     # 共用 UI 元件基底 (如 base_dialog.py 負責主題佈局初始化)
 │   ├── components/                 # 可重複使用的 UI 獨立元件 (如 LeftPanelView, RightPanelView, MenuBuilder, 編輯器, 卡片, 圖表)
 │   └── dialogs/                    # 獨立的彈出視窗 (如 AI 對話框、檢查器、設定視窗)
 ├── controllers/                    # [Controller 層] 業務邏輯中樞 (Business Logic)
@@ -49,7 +50,12 @@ Jiufang_Novel_Editor/
 │   ├── font_manager.py             # 全域字型 (芫荽字體) 管理
 │   ├── theme_manager.py            # 暗色主題色彩定義與樣式管理
 │   └── file_utils.py               # 檔案路徑與時間戳排序工具
-├── tests/                          # 自動化測試套件 (Pytest)，覆蓋率高
+├── resources/                      # 外部靜態資源與設定檔
+│   └── prompts/                    # AI 預設系統 Prompt 文字檔 (角色/印象/世界觀/時間線等)
+├── tests/                          # 自動化測試套件 (Pytest)
+│   ├── unit/                       # 單元測試 (純邏輯驗證)
+│   ├── integration/                # 整合測試 (跨模組與 Controller 驗證)
+│   └── ui/                         # UI/對話框渲染與操作驗證
 ├── story/                          # 使用者正式專案存檔位置 (.db)
 ├── Temp_doc/                       # 系統自動暫存位置 (.db，上限 100 個)
 └── Export/                         # 匯出產物位置 (.docx, .txt, .md, .epub)

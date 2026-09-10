@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import sys
 import json
 import uuid
@@ -26,13 +27,11 @@ from PyQt6.QtCore import (
 )
 from utils.theme_manager import ThemeManager
 
-class NewBookDialog(QDialog):
+class NewBookDialog(BaseDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("開啟新書")
         self.setModal(True)
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(400 * self.scale_factor), int(150 * self.scale_factor))
 
         layout = QFormLayout(self)

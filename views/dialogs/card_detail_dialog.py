@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTextEdit, QLineEdit, QWidget, QFrame, QColorDialog,
@@ -102,7 +103,7 @@ class CardDetailTextEdit(QTextEdit):
         menu.exec(event.globalPos())
 
 
-class CardDetailDialog(QDialog):
+class CardDetailDialog(BaseDialog):
     """資料集卡片專屬詳細檢視與編輯對話框（純文字模式）"""
     signal_saved = pyqtSignal(str, str, str)  # (title, content, color_hex)
 
@@ -113,8 +114,6 @@ class CardDetailDialog(QDialog):
         self.card_content = content
         self.color_hex = color_hex
         self.category_name = category_name
-
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
 
         self.setWindowTitle(f"卡片詳情 — {self.card_title if self.card_title else '未命名卡片'}")
         self.resize(int(820 * self.scale_factor), int(640 * self.scale_factor))

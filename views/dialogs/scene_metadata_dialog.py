@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 """
 場景屬性編輯對話框（SceneMetadataDialog）
 
@@ -19,7 +20,7 @@ from PyQt6.QtGui import QFont
 from utils.theme_manager import ThemeManager
 
 
-class SceneMetadataDialog(QDialog):
+class SceneMetadataDialog(BaseDialog):
     """場景 metadata 編輯對話框。"""
 
     def __init__(self, parent=None,
@@ -29,8 +30,6 @@ class SceneMetadataDialog(QDialog):
                  scene_location: str = ""):
         super().__init__(parent)
         self.setWindowTitle("場景屬性")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.setMinimumWidth(int(460 * self.scale_factor))
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint

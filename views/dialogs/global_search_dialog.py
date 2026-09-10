@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLineEdit,
     QPushButton, QLabel, QToolButton, QTableWidget,
@@ -8,7 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
 
-class GlobalSearchDialog(QDialog):
+class GlobalSearchDialog(BaseDialog):
     """跨章節全文搜尋對話框。"""
     # 傳遞 (node_id, line_number, char_offset, match_length, match_text)
     signal_navigate_to_match = pyqtSignal(str, int, int, int, str)
@@ -17,7 +18,6 @@ class GlobalSearchDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("跨章節全文搜尋 (Ctrl+Shift+F)")
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.resize(int(750 * self.scale_factor), int(480 * self.scale_factor))
         self.init_ui()
 

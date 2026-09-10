@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -10,7 +11,7 @@ from utils.theme_manager import ThemeManager
 from services.app_settings_service import AppSettingsService
 
 
-class StoragePathDialog(QDialog):
+class StoragePathDialog(BaseDialog):
     """存檔路徑設定對話框。
     
     提供作者自訂專案存檔與暫存檔的根目錄（如 Dropbox、OneDrive 或本機自訂目錄），
@@ -20,8 +21,6 @@ class StoragePathDialog(QDialog):
     def __init__(self, parent=None, current_path: str = ""):
         super().__init__(parent)
         self.setWindowTitle("存檔路徑設定")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(520 * self.scale_factor), int(290 * self.scale_factor))
         self.setModal(True)
 

@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QGraphicsDropShadowEffect
@@ -9,7 +10,7 @@ from utils.theme_manager import set_window_dark_mode
 import sys
 
 
-class StartupDialog(QDialog):
+class StartupDialog(BaseDialog):
     """程式啟動引導對話框。
     
     提供作者在軟體啟動時選擇：

@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QComboBox,
     QLineEdit, QTextEdit, QPushButton, QLabel, QApplication,
@@ -8,11 +9,10 @@ from PyQt6.QtGui import QFont
 from utils.font_manager import FontManager
 
 
-class AIPreviewDialog(QDialog):
+class AIPreviewDialog(BaseDialog):
     def __init__(self, parent=None, result_data=None):
         super().__init__(parent)
         self.setWindowTitle("AI 分析結果審核與卡片建立")
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.resize(int(650 * self.scale_factor), int(600 * self.scale_factor))
         self.setModal(True)
         if parent:

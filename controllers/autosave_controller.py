@@ -2,7 +2,6 @@ import os
 import sys
 import datetime
 import sqlite3
-import json
 from typing import Optional
 from PyQt6.QtWidgets import QMessageBox, QDialog
 from PyQt6.QtCore import QTimer

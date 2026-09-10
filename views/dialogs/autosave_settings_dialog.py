@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QFrame, QFormLayout
@@ -8,7 +9,7 @@ from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
 
 
-class AutosaveSettingsDialog(QDialog):
+class AutosaveSettingsDialog(BaseDialog):
     """暫存與自動存檔設定對話框。
     
     提供作者自訂暫存檔儲存間隔（分鐘）與暫存檔數量上限。
@@ -17,8 +18,6 @@ class AutosaveSettingsDialog(QDialog):
     def __init__(self, parent=None, interval_minutes: int = 10, max_files: int = 100):
         super().__init__(parent)
         self.setWindowTitle("暫存與自動存檔設定")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(420 * self.scale_factor), int(260 * self.scale_factor))
         self.setModal(True)
 

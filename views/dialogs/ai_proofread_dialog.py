@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QCheckBox, QPushButton, QTabWidget, QTableWidget,
@@ -6,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
-class AIProofreadDialog(QDialog):
+class AIProofreadDialog(BaseDialog):
     """AI 校稿對話框 (非強制性視窗)"""
     
     # 傳遞 (node_id, char_offset, match_len)
@@ -22,7 +23,6 @@ class AIProofreadDialog(QDialog):
         super().__init__(parent)
         self.target_text = target_text
         self.setWindowTitle("🔎 AI 校稿列表")
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.resize(int(850 * self.scale_factor), int(650 * self.scale_factor))
         # 設定為非強制性視窗，讓使用者可以點擊並同時在編輯器操作
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint)

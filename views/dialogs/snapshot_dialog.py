@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -11,7 +12,7 @@ from utils.theme_manager import ThemeManager
 from services.database import DatabaseService
 
 
-class SnapshotDialog(QDialog):
+class SnapshotDialog(BaseDialog):
     """版本快照管理對話框。
     
     提供作者建立專案歷史快照、檢視快照清單、刪除過期快照與一鍵還原功能。
@@ -22,8 +23,6 @@ class SnapshotDialog(QDialog):
         super().__init__(parent)
         self.db_path = db_path
         self.setWindowTitle("版本快照管理 (Version Snapshots)")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(680 * self.scale_factor), int(480 * self.scale_factor))
         self.setModal(True)
 

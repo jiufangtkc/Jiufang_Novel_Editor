@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from typing import List, Optional
 from PyQt6.QtWidgets import (
@@ -13,7 +14,7 @@ from utils.theme_manager import ThemeManager
 from services.lint_service import LintService, LintIssue
 from views.dialogs.lint_whitelist_dialog import LintWhitelistDialog
 
-class LintDialog(QDialog):
+class LintDialog(BaseDialog):
     """文風與贅詞檢查主視窗，提供即時問題掃描、篩選、定位跳轉與白名單維護入口。"""
 
     signal_navigate_to_text = pyqtSignal(int, int)  # start_pos, end_pos
@@ -21,8 +22,6 @@ class LintDialog(QDialog):
     def __init__(self, parent=None, get_text_func=None):
         super().__init__(parent)
         self.setWindowTitle("文風與贅詞檢查")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(780 * self.scale_factor), int(520 * self.scale_factor))
         self.get_text_func = get_text_func
         self.settings = LintService.load_settings()

@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -11,7 +12,7 @@ from services.ai_service import AIService
 from services.token_estimator import TokenEstimator
 
 
-class AIScopeDialog(QDialog):
+class AIScopeDialog(BaseDialog):
     """
     AI 分析與角色提取範圍選擇對話框。
     支援：
@@ -27,7 +28,6 @@ class AIScopeDialog(QDialog):
         self.selected_text = selected_text
         self.task_type = task_type
         self.item_map = {}
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
 
         task_name_map = {
             "character": "登場角色提取",

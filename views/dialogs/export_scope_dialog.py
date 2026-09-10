@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -10,7 +11,7 @@ from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
 
 
-class ExportScopeDialog(QDialog):
+class ExportScopeDialog(BaseDialog):
     """匯出範圍與格式選擇對話框。"""
 
     def __init__(self, parent=None, checked_item=None, default_title=""):
@@ -18,8 +19,6 @@ class ExportScopeDialog(QDialog):
         self.parent_win = parent
         self.default_title = default_title
         self.setWindowTitle("匯出作品與格式設定")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(480 * self.scale_factor), int(580 * self.scale_factor))
         self.setModal(True)
 

@@ -4,7 +4,6 @@ import re
 import datetime
 import uuid
 import sqlite3
-import json
 from typing import Union
 from PyQt6.QtWidgets import (
     QMessageBox, QInputDialog, QFileDialog, QDialog
@@ -267,74 +266,8 @@ class ProjectController:
 
         return project
 
-    def _migrate_legacy_dict_to_jne_project(self, data: dict) -> JneProject:
-        """將舊版 JSON 專案字典轉換為 JneProject dataclass。"""
-        p_dict = data.get("project", {})
-        title = p_dict.get("title", "未命名專案")
-        logline = p_dict.get("logline", "")
-        default_fam = FontManager.get_default_font_family()
-        global_fam = data.get("global_font_family") or p_dict.get("global_font_family") or default_fam
-        global_sz = int(data.get("global_font_size") or p_dict.get("global_font_size", 12))
-        editor_fam = data.get("editor_font_family") or p_dict.get("editor_font_family") or default_fam
-        editor_sz = int(data.get("editor_font_size") or p_dict.get("editor_font_size", 12))
-
-        project = JneProject(
-            project_info=ProjectInfo(
-                title=title, logline=logline,
-                global_font_family=global_fam, global_font_size=global_sz,
-                editor_font_family=editor_fam, editor_font_size=editor_sz
-            ),
-            current_theme=data.get("current_theme", "default")
-        )
-
-        def parse_dict_node(node_data: dict) -> ChapterNode:
-            c_node = ChapterNode(
-                name=node_data.get("name", ""),
-                node_type=node_data.get("type", "file"),
-                id=node_data.get("id", str(uuid.uuid4())),
-                content=node_data.get("content", ""),
-                mark=node_data.get("mark", "None"),
-                is_expanded=node_data.get("is_expanded", True)
-            )
-            for ch in node_data.get("children", []):
-                c_node.children.append(parse_dict_node(ch))
-            return c_node
-
-        for tr in data.get("tree", []):
-            project.tree.append(parse_dict_node(tr))
-
-        cards_source = p_dict.get("cards", {})
-        for cat in ["summary", "character", "world", "timeline"]:
-            if cat in cards_source:
-                def parse_card_dict(cd: dict) -> CardNode:
-                    c_card = CardNode(
-                        title=cd.get("title", ""),
-                        id=cd.get("id", str(uuid.uuid4())),
-                        content=cd.get("content", ""),
-                        color=cd.get("color", "#3C3F41"),
-                        is_collapsed=cd.get("is_collapsed", False)
-                    )
-                    for ch in cd.get("children", []):
-                        c_card.children.append(parse_card_dict(ch))
-                    return c_card
-                project.project_cards[cat] = [parse_card_dict(c) for c in cards_source[cat]]
-
-        for log in data.get("writing_logs", []):
-            project.writing_logs.append(WritingLogEntry(
-                date=log.get("date", log.get("start_time", "").split(" ")[0]),
-                duration=log.get("duration", 0),
-                word_count=log.get("word_count", 0)
-            ))
-
-        return project
-
-    def load_project_data(self, data: Union[JneProject, dict]):
-        """載入專案資料（支援 JneProject dataclass 與相容 legacy dict）。"""
-        if isinstance(data, dict):
-            project = self._migrate_legacy_dict_to_jne_project(data)
-        else:
-            project = data
-
+    def load_project_data(self, project: JneProject):
+        """載入專案資料（JneProject dataclass）。"""
         self.mc.project_info = project.project_info
 
         # 套用字型

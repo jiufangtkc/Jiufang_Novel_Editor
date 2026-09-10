@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QRadioButton, QButtonGroup, QGroupBox,
@@ -10,7 +11,7 @@ from utils.theme_manager import ThemeManager
 from services.text_formatter_service import TextFormatterService
 
 
-class AutoFormatDialog(QDialog):
+class AutoFormatDialog(BaseDialog):
     """小說自動排版設定與預覽對話框。
 
     提供標點轉換、段首縮排（含清除縮排）、空行增刪等自訂排版選項，
@@ -20,8 +21,6 @@ class AutoFormatDialog(QDialog):
     def __init__(self, parent=None, current_text: str = ""):
         super().__init__(parent)
         self.setWindowTitle("自動排版工具")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(820 * self.scale_factor), int(540 * self.scale_factor))
         self.setModal(True)
 

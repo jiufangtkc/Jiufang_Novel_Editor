@@ -31,7 +31,7 @@ trigger: always_on
 
 ## 禁止事項
 
-- **不要**將 `services/` 中的 `StorageService` 或 `DatabaseService` 改為直接操作 UI 元件。
+- **不要**將 `services/` 中的 `DatabaseService` 改為直接操作 UI 元件。
 - **不要**在 `views/` 的元件中直接 import `MainController`。View 與 Controller 之間的溝通應透過 signal。
 - **不要**將打包或發布腳本（例如 `build.bat`、`Jiufang_Novel_Editor.spec`、`setup.iss` 等）放置於專案根目錄。所有打包相關工具與設定檔必須嚴格收納於 `.agents/build/` 中。
 

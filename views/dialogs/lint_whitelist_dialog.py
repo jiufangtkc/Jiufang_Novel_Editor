@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -10,7 +11,7 @@ from utils.font_manager import FontManager
 from utils.theme_manager import ThemeManager
 from services.lint_service import LintService
 
-class LintWhitelistDialog(QDialog):
+class LintWhitelistDialog(BaseDialog):
     """詞彙庫與白名單管理對話框，供使用者自由新增/刪除忽略詞與自訂贅詞。"""
 
     signal_settings_updated = pyqtSignal()
@@ -18,8 +19,6 @@ class LintWhitelistDialog(QDialog):
     def __init__(self, parent=None, settings=None):
         super().__init__(parent)
         self.setWindowTitle("文風檢查詞彙庫與白名單管理")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         self.resize(int(560 * self.scale_factor), int(450 * self.scale_factor))
         self.setMinimumSize(int(520 * self.scale_factor), int(420 * self.scale_factor))
         self.settings = settings or LintService.load_settings()

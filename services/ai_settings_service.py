@@ -4,7 +4,7 @@ from services.app_settings_service import AppSettingsService
 
 SETTINGS_FILENAME = "ai_settings.json"
 
-DEFAULT_SETTINGS = {
+DEFAULT_SETTINGS_BASE = {
     "provider": "Google",
     "timeout": 300,
     "ai_continuation_enabled": False,
@@ -41,15 +41,36 @@ DEFAULT_SETTINGS = {
         "Ollama": 8192,
         "LM Studio": 8192
     },
-    "prompts": {
-        "impression": "你是一位專業的小說編輯與文學評論家。請閱讀以下小說文本，分析其整體基調、文學風格、敘事結構、核心主題與情節張力，並提供具體的寫作最佳化建議。",
-        "character": "你是一位專業的小說角色分析師。請閱讀以下小說文本，為文本中登場的每一位角色獨立建立詳細角色設定，並在最後梳理一份獨立的角色關係網。\n\n請嚴格依下列結構化標籤輸出：\n===CHARACTER_START===\n【角色姓名】角色名字\n【外觀年齡】外觀推測年齡（例如：約 20~25 歲青年）\n【外觀特徵】文字中猜測或描寫的外貌特徵、著裝與氣質神態\n【人物側寫】個性、核心人格特質、價值觀與人物小傳\n【已知行動】在選定範圍內已知的具體行動軌跡與事蹟\n【人事物關聯】與該角色有關係的人、事、物（請使用直觀繁體中文或「⟷」、「➔」表達關聯，嚴禁輸出 LaTeX 語法如 $\\leftrightarrow$、$\\rightarrow$ 等）\n===CHARACTER_END===\n（有多位角色時請重複輸出上述 ===CHARACTER_START=== 區塊）\n\n===RELATIONSHIP_START===\n【卡片標題】全景角色關係網梳理\n【關係梳理】陣營勢力、角色間的核心矛盾、情感牽絆與互動脈絡深度分析（關聯請使用「⟷」、「➔」或文字說明，嚴禁使用 LaTeX 數學符號）\n===RELATIONSHIP_END===",
-        "world": "你是一位小說世界觀架構師。請閱讀以下小說文本，分析並提取出文本中涉及的世界觀設定、歷史背景、地理環境、勢力組織、力量體系或特殊術語，並進行系統化的整理。",
-        "timeline": "你是一位專業的小說時間線規劃師。請閱讀以下小說文本，梳理出故事發生的時間線，按先後順序提取出關鍵事件、場景轉換及發生的具體時間節點。",
-        "chat": "你是一位資深的小說寫作顧問與編輯助手。請以繁體中文與作者深入探討小說情節、人物塑造、世界觀設定、伏筆鋪陳與文字潤飾，提供具創意且具體可行的寫作建議。",
-        "continuation": "你是一位小說創作者助手。請根據上方提供的小說上文情節、語氣與人物性格，緊接著自然續寫故事段落。請直接輸出續寫的小說正文，不要包含任何開場白、問候語、解釋或標題。"
-    }
 }
+
+def load_default_prompts() -> dict:
+    """從 resources/prompts/ 目錄動態讀取預設的 AI 提示詞模板。"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    prompts_dir = os.path.join(base_dir, "resources", "prompts")
+    prompts = {
+        "impression": "",
+        "character": "",
+        "world": "",
+        "timeline": "",
+        "chat": "",
+        "continuation": ""
+    }
+    for key in prompts.keys():
+        file_path = os.path.join(prompts_dir, f"{key}.txt")
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    prompts[key] = f.read().strip()
+            except Exception as e:
+                print(f"載入預設 Prompt 失敗 ({key}.txt): {e}")
+    return prompts
+
+def get_default_settings() -> dict:
+    settings = dict(DEFAULT_SETTINGS_BASE)
+    settings["prompts"] = load_default_prompts()
+    return settings
+
+DEFAULT_SETTINGS = get_default_settings()
 
 
 class AISettingsService:
@@ -87,7 +108,7 @@ class AISettingsService:
                 with open(target_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     # 合併預設值避免缺欄位
-                    merged = dict(DEFAULT_SETTINGS)
+                    merged = get_default_settings()
                     for k, v in data.items():
                         if isinstance(v, dict) and k in merged:
                             merged[k].update(v)
@@ -96,7 +117,7 @@ class AISettingsService:
                     return merged
             except Exception as e:
                 print(f"讀取 AI 設定檔失敗: {e}")
-        return dict(DEFAULT_SETTINGS)
+        return get_default_settings()
 
     @classmethod
     def save_settings(cls, settings: dict, file_path: str = None):

@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import html
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton,
@@ -36,7 +37,7 @@ class AIChatInputEdit(QTextEdit):
         super().keyPressEvent(event)
 
 
-class AIChatDialog(QDialog):
+class AIChatDialog(BaseDialog):
     """AI 多輪對話對話框（支援 Markdown 富文本渲染、串流生成與非模態寫作）"""
     signal_insert_to_editor = pyqtSignal(str)
     signal_save_as_card = pyqtSignal(str, str)  # (title, content)
@@ -52,7 +53,6 @@ class AIChatDialog(QDialog):
         self.current_streaming_text = ""
 
         self.setWindowTitle("✨ AI 對話助手")
-        self.scale_factor = getattr(parent, "scale_factor", 1.0) if parent else 1.0
         self.resize(int(740 * self.scale_factor), int(700 * self.scale_factor))
         self.setMinimumSize(int(540 * self.scale_factor), int(480 * self.scale_factor))
         if parent:

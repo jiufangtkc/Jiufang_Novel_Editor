@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import sys
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -9,7 +10,7 @@ from utils.font_manager import FontManager
 from utils.theme_manager import set_window_dark_mode
 
 
-class InitialScaleDialog(QDialog):
+class InitialScaleDialog(BaseDialog):
     """初次乾淨開啟軟體時，詢問使用者偏好介面大小的對話框。"""
 
     SCALE_OPTIONS = [

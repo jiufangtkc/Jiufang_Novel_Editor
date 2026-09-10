@@ -1,3 +1,4 @@
+from views.common.base_dialog import BaseDialog
 import os
 from typing import List, Optional
 from PyQt6.QtWidgets import (
@@ -15,7 +16,7 @@ from services.import_service import ImportService, ImportOptions, DEFAULT_VOLUME
 from models.models import ChapterNode
 
 
-class ImportPreviewDialog(QDialog):
+class ImportPreviewDialog(BaseDialog):
     """外部文件匯入預覽與設定對話框。"""
 
     def __init__(self, parent=None, default_file_path: str = "", current_target_name: str = ""):
@@ -26,8 +27,6 @@ class ImportPreviewDialog(QDialog):
         self.parsed_nodes: List[ChapterNode] = []
 
         self.setWindowTitle("匯入外部文件至作品面板")
-        ThemeManager.apply_theme_to_dialog(self, parent)
-        self.scale_factor = getattr(self, "scale_factor", 1.0)
         sf = self.scale_factor
         self.resize(int(820 * sf), int(620 * sf))
         self.setModal(True)
