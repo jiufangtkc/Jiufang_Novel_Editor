@@ -469,13 +469,15 @@
 
 - **本次完成事項 (發布 v0.1.5-beta)**：
   1. **專案架構精簡與文件對齊**：完成 Phase 24 底層重構與程式碼精簡化，並更新了 README 與相關專案手冊（對齊 Phase 29）。
-  2. **測試驗證與封裝發布**：全套單元測試已驗證通過。v0.1.5-beta 安裝檔與免安裝檔已放置於 `pre-release/` 資料夾並發布。
-  3. **發布說明準備**：已產生 `v0.1.5-beta_release_notes.md` 供手動更新至 GitHub Release。
+  2. **測試驗證與封裝發布**：全套 257 項單元測試 100% 綠燈通過。v0.1.5-beta 安裝檔（`Jiufang_Novel_Editor_0.1.5-Beta-Setup.exe`）與免安裝檔（`Jiufang_Novel_Editor_0.1.5-Beta.zip`）已成功發布並上傳至 GitHub Release（標籤 `v0.1.5-beta`，Prerelease 模式）。
+  3. **發布說明維護**：發布說明儲存於 `.agents/docs/v0.1.5-beta_release_notes.md`，並已同步發布至 GitHub Release 頁面。
 
 - **當前任務狀態**：
-  1. 發布 v0.1.5-beta 版本並完成標籤推送。
-  2. 交接記錄更新。
+  1. GitHub Release `v0.1.5-beta` 正式發布完成，二進位資產上傳完畢。
+  2. Git 標籤 `v0.1.5-beta` 已同步推送至遠端。
+  3. 交接記錄更新完畢。
 
 - **下一個 Agent 的任務指引**：
-  1. 繼續保持 `.agents/rules/workspace_rules.md` 中的發布與代碼規範。
+  1. 繼續保持 `.agents/rules/workspace_rules.md` 中的發布與程式碼規範。
   2. 執行測試時請使用 `.venv\Scripts\python.exe -m pytest tests/`，有新增/修改測試時隨同維護 `TEST_SUITE.md`。
+
