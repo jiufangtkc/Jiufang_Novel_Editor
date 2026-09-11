@@ -467,12 +467,15 @@
      - 在 `tests/test_ai_service.py` 新增 `test_check_local_server_status_online`、`test_check_local_server_status_offline`、`test_check_local_server_status_cloud_always_online`。
      - 全專案 40 個測試模組、255 項單元測試 100% 綠燈通過（`pytest tests/` 255 passed in 158.66s）。
 
+- **本次完成事項 (發布 v0.1.5-beta)**：
+  1. **專案架構精簡與文件對齊**：完成 Phase 24 底層重構與程式碼精簡化，並更新了 README 與相關專案手冊（對齊 Phase 29）。
+  2. **測試驗證與封裝發布**：全套單元測試已驗證通過。v0.1.5-beta 安裝檔與免安裝檔已放置於 `pre-release/` 資料夾並發布。
+  3. **發布說明準備**：已產生 `v0.1.5-beta_release_notes.md` 供手動更新至 GitHub Release。
+
 - **當前任務狀態**：
-  1. Phase 4（清理廢棄模組、死碼與舊測試）已全部執行完畢。
-  2. Local LLM 離線狀態偵測與防護已實作並經測試驗證。
-  3. 全套 255 項單元測試 100% 綠燈通過。
+  1. 發布 v0.1.5-beta 版本並完成標籤推送。
+  2. 交接記錄更新。
 
 - **下一個 Agent 的任務指引**：
-  1. 接續進行 [LONG_CONTEXT_REFACTOR_PLAN.md](file:///c:/Users/yenfu/.gemini/antigravity-ide/brain/6b83bfda-d13c-4780-8c55-4e3906d8cbef/LONG_CONTEXT_REFACTOR_PLAN.md) 中的 **Phase 5（手動驗證）**。
-  2. 依計畫使用短篇、中長篇、超長篇文本在 UI 實際操作驗證綠/黃/紅狀態燈號與按鈕防護、連線中斷（Cancel）、Timeout 與串流生成。
-  3. 執行測試時請使用 `.venv\Scripts\python.exe -m pytest tests/`，有新增/修改測試時隨同維護 `TEST_SUITE.md`。
+  1. 繼續保持 `.agents/rules/workspace_rules.md` 中的發布與代碼規範。
+  2. 執行測試時請使用 `.venv\Scripts\python.exe -m pytest tests/`，有新增/修改測試時隨同維護 `TEST_SUITE.md`。
