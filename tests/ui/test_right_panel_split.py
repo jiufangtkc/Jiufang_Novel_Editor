@@ -59,12 +59,9 @@ class TestRightPanelSplit(unittest.TestCase):
         card_item = self.mc.card._find_tree_item_by_id(card.id)
         self.rp._on_item_clicked(card_item, 0)
 
-        # 修改下方欄位文字
+        # 修改下方欄位文字（現在修改文字會自動觸發儲存）
         self.rp.card_title_edit.setText("主角設定（新）")
         self.rp.card_content_edit.setPlainText("性格堅毅，善於劍術。")
-
-        # 點擊儲存按鈕
-        self.rp.btn_save_card_content.click()
 
         # 驗證資料模型更新
         self.assertEqual(card.title, "主角設定（新）")

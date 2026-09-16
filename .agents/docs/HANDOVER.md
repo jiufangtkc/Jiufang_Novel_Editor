@@ -467,6 +467,14 @@
      - 在 `tests/test_ai_service.py` 新增 `test_check_local_server_status_online`、`test_check_local_server_status_offline`、`test_check_local_server_status_cloud_always_online`。
      - 全專案 40 個測試模組、255 項單元測試 100% 綠燈通過（`pytest tests/` 255 passed in 158.66s）。
 
+- **本次完成事項 (資料集卡片 UI 最佳化：移除手動儲存，改為自動儲存，全套 257 項測試 100% 綠燈)**：
+  1. **UI 簡化**：移除右側資料集面板中的「儲存卡片變更」按鈕，避免使用者在未手動儲存即切換卡片時遺失內容。
+  2. **自動儲存實作**：在 `views/components/right_panel_view.py` 中，將 `card_title_edit` 與 `card_content_edit` 的 `textChanged` 訊號直接連結至儲存邏輯，實現「邊打邊存」的即時同步。
+  3. **防禦機制**：在 `show_card_detail` 載入內容時加入 `blockSignals(True)` 防護，避免程式更改文字時觸發多餘的儲存訊號。
+  4. **修復工具列崩潰 Bug**：實作了 `BaseRichTextEdit` 遺漏的 `toggle_line_prefix` 方法，徹底修復在卡片編輯器點擊「標題 (H)」與「清單項目 (•)」按鈕時導致的 Crash 問題，並支援多行選取一次性切換前綴。
+  5. **寫作日誌邏輯對齊 (NET 字數)**：將 `stats_controller.py` 中背景紀錄並寫入資料庫 `writing_logs` 的字數演算法，從「毛字數 (Gross, 僅累加不扣除)」修改為「淨字數 (Net)」。現在當天存入資料庫的進度會強制對齊 UI 的 `today_written_count`，徹底解決崩潰或重啟後，讀取到的「今日進度」大於「專案總進度」的資料不一致問題。
+  6. **測試與防護**：更新相關單元測試，確保全套 257 項單元測試 100% 綠燈。
+
 - **本次完成事項 (發布 v0.1.5-beta)**：
   1. **專案架構精簡與文件對齊**：完成 Phase 24 底層重構與程式碼精簡化，並更新了 README 與相關專案手冊（對齊 Phase 29）。
   2. **測試驗證與封裝發布**：全套 257 項單元測試 100% 綠燈通過。v0.1.5-beta 安裝檔（`Jiufang_Novel_Editor_0.1.5-Beta-Setup.exe`）與免安裝檔（`Jiufang_Novel_Editor_0.1.5-Beta.zip`）已成功發布並上傳至 GitHub Release（標籤 `v0.1.5-beta`，Prerelease 模式）。

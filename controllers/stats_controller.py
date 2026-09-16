@@ -249,8 +249,7 @@ class StatsController:
             }
         else:
             self.mc.active_session["last_action_time"] = now.strftime("%Y-%m-%d %H:%M:%S")
-            if delta > 0:
-                self.mc.active_session["words_added"] = self.mc.active_session.get("words_added", 0) + delta
+            self.mc.active_session["words_added"] = self.mc.active_session.get("words_added", 0) + delta
 
         self.mc.last_known_word_count = current_total
 
@@ -272,7 +271,7 @@ class StatsController:
             last_action_dt = datetime.datetime.strptime(last_action_str, "%Y-%m-%d %H:%M:%S")
 
             duration_secs = (last_action_dt - start_dt).total_seconds()
-            words_diff = max(0, self.mc.active_session.get("words_added", 0))
+            words_diff = self.mc.active_session.get("words_added", 0)
 
             if duration_secs > 0:
                 date_str = start_time_str.split(" ")[0]
@@ -281,20 +280,21 @@ class StatsController:
                 for log in self.mc.writing_logs:
                     if log.date == date_str:
                         log.duration += int(duration_secs)
-                        target_wc = log.word_count + words_diff
                         if date_str == today_date_str:
-                            target_wc = max(target_wc, getattr(self.mc, "today_written_count", 0))
-                        log.word_count = max(0, target_wc)
+                            log.word_count = getattr(self.mc, "today_written_count", 0)
+                        else:
+                            log.word_count = max(0, log.word_count + words_diff)
                         found = True
                         break
                 if not found:
-                    initial_wc = words_diff
                     if date_str == today_date_str:
-                        initial_wc = max(initial_wc, getattr(self.mc, "today_written_count", 0))
+                        initial_wc = getattr(self.mc, "today_written_count", 0)
+                    else:
+                        initial_wc = max(0, words_diff)
                     self.mc.writing_logs.append(WritingLogEntry(
                         date=date_str,
                         duration=int(duration_secs),
-                        word_count=max(0, initial_wc)
+                        word_count=initial_wc
                     ))
 
                 self.view.writing_log_dashboard.refresh_data(self.mc.get_writing_logs_as_dict())

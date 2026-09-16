@@ -62,6 +62,48 @@ class BaseRichTextEdit(QTextEdit):
         fmt.setFontStrikeOut(not is_strike)
         cursor.mergeCharFormat(fmt)
 
+    def toggle_line_prefix(self, prefix: str):
+        """為目前游標所在的段落（或多個選取的段落）切換指定前綴（如清單、標題）"""
+        from PyQt6.QtGui import QTextCursor
+        cursor = self.textCursor()
+        cursor.beginEditBlock()
+
+        start_block = self.document().findBlock(cursor.selectionStart())
+        end_block = self.document().findBlock(cursor.selectionEnd())
+
+        # 第一階段：檢查是否所有選取的段落都已經有此前綴
+        all_have_prefix = True
+        curr_block = start_block
+        while curr_block.isValid():
+            if not curr_block.text().startswith(prefix):
+                all_have_prefix = False
+                break
+            if curr_block == end_block:
+                break
+            curr_block = curr_block.next()
+
+        # 第二階段：統一新增或移除前綴
+        curr_block = start_block
+        while curr_block.isValid():
+            block_cursor = self.textCursor()
+            block_cursor.setPosition(curr_block.position())
+            
+            if all_have_prefix:
+                # 移除前綴
+                block_cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.KeepAnchor, len(prefix))
+                block_cursor.removeSelectedText()
+            else:
+                # 新增前綴（如果還沒有的話）
+                if not curr_block.text().startswith(prefix):
+                    block_cursor.insertText(prefix)
+            
+            if curr_block == end_block:
+                break
+            curr_block = curr_block.next()
+
+        cursor.endEditBlock()
+        self.setFocus()
+
     def insert_scene_divider(self):
         """插入小說場景分隔線"""
         cursor = self.textCursor()

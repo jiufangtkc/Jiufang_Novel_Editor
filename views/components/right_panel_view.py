@@ -137,6 +137,7 @@ class RightPanelView(QWidget):
         self.card_title_edit = QLineEdit()
         self.card_title_edit.setPlaceholderText("卡片名稱...")
         self.card_title_edit.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
+        self.card_title_edit.textChanged.connect(self._on_save_card_clicked)
         header_card_row.addWidget(self.card_title_edit, 1)
         cd_layout.addLayout(header_card_row)
 
@@ -228,6 +229,7 @@ class RightPanelView(QWidget):
         self.card_content_edit.setPlaceholderText("在此輸入卡片內容（支援 Markdown 語法高亮）...")
         self.card_content_edit.setFont(FontManager.get_font(size=9))
         self.card_content_edit.signal_save_requested.connect(self._on_save_card_clicked)
+        self.card_content_edit.textChanged.connect(self._on_save_card_clicked)
         self.card_content_edit.signal_ai_chat.connect(self._open_ai_chat_for_card)
         self.card_content_stack.addWidget(self.card_content_edit)
 
@@ -237,15 +239,6 @@ class RightPanelView(QWidget):
         self.card_content_stack.addWidget(self.card_preview_browser)
 
         cd_layout.addWidget(self.card_content_stack, 1)
-
-        # 儲存卡片按鈕
-        self.btn_save_card_content = QPushButton("儲存卡片變更")
-        self.btn_save_card_content.setObjectName("btn_save_card_content")
-        self.btn_save_card_content.setFont(FontManager.get_font(size=9, weight=QFont.Weight.Bold))
-        self.btn_save_card_content.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_save_card_content.setFixedHeight(26)
-        self.btn_save_card_content.clicked.connect(self._on_save_card_clicked)
-        cd_layout.addWidget(self.btn_save_card_content)
 
         self.bottom_stack.addWidget(self.card_detail_panel)
 
@@ -343,8 +336,15 @@ class RightPanelView(QWidget):
         """切換並顯示下方卡片內容編輯頁面。"""
         self.current_editing_card_id = card_id
         self.lbl_card_category.setText(f"📁 {category_name}")
+
+        self.card_title_edit.blockSignals(True)
         self.card_title_edit.setText(title)
+        self.card_title_edit.blockSignals(False)
+
+        self.card_content_edit.blockSignals(True)
         self.card_content_edit.set_markdown(content)
+        self.card_content_edit.blockSignals(False)
+
         # 若當前處於預覽模式，同步更新預覽 HTML
         if self.card_content_stack.currentIndex() == 1:
             self.card_preview_browser.setHtml(markdown_to_html(content))
@@ -502,8 +502,7 @@ class RightPanelView(QWidget):
             self.btn_toggle_card_preview.setFont(FontManager.get_font(size=int(8 * scale), weight=QFont.Weight.Bold))
             self.btn_toggle_card_preview.setFixedHeight(int(22 * scale))
 
-        self.btn_save_card_content.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
-        self.btn_save_card_content.setFixedHeight(int(26 * scale))
+
 
         self.combo_add_category.setFont(FontManager.get_font(size=int(9 * scale)))
         self.combo_add_category.setFixedHeight(int(26 * scale))
