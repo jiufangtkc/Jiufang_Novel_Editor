@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-10，完成編輯器底層重構、雙重貼上模式與資料集匯入匯出，並優化了 LM Studio 的零延遲 Token 估算，全套 257 項單元測試維持 100% 綠燈通過。
+> 最後更新：2026-09-16，發布 v0.1.6-Beta 測試預發布版，包含資料集卡片即時自動儲存、修復工具列前綴切換崩潰與寫作日誌淨字數演算法校準，全套 257 項單元測試維持 100% 綠燈通過。
 
 ### 階段 24：程式碼架構瘦身與精簡重構
 - **完全棄用舊版 JSON 格式存檔**：
@@ -475,17 +475,24 @@
   5. **寫作日誌邏輯對齊 (NET 字數)**：將 `stats_controller.py` 中背景紀錄並寫入資料庫 `writing_logs` 的字數演算法，從「毛字數 (Gross, 僅累加不扣除)」修改為「淨字數 (Net)」。現在當天存入資料庫的進度會強制對齊 UI 的 `today_written_count`，徹底解決崩潰或重啟後，讀取到的「今日進度」大於「專案總進度」的資料不一致問題。
   6. **測試與防護**：更新相關單元測試，確保全套 257 項單元測試 100% 綠燈。
 
-- **本次完成事項 (發布 v0.1.5-beta)**：
-  1. **專案架構精簡與文件對齊**：完成 Phase 24 底層重構與程式碼精簡化，並更新了 README 與相關專案手冊（對齊 Phase 29）。
-  2. **測試驗證與封裝發布**：全套 257 項單元測試 100% 綠燈通過。v0.1.5-beta 安裝檔（`Jiufang_Novel_Editor_0.1.5-Beta-Setup.exe`）與免安裝檔（`Jiufang_Novel_Editor_0.1.5-Beta.zip`）已成功發布並上傳至 GitHub Release（標籤 `v0.1.5-beta`，Prerelease 模式）。
-  3. **發布說明維護**：發布說明儲存於 `.agents/docs/v0.1.5-beta_release_notes.md`，並已同步發布至 GitHub Release 頁面。
+- **本次完成事項 (發布 v0.1.6-beta)**：
+  1. **資料集卡片自動儲存與崩潰修復**：
+     - 右側面板卡片編輯實現即時自動儲存（Auto-save），移除手動儲存按鈕並加強載入訊號阻斷。
+     - 補齊 `BaseRichTextEdit.toggle_line_prefix`，修復工具列標題與清單按鈕崩潰問題。
+     - 寫作日誌字數計算對齊主介面淨字數（Net Word Count），消除重啟前後數據不一致。
+  2. **測試驗證與封裝發布**：
+     - 全套 40 個模組、257 項單元與整合測試 100% 綠燈通過（耗時 22 秒）。
+     - v0.1.6-beta 安裝檔（`Jiufang_Novel_Editor_0.1.6-Beta-Setup.exe`）與免安裝檔（`Jiufang_Novel_Editor_0.1.6-Beta.zip`）收納於 `pre-release/` 資料夾並發布。
+  3. **發布說明維護**：
+     - 依據同儕創作者視角、禁止 Emoji 與台灣繁體中文規範撰寫發布說明，儲存於 `.agents/docs/v0.1.6-beta_release_notes.md`。
 
 - **當前任務狀態**：
-  1. GitHub Release `v0.1.5-beta` 正式發布完成，二進位資產上傳完畢。
-  2. Git 標籤 `v0.1.5-beta` 已同步推送至遠端。
-  3. 交接記錄更新完畢。
+  1. 軟體版本 v0.1.6-beta 發布說明、交接記錄與測試文件維護完成。
+  2. Git 標籤 `v0.1.6-beta` 建立並同步推送至遠端 `main` 分支。
+  3. 全套單元測試 257 項 100% 綠燈。
 
 - **下一個 Agent 的任務指引**：
-  1. 繼續保持 `.agents/rules/workspace_rules.md` 中的發布與程式碼規範。
+  1. 繼續嚴格遵守 `.agents/rules/workspace_rules.md` 中的發布與程式碼規範，不得使用 Emoji 與商業浮誇用語。
   2. 執行測試時請使用 `.venv\Scripts\python.exe -m pytest tests/`，有新增/修改測試時隨同維護 `TEST_SUITE.md`。
+
 
