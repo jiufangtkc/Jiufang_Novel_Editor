@@ -24,7 +24,7 @@ class ExportController:
 
     def export_documents(self, item=None):
         """開啟匯出對話框並執行多格式匯出。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         checked_item = item
         if checked_item is None:
             checked_item = self.mc.current_file_item

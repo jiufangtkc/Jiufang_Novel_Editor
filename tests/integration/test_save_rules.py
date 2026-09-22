@@ -36,7 +36,7 @@ class TestSaveRules(unittest.TestCase):
         """測試快速存檔為安靜存檔，不彈出 QMessageBox.information，但在狀態列顯示訊息。"""
         self.mc.project_info.title = "安靜存檔測試"
         with patch.object(QMessageBox, "information") as mock_info:
-            success = self.mc.save_project()
+            success = self.mc.project.save_project()
             self.assertTrue(success)
             mock_info.assert_not_called()
 

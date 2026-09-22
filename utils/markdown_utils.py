@@ -65,6 +65,8 @@ def render_markdown_inline(text: str) -> str:
                 r'<span style="color: #61afef; font-weight: bold; padding: 0 4px;">\1</span>',
                 s
             )
+            # 8. 保護全形空白，避免被 Qt 的 HTML 引擎當作普通空白去除
+            s = re.sub(r'(\u3000+)', r'<span style="white-space:pre">\1</span>', s)
             res_parts.append(s)
 
     return ''.join(res_parts)

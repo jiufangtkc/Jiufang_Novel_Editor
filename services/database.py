@@ -10,16 +10,6 @@ class DatabaseService:
     CURRENT_SCHEMA_VERSION = DatabaseMigrations.CURRENT_SCHEMA_VERSION
 
     # 委派至 DatabaseMigrations 確保相容性與清晰職責分離
-    _get_current_schema_version = DatabaseMigrations.get_current_schema_version
-    _detect_legacy_version = DatabaseMigrations.detect_legacy_version
-    _upgrade_v1_to_v2 = DatabaseMigrations.upgrade_v1_to_v2
-    _upgrade_v2_to_v3 = DatabaseMigrations.upgrade_v2_to_v3
-    _upgrade_v3_to_v4 = DatabaseMigrations.upgrade_v3_to_v4
-    _upgrade_v4_to_v5 = DatabaseMigrations.upgrade_v4_to_v5
-    _upgrade_v5_to_v6 = DatabaseMigrations.upgrade_v5_to_v6
-    _upgrade_v6_to_v7 = DatabaseMigrations.upgrade_v6_to_v7
-    _upgrade_v7_to_v8 = DatabaseMigrations.upgrade_v7_to_v8
-    _upgrade_v8_to_v9 = DatabaseMigrations.upgrade_v8_to_v9
     _apply_migrations = DatabaseMigrations.apply_migrations
 
     @staticmethod
@@ -48,7 +38,8 @@ class DatabaseService:
                 target_word_count INTEGER DEFAULT 100000,
                 daily_target_word_count INTEGER DEFAULT 1000,
                 category_order TEXT DEFAULT NULL,
-                expanded_categories TEXT DEFAULT NULL
+                expanded_categories TEXT DEFAULT NULL,
+                categories_meta TEXT DEFAULT NULL
             )
         ''')
 
@@ -92,9 +83,7 @@ class DatabaseService:
                 ai_continuation_count INTEGER DEFAULT 0,
                 ai_continuation_chars INTEGER DEFAULT 0,
                 ai_chat_count INTEGER DEFAULT 0,
-                ai_details TEXT DEFAULT '{}',
-                paste_large_count INTEGER DEFAULT 0,
-                delete_large_count INTEGER DEFAULT 0
+                ai_details TEXT DEFAULT '{}'
             )
         ''')
 
@@ -152,14 +141,16 @@ class DatabaseService:
         category_order_json = json.dumps(getattr(project, 'category_order', []), ensure_ascii=False)
         expanded_categories = getattr(project.project_info, 'expanded_categories', None)
         expanded_categories_json = json.dumps(expanded_categories, ensure_ascii=False) if expanded_categories is not None else None
+        categories_meta = getattr(project.project_info, 'categories_meta', {})
+        categories_meta_json = json.dumps(categories_meta, ensure_ascii=False)
         cursor.execute(
             '''INSERT INTO project_info (
                 title, logline, current_theme,
                 global_font_family, global_font_size,
                 editor_font_family, editor_font_size,
                 target_word_count, daily_target_word_count,
-                category_order, expanded_categories
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                category_order, expanded_categories, categories_meta
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (
                 project.project_info.title,
                 project.project_info.logline,
@@ -171,7 +162,8 @@ class DatabaseService:
                 getattr(project.project_info, 'target_word_count', 100000),
                 getattr(project.project_info, 'daily_target_word_count', 1000),
                 category_order_json,
-                expanded_categories_json
+                expanded_categories_json,
+                categories_meta_json
             )
         )
         
@@ -211,25 +203,21 @@ class DatabaseService:
         for log in project.writing_logs:
             details_json = json.dumps(getattr(log, "ai_details", {}) or {}, ensure_ascii=False)
             cursor.execute('''
-                INSERT INTO writing_logs (date, duration, word_count, ai_continuation_count, ai_continuation_chars, ai_chat_count, ai_details, paste_large_count, delete_large_count)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO writing_logs (date, duration, word_count, ai_continuation_count, ai_continuation_chars, ai_chat_count, ai_details)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date) DO UPDATE SET
                 duration=excluded.duration,
                 word_count=excluded.word_count,
                 ai_continuation_count=excluded.ai_continuation_count,
                 ai_continuation_chars=excluded.ai_continuation_chars,
                 ai_chat_count=excluded.ai_chat_count,
-                ai_details=excluded.ai_details,
-                paste_large_count=excluded.paste_large_count,
-                delete_large_count=excluded.delete_large_count
+                ai_details=excluded.ai_details
             ''', (
                 log.date, log.duration, log.word_count,
                 getattr(log, "ai_continuation_count", 0),
                 getattr(log, "ai_continuation_chars", 0),
                 getattr(log, "ai_chat_count", 0),
-                details_json,
-                getattr(log, "paste_large_count", 0),
-                getattr(log, "delete_large_count", 0)
+                details_json
             ))
             
         conn.commit()
@@ -269,6 +257,15 @@ class DatabaseService:
                 target_word_count=int(target_word_count),
                 daily_target_word_count=int(daily_target_word_count)
             )
+            
+            if 'categories_meta' in keys and p_row['categories_meta']:
+                try:
+                    loaded_meta = json.loads(p_row['categories_meta'])
+                    if isinstance(loaded_meta, dict):
+                        project.project_info.categories_meta = loaded_meta
+                except Exception:
+                    pass
+
             project.current_theme = p_row['current_theme']
             # 讀取 category_order（v7 新增欄位）
             if 'category_order' in keys and p_row['category_order']:
@@ -365,9 +362,7 @@ class DatabaseService:
                 ai_continuation_count=row['ai_continuation_count'] if 'ai_continuation_count' in log_keys and row['ai_continuation_count'] is not None else 0,
                 ai_continuation_chars=row['ai_continuation_chars'] if 'ai_continuation_chars' in log_keys and row['ai_continuation_chars'] is not None else 0,
                 ai_chat_count=row['ai_chat_count'] if 'ai_chat_count' in log_keys and row['ai_chat_count'] is not None else 0,
-                ai_details=ai_details,
-                paste_large_count=row['paste_large_count'] if 'paste_large_count' in log_keys and row['paste_large_count'] is not None else 0,
-                delete_large_count=row['delete_large_count'] if 'delete_large_count' in log_keys and row['delete_large_count'] is not None else 0
+                ai_details=ai_details
             ))
 
             
@@ -430,9 +425,7 @@ class DatabaseService:
                     "ai_continuation_count": getattr(l, "ai_continuation_count", 0),
                     "ai_continuation_chars": getattr(l, "ai_continuation_chars", 0),
                     "ai_chat_count": getattr(l, "ai_chat_count", 0),
-                    "ai_details": getattr(l, "ai_details", {}),
-                    "paste_large_count": getattr(l, "paste_large_count", 0),
-                    "delete_large_count": getattr(l, "delete_large_count", 0)
+                    "ai_details": getattr(l, "ai_details", {})
                 }
                 for l in project.writing_logs
             ]
@@ -507,9 +500,7 @@ class DatabaseService:
                 ai_continuation_count=log_d.get("ai_continuation_count", 0),
                 ai_continuation_chars=log_d.get("ai_continuation_chars", 0),
                 ai_chat_count=log_d.get("ai_chat_count", 0),
-                ai_details=log_d.get("ai_details", {}),
-                paste_large_count=log_d.get("paste_large_count", 0),
-                delete_large_count=log_d.get("delete_large_count", 0)
+                ai_details=log_d.get("ai_details", {})
             ))
 
         return project

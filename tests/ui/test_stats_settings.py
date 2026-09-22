@@ -73,7 +73,7 @@ class TestStatsSettings(unittest.TestCase):
         self.mc.app_settings["stat_count_half_alnum_and_sym"] = False
         self.mc.app_settings["stat_count_full_space"] = False
         self.view.editor.setPlainText("測試中文字 Hello 123　全形")
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
         tooltip = self.view.lbl_word_count.toolTip()
         self.assertIn("字數詳細統計", tooltip)
@@ -87,7 +87,7 @@ class TestStatsSettings(unittest.TestCase):
         """測試寫作專案總進度條與目標設定。"""
         self.mc.project_info.target_word_count = 50000
         self.mc.file_word_stats["scene_1"] = {"valid": 10000, "cjk": 10000, "half_alnum_sym": 0, "half_spaces": 0, "full_spaces": 0}
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
         self.assertEqual(self.view.project_progress_bar.maximum(), 50000)
         self.assertEqual(self.view.project_progress_bar.value(), 10000)

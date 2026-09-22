@@ -21,6 +21,7 @@ from controllers.theme_controller import ThemeController
 from controllers.card_controller import CardController
 from controllers.export_controller import ExportController
 from controllers.import_controller import ImportController
+from controllers.dataset_controller import DatasetController
 from controllers.ai_controller import AIController
 from controllers.search_controller import SearchController
 from controllers.snapshot_controller import SnapshotController
@@ -74,7 +75,8 @@ class MainController:
         # 寫作閒置檢測計時器
         self.writing_timer = QTimer(self.view)
         self.writing_timer.setInterval(1000)
-        self.writing_timer.timeout.connect(self.check_writing_inactivity)
+        # 將計時器 timeout 綁定延後到 init_controllers 之後，或使用 lambda
+        self.writing_timer.timeout.connect(lambda: getattr(self, 'stats', None) and self.stats.check_writing_inactivity())
         self.writing_timer.start()
 
         # 實體化 12 個子控制器
@@ -87,6 +89,7 @@ class MainController:
         self.card = CardController(self)
         self.export_controller = ExportController(self)
         self.import_controller = ImportController(self)
+        self.dataset = DatasetController(self)
         self.ai_controller = AIController(self)
         self.search = SearchController(self)
         self.snapshot = SnapshotController(self)
@@ -96,8 +99,8 @@ class MainController:
         self.connect_signals()
 
         # 初始化預設狀態
-        self.update_project_labels()
-        self.update_status_bar()
+        self.project.update_project_labels()
+        self.stats.update_status_bar()
         if sys.platform == "win32":
             set_window_dark_mode(int(self.view.winId()))
 
@@ -246,30 +249,19 @@ class MainController:
         self.view.combo_size.currentTextChanged.connect(self.editor.change_font_size)
 
         # 樣式按鈕
-        if hasattr(self.view, "btn_bold"):
-            self.view.btn_bold.clicked.connect(self.editor.toggle_bold)
-        if hasattr(self.view, "btn_italic"):
-            self.view.btn_italic.clicked.connect(self.editor.toggle_italic)
-        if hasattr(self.view, "btn_strike"):
-            self.view.btn_strike.clicked.connect(self.editor.toggle_strike)
+        self.view.btn_bold.clicked.connect(self.editor.toggle_bold)
+        self.view.btn_italic.clicked.connect(self.editor.toggle_italic)
+        self.view.btn_strike.clicked.connect(self.editor.toggle_strike)
 
         # 常用標點工具列按鈕
-        if hasattr(self.view, "btn_punc_quote_single"):
-            self.view.btn_punc_quote_single.clicked.connect(lambda: self.editor.insert_bracket_pair("「", "」"))
-        if hasattr(self.view, "btn_punc_quote_double"):
-            self.view.btn_punc_quote_double.clicked.connect(lambda: self.editor.insert_bracket_pair("『", "』"))
-        if hasattr(self.view, "btn_punc_exclamation"):
-            self.view.btn_punc_exclamation.clicked.connect(lambda: self.editor.insert_punctuation("！"))
-        if hasattr(self.view, "btn_punc_question"):
-            self.view.btn_punc_question.clicked.connect(lambda: self.editor.insert_punctuation("？"))
-        if hasattr(self.view, "btn_punc_colon"):
-            self.view.btn_punc_colon.clicked.connect(lambda: self.editor.insert_punctuation("："))
-        if hasattr(self.view, "btn_punc_semicolon"):
-            self.view.btn_punc_semicolon.clicked.connect(lambda: self.editor.insert_punctuation("；"))
-        if hasattr(self.view, "btn_punc_comma_pause"):
-            self.view.btn_punc_comma_pause.clicked.connect(lambda: self.editor.insert_punctuation("、"))
-        if hasattr(self.view, "btn_punc_section"):
-            self.view.btn_punc_section.clicked.connect(lambda: self.editor.insert_punctuation("※"))
+        self.view.btn_punc_quote_single.clicked.connect(lambda: self.editor.insert_bracket_pair("「", "」"))
+        self.view.btn_punc_quote_double.clicked.connect(lambda: self.editor.insert_bracket_pair("『", "』"))
+        self.view.btn_punc_exclamation.clicked.connect(lambda: self.editor.insert_punctuation("！"))
+        self.view.btn_punc_question.clicked.connect(lambda: self.editor.insert_punctuation("？"))
+        self.view.btn_punc_colon.clicked.connect(lambda: self.editor.insert_punctuation("："))
+        self.view.btn_punc_semicolon.clicked.connect(lambda: self.editor.insert_punctuation("；"))
+        self.view.btn_punc_comma_pause.clicked.connect(lambda: self.editor.insert_punctuation("、"))
+        self.view.btn_punc_section.clicked.connect(lambda: self.editor.insert_punctuation("※"))
         self.view.btn_ellipsis.clicked.connect(lambda: self.editor.insert_punctuation("……"))
         self.view.btn_emdash.clicked.connect(lambda: self.editor.insert_punctuation("──"))
         self.view.btn_typewriter.toggled.connect(self.editor.toggle_typewriter)
@@ -280,8 +272,7 @@ class MainController:
 
         self.view.btn_set_target.clicked.connect(self.stats.set_daily_target)
         self.view.btn_clear_progress.clicked.connect(self.stats.clear_daily_progress)
-        if hasattr(self.view, "btn_set_project_target"):
-            self.view.btn_set_project_target.clicked.connect(self.stats.set_project_target)
+        self.view.btn_set_project_target.clicked.connect(self.stats.set_project_target)
         self.view.btn_restore.clicked.connect(self.tree.restore_selected_trash_item)
         self.view.btn_delete_permanently.clicked.connect(self.tree.delete_selected_trash_item_permanently)
         self.view.btn_clear_trash.clicked.connect(self.tree.clear_all_trash)
@@ -318,7 +309,9 @@ class MainController:
         self.view.action_new_book.triggered.connect(self.project.new_book)
         self.view.action_save_project.triggered.connect(lambda: self.project.save_project(silent=True))
         self.view.action_save_project_as.triggered.connect(self.project.save_project_as)
-        self.view.action_export.triggered.connect(lambda: self.export_single_document())
+        self.view.action_export.triggered.connect(lambda: self.export_controller.export_documents())
+        if hasattr(self.view, "action_export_dataset"):
+            self.view.action_export_dataset.triggered.connect(self.dataset.export_dataset)
         if hasattr(self.view, "action_import"):
             self.view.action_import.triggered.connect(lambda: self.import_controller.show_import_dialog())
         if hasattr(self.view, "action_load_latest_project"):
@@ -380,112 +373,7 @@ class MainController:
         """標記專案是否有未儲存的變更，並連動更新視窗標題與相關標籤。"""
         if getattr(self, "is_dirty", False) != dirty:
             self.is_dirty = dirty
-            self.update_project_labels()
-
-    def update_project_labels(self):
-        self.project.update_project_labels()
-
-    def update_status_bar(self):
-        self.stats.update_status_bar()
-
-    def save_current_editor_content(self):
-        self.editor.save_current_editor_content()
-
-    def save_temp_doc(self, from_timer: bool = False):
-        self.project.save_temp_doc(from_timer=from_timer)
-
-    def save_project(self, silent: bool = True) -> bool:
-        return self.project.save_project(silent=silent)
-
-    def save_project_as(self) -> bool:
-        return self.project.save_project_as()
-
-    def load_project(self):
-        self.project.load_project()
-
-    def load_project_data(self, data):
-        self.project.load_project_data(data)
-
-    def get_project_data(self) -> dict:
-        return self.project.get_project_data()
-
-    def _build_jne_project(self):
-        return self.project._build_jne_project()
-
-    def flush_active_writing_session(self):
-        self.stats.flush_active_writing_session()
-
-    def check_writing_inactivity(self):
-        self.stats.check_writing_inactivity()
-
-    def apply_theme(self, theme_name: str):
-        self.theme.apply_theme(theme_name)
-
-    def set_ui_scale(self, scale: float):
-        self.theme.set_ui_scale(scale)
-
-    def apply_global_font(self, family: str, size: int):
-        self.theme.apply_global_font(family, size)
-
-    def apply_editor_font(self, family: str, size: int):
-        self.theme.apply_editor_font(family, size)
-
-    def serialize_card(self, card_widget):
-        return self.card.serialize_card(card_widget)
-
-    def serialize_all_cards(self):
-        return self.card.serialize_all_cards()
-
-    def deserialize_card(self, card_data, parent_layout, parent_widget=None):
-        self.card.deserialize_card(card_data, parent_layout, parent_widget)
-
-    def deserialize_all_cards(self, cards_data):
-        self.card.deserialize_all_cards(cards_data)
-
-    def clear_cards_ui(self):
-        self.card.clear_cards_ui()
-
-    def update_cards_buttons_state(self):
-        self.card.update_cards_buttons_state()
-
-    def export_single_document(self, item=None):
-        self.export_controller.export_documents(item)
-
-    def open_ai_settings_dialog(self):
-        self.ai_controller.open_ai_settings_dialog()
-
-    def open_ai_chat_dialog(self, context_text: str = ""):
-        self.ai_controller.open_ai_chat_dialog(context_text)
-
-    def trigger_ai_continuation(self):
-        self.ai_controller.trigger_ai_continuation()
-
-    def handle_editor_ai_analyze(self, task_type: str, text: str):
-        self.ai_controller.handle_editor_ai_analyze(task_type, text)
-
-    def trigger_ai_analysis(self, task_type: str):
-        self.ai_controller.trigger_ai_analysis(task_type)
-
-    def start_ai_analysis(self, task_type: str, text: str, chapter_title: str = ""):
-        self.ai_controller.start_ai_analysis(task_type, text, chapter_title)
-
-    def is_item_valid(self, item) -> bool:
-        return self.tree.is_item_valid(item)
-
-    def get_item_id(self, item) -> str:
-        return self.tree.get_item_id(item)
-
-    def get_item_path_string(self, item) -> str:
-        return self.tree.get_item_path_string(item)
-
-    def add_card_from_ai(self, category: str, title: str, content: str, summary: str = "", tags: list = None):
-        self.ai_controller.add_card_from_ai(category, title, content, summary, tags)
-
-    def open_autosave_settings_dialog(self):
-        self.project.open_autosave_settings_dialog()
-
-    def open_storage_path_dialog(self):
-        self.project.open_storage_path_dialog()
+            self.project.update_project_labels()
 
     def get_storage_path(self) -> str:
         """取得當前生效之專案存檔根目錄路徑。"""

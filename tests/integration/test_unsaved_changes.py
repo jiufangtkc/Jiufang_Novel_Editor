@@ -56,7 +56,7 @@ class TestUnsavedChanges(unittest.TestCase):
 
         # 執行靜默存檔
         with patch("services.database.DatabaseService.save_project"):
-            success = self.mc.save_project(silent=True)
+            success = self.mc.project.save_project(silent=True)
             self.assertTrue(success)
             self.assertFalse(self.mc.is_dirty)
             self.assertNotIn(" *", self.view.windowTitle())

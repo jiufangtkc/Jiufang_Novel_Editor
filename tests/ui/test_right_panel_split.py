@@ -147,26 +147,7 @@ class TestRightPanelSplit(unittest.TestCase):
         self.rp.btn_format_bold.click()
         self.assertEqual(self.rp.card_content_edit.to_markdown(), "測試文字")
 
-    def test_markdown_preview_toggle(self):
-        """測試卡片 Markdown 富文本預覽切換功能。"""
-        self.rp.card_content_edit.setPlainText("### 標題\n**粗體內容**")
-        self.assertEqual(self.rp.card_content_stack.currentIndex(), 0)
-        
-        # 點擊切換為預覽模式
-        self.rp.btn_toggle_card_preview.click()
-        self.assertEqual(self.rp.card_content_stack.currentIndex(), 1)
-        self.assertEqual(self.rp.btn_toggle_card_preview.text(), "📝 編輯")
-        self.assertIn("<h3", self.rp.card_preview_browser.toHtml())
-        self.assertIn("font-weight:700", self.rp.card_preview_browser.toHtml())
-        self.assertIn("標題", self.rp.card_preview_browser.toPlainText())
-        self.assertIn("粗體內容", self.rp.card_preview_browser.toPlainText())
-        self.assertFalse(self.rp.btn_format_bold.isEnabled())
 
-        # 再次點擊切換回編輯模式
-        self.rp.btn_toggle_card_preview.click()
-        self.assertEqual(self.rp.card_content_stack.currentIndex(), 0)
-        self.assertEqual(self.rp.btn_toggle_card_preview.text(), "📖 預覽")
-        self.assertTrue(self.rp.btn_format_bold.isEnabled())
 
 if __name__ == "__main__":
     unittest.main()

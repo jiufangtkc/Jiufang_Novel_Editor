@@ -73,7 +73,7 @@ class StatsController:
 
     def recalculate_all_word_stats(self):
         """當字數統計規則改變時，重新計算所有章節節點與當前編輯頁面的字數統計。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
 
         def process_item(item):
             if not self.mc.tree.is_item_valid(item):
@@ -342,7 +342,7 @@ class StatsController:
         pass
 
     def show_writing_log_dashboard(self):
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         self.flush_active_writing_session()
         scale = getattr(self.view, "scale_factor", 1.0)
         if hasattr(self.view, "writing_log_dashboard") and hasattr(self.view.writing_log_dashboard, "update_scale"):

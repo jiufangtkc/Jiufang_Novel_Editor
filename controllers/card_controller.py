@@ -1,11 +1,15 @@
+import os
+import re
 import uuid
+import json
 from typing import Optional, List
-from PyQt6.QtWidgets import QTreeWidgetItem, QMenu, QMessageBox, QInputDialog, QApplication, QFileDialog
+from PyQt6.QtWidgets import QTreeWidgetItem, QMenu, QMessageBox, QInputDialog, QApplication, QFileDialog, QDialog
 from PyQt6.QtCore import Qt
 from views.components.right_panel_view import ROLE_CARD_ID, ROLE_CATEGORY, ROLE_NODE_TYPE
 from views.dialogs.card_detail_dialog import CardDetailDialog
+from views.dialogs.dataset_export_dialog import DatasetExportDialog
 from models.models import CardNode, BUILTIN_CATEGORIES, CATEGORY_DISPLAY_NAMES, CATEGORY_ICONS
-import json
+from utils.dataset_formatter import DatasetFormatter
 
 
 class CardController:
@@ -120,7 +124,7 @@ class CardController:
             if category_key not in self.mc.project_cards:
                 continue
 
-            display_name = CATEGORY_DISPLAY_NAMES.get(category_key, category_key)
+            display_name = getattr(self.mc.project_info, 'categories_meta', {}).get(category_key, CATEGORY_DISPLAY_NAMES.get(category_key, category_key))
             cat_item = rp.make_category_item(category_key, display_name)
 
             cards = self.mc.project_cards.get(category_key, [])
@@ -142,7 +146,7 @@ class CardController:
 
         # 更新下拉選單
         custom_cats = [k for k in category_order if k not in BUILTIN_CATEGORIES]
-        rp.rebuild_category_combo(category_order, custom_cats)
+        rp.rebuild_category_combo(category_order, custom_cats, getattr(self.mc.project_info, 'categories_meta', {}))
 
         tree.blockSignals(False)
 
@@ -254,8 +258,10 @@ class CardController:
         if cat_key not in self.mc._project_category_order:
             self.mc._project_category_order.append(cat_key)
 
-        # 記錄顯示名稱（供 rebuild_card_tree 使用）
-        CATEGORY_DISPLAY_NAMES[cat_key] = display_name
+        # 記錄顯示名稱（修改 project 級別設定）
+        if not hasattr(self.mc.project_info, 'categories_meta'):
+            self.mc.project_info.categories_meta = {}
+        self.mc.project_info.categories_meta[cat_key] = display_name
 
         self.rebuild_card_tree()
         self.mc.project.save_temp_doc()
@@ -271,7 +277,9 @@ class CardController:
             text=current_display_name
         )
         if ok and new_name.strip():
-            CATEGORY_DISPLAY_NAMES[category_key] = new_name.strip()
+            if not hasattr(self.mc.project_info, 'categories_meta'):
+                self.mc.project_info.categories_meta = {}
+            self.mc.project_info.categories_meta[category_key] = new_name.strip()
             self.rebuild_card_tree()
             self.mc.project.save_temp_doc()
 
@@ -281,7 +289,7 @@ class CardController:
             QMessageBox.information(self.view, "提示", "內建分類不可刪除。")
             return
 
-        display_name = CATEGORY_DISPLAY_NAMES.get(category_key, category_key)
+        display_name = getattr(self.mc.project_info, 'categories_meta', {}).get(category_key, CATEGORY_DISPLAY_NAMES.get(category_key, category_key))
         cards_count = len(self.mc.project_cards.get(category_key, []))
         msg = f"確定要刪除分類「{display_name}」"
         if cards_count > 0:
@@ -300,7 +308,8 @@ class CardController:
                     self.mc._project_category_order.remove(category_key)
                 except ValueError:
                     pass
-            CATEGORY_DISPLAY_NAMES.pop(category_key, None)
+            if hasattr(self.mc.project_info, 'categories_meta'):
+                self.mc.project_info.categories_meta.pop(category_key, None)
             self.rebuild_card_tree()
             self.mc.project.save_temp_doc()
 
@@ -323,7 +332,7 @@ class CardController:
             self.view.right_panel.show_placeholder()
             return
 
-        display_name = CATEGORY_DISPLAY_NAMES.get(category, "資料集卡片")
+        display_name = getattr(self.mc.project_info, 'categories_meta', {}).get(category, CATEGORY_DISPLAY_NAMES.get(category, "資料集卡片"))
         self.view.right_panel.show_card_detail(
             card_id=card_node.id,
             title=card_node.title,
@@ -362,7 +371,7 @@ class CardController:
         if not card_node:
             return
 
-        display_name = CATEGORY_DISPLAY_NAMES.get(category, "資料集卡片")
+        display_name = getattr(self.mc.project_info, 'categories_meta', {}).get(category, CATEGORY_DISPLAY_NAMES.get(category, "資料集卡片"))
         dlg = CardDetailDialog(
             parent=self.view,
             title=card_node.title,
@@ -401,7 +410,7 @@ class CardController:
             for cat_key in category_order:
                 if cat_key == "ai_chat":
                     continue
-                disp = CATEGORY_DISPLAY_NAMES.get(cat_key, cat_key)
+                disp = getattr(self.mc.project_info, 'categories_meta', {}).get(cat_key, CATEGORY_DISPLAY_NAMES.get(cat_key, cat_key))
                 icon = CATEGORY_ICONS.get(cat_key, "📁")
                 act = add_menu.addAction(f"{icon} {disp}")
                 act.triggered.connect(lambda checked, ck=cat_key: self.add_core_card(ck))
@@ -419,13 +428,13 @@ class CardController:
             menu.addSeparator()
 
             act_export = menu.addAction("📤 匯出資料集")
-            act_export.triggered.connect(self.export_dataset)
+            act_export.triggered.connect(self.mc.dataset.export_dataset)
             act_import = menu.addAction("📥 匯入資料集")
-            act_import.triggered.connect(self.import_dataset)
+            act_import.triggered.connect(self.mc.dataset.import_dataset)
 
         elif item.data(0, ROLE_NODE_TYPE) == "category":
             cat_key = item.data(0, ROLE_CATEGORY)
-            display_name = CATEGORY_DISPLAY_NAMES.get(cat_key, cat_key)
+            display_name = getattr(self.mc.project_info, 'categories_meta', {}).get(cat_key, CATEGORY_DISPLAY_NAMES.get(cat_key, cat_key))
 
             act_add = menu.addAction(f"＋ 在「{display_name}」中新增卡片")
             act_add.triggered.connect(lambda: self.add_core_card(cat_key))
@@ -467,7 +476,8 @@ class CardController:
 
             # ── 2. 移動到其他分類 ───────────────────────
             move_menu = menu.addMenu("→ 移動到...")
-            for target_cat, target_display in CATEGORY_DISPLAY_NAMES.items():
+            all_cats_meta = {**CATEGORY_DISPLAY_NAMES, **getattr(self.mc.project_info, 'categories_meta', {})}
+            for target_cat, target_display in all_cats_meta.items():
                 if target_cat != category and target_cat in self.mc.project_cards:
                     if target_cat == "ai_chat":
                         continue  # 不允許手動移入 AI 對話紀錄
@@ -552,7 +562,7 @@ class CardController:
 
         text_to_copy = card_node.content if card_node.content.strip() else card_node.title
         QApplication.clipboard().setText(text_to_copy)
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
     def move_card_up(self, card_id: str, category: str):
         """將卡片在同層列表中向上移動一位。"""
@@ -810,136 +820,7 @@ class CardController:
     # 資料集匯出與匯入 (Phase 3)
     # =========================================================================
 
-    def export_dataset(self):
-        """匯出整個卡片資料集到 JSON 檔案"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self.view, "匯出資料集", "", "JSON Files (*.json);;All Files (*)"
-        )
-        if not file_path:
-            return
 
-        try:
-            cards_data = self.serialize_all_cards()
-            data = {
-                "version": "1.0",
-                "categories_meta": CATEGORY_DISPLAY_NAMES,
-                "cards": cards_data
-            }
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            
-            QMessageBox.information(self.view, "匯出成功", f"資料集已成功匯出至：\n{file_path}")
-        except Exception as e:
-            QMessageBox.critical(self.view, "匯出失敗", f"匯出資料集時發生錯誤：\n{str(e)}")
-
-    def import_dataset(self):
-        """匯入資料集並處理衝突"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self.view, "匯入資料集", "", "JSON Files (*.json);;All Files (*)"
-        )
-        if not file_path:
-            return
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            if not isinstance(data, dict):
-                QMessageBox.warning(self.view, "匯入失敗", "無效的資料格式。")
-                return
-
-            # 相容單純匯出的卡片格式或帶有 meta 的格式
-            cards_data = data.get("cards", data) if "cards" in data else data
-            imported_meta = data.get("categories_meta", {})
-
-            # 收集所有匯入的卡片名稱
-            imported_cards = []
-            def _collect(cat_data):
-                for card in cat_data:
-                    imported_cards.append(card)
-                    _collect(card.get("children", []))
-            
-            for cat, cards in cards_data.items():
-                if isinstance(cards, list):
-                    _collect(cards)
-
-            # 檢查衝突 (現有卡片)
-            existing_cards_dict = {}
-            for cat, cards in self.mc.project_cards.items():
-                def _collect_existing(node_list):
-                    for node in node_list:
-                        existing_cards_dict[node.title] = node
-                        _collect_existing(node.children)
-                _collect_existing(cards)
-
-            conflicts = [c for c in imported_cards if c.get("title") in existing_cards_dict]
-
-            strategy = "new"
-            if conflicts:
-                msgBox = QMessageBox(self.view)
-                msgBox.setWindowTitle("匯入衝突")
-                msgBox.setText(f"發現 {len(conflicts)} 張同名的卡片。請選擇處理方式：")
-                btn_new = msgBox.addButton("建立為新卡片", QMessageBox.ButtonRole.ActionRole)
-                btn_overwrite = msgBox.addButton("覆蓋現有卡片", QMessageBox.ButtonRole.ActionRole)
-                btn_cancel = msgBox.addButton("取消匯入", QMessageBox.ButtonRole.RejectRole)
-                msgBox.exec()
-
-                if msgBox.clickedButton() == btn_cancel:
-                    return
-                elif msgBox.clickedButton() == btn_overwrite:
-                    strategy = "overwrite"
-                else:
-                    strategy = "new"
-
-            # 執行匯入
-            for cat, cards_list in cards_data.items():
-                if not isinstance(cards_list, list):
-                    continue
-
-                # 確保分類存在
-                if cat not in self.mc.project_cards:
-                    self.mc.project_cards[cat] = []
-                    if hasattr(self.mc, '_project_category_order'):
-                        self.mc._project_category_order.append(cat)
-                    if cat in imported_meta:
-                        CATEGORY_DISPLAY_NAMES[cat] = imported_meta[cat]
-
-                # 遞迴處理卡片
-                self._import_card_list(cards_list, self.mc.project_cards[cat], strategy, existing_cards_dict)
-
-            self.rebuild_card_tree()
-            self.mc.project.save_temp_doc()
-            QMessageBox.information(self.view, "匯入成功", "資料集匯入完成。")
-
-        except Exception as e:
-            QMessageBox.critical(self.view, "匯入失敗", f"匯入資料集時發生錯誤：\n{str(e)}")
-
-    def _import_card_list(self, import_list: list, target_list: list, strategy: str, existing_cards_dict: dict):
-        for card_data in import_list:
-            title = card_data.get("title", "")
-            if title in existing_cards_dict and strategy == "overwrite":
-                # 覆蓋現有卡片內容
-                existing_node = existing_cards_dict[title]
-                existing_node.content = card_data.get("content", "")
-                existing_node.color = card_data.get("color", "#3C3F41")
-                # 遞迴處理子卡片
-                self._import_card_list(card_data.get("children", []), existing_node.children, strategy, existing_cards_dict)
-            else:
-                # 建立為新卡片
-                new_title = title
-                if title in existing_cards_dict and strategy == "new":
-                    new_title = f"{title} (匯入)"
-                
-                new_node = CardNode(
-                    title=new_title,
-                    id=str(uuid.uuid4()),  # 賦予新 ID 避免衝突
-                    content=card_data.get("content", ""),
-                    color=card_data.get("color", "#3C3F41"),
-                    is_collapsed=card_data.get("is_collapsed", False)
-                )
-                target_list.append(new_node)
-                # 子卡片也視為新卡片處理
-                self._import_card_list(card_data.get("children", []), new_node.children, "new", existing_cards_dict)
 
     # =========================================================================
     # AI 對話紀錄相關

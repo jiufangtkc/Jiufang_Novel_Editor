@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
-> **最後更新**：2026-09-16  
-> **測試總數**：257 項自動化測試（40 個測試模組）  
+> **最後更新**：2026-09-22  
+> **測試總數**：260 項自動化測試（41 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,14 +11,14 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 257 項測試
-.venv\Scripts\python.exe -m pytest tests/
+# 執行全部 260 項測試
+py -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
-.venv\Scripts\python.exe -m pytest tests/ --collect-only -q
+py -m pytest tests/ --collect-only -q
 
 # 執行單一測試檔案
-.venv\Scripts\python.exe -m pytest tests/ui/test_ai_scope_dialog.py
+py -m pytest tests/unit/test_dataset_export.py
 ```
 
 ---
@@ -28,12 +28,12 @@
 | 分類領域 | 測試模組檔名 | 測試數 | 核心測試目標 |
 | :--- | :--- | :---: | :--- |
 | **1. AI 輔助與長文本分析** | `integration/test_ai_cancellation.py`<br>`integration/test_ai_character_extraction.py`<br>`integration/test_ai_chat.py`<br>`integration/test_ai_continuation.py`<br>`ui/test_ai_scope_dialog.py`<br>`unit/test_ai_service.py`<br>`unit/test_ai_settings_and_worker.py`<br>`unit/test_hardware_detector.py`<br>`unit/test_token_estimator.py` | 54 | 任務取消主動中斷機制與連線 Socket 立即關閉、結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、Token估算與 Context 防護攔截、動態硬體記憶體感知偵測（NVIDIA VRAM / 系統 RAM）、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試、Ollama tokenize 端點命中與 fallback、LM Studio context 上限主動撈取與 AISettingsDialog 設定同步、AIScopeDialog 無 Emoji 介面與綠黃紅狀態按鈕禁用防護、Local LLM 本地端點離線即時探測與啟動按鈕防禦禁用、長篇文本單一串流請求無錯誤執行、純本機零延遲 Token 估算與 LM Studio 終端機報錯消除 |
-| **2. 編輯器與右側資料卡片** | `integration/test_controllers.py`<br>`ui/test_typewriter_mode.py`<br>`ui/test_right_panel_split.py`<br>`ui/test_card_detail_dialog.py` | 30 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
+| **2. 編輯器與右側資料卡片** | `integration/test_controllers.py`<br>`ui/test_typewriter_mode.py`<br>`ui/test_right_panel_split.py`<br>`ui/test_card_detail_dialog.py` | 29 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
 | **3. 章節樹與三層結構（幕）** | `ui/test_context_menus.py`<br>`integration/test_scene.py` | 22 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記/轉換為卷章幕）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
 | **4. 資料庫、備份與路徑移轉** | `unit/test_database.py`<br>`unit/test_daily_progress_sync.py`<br>`unit/test_backup.py`<br>`unit/test_snapshot.py`<br>`integration/test_tree_expansion_persistence.py`<br>`integration/test_storage_path.py`<br>`integration/test_save_rules.py` | 30 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則 |
 | **5. 自動存檔與崩潰恢復** | `integration/test_autosave_and_startup.py` | 9 | 啟動導引視窗（新建/開啟/最新）、異常結束崩潰自動恢復（Crash Recovery）、暫存檔配額清理與自動存檔週期 |
 | **6. 審校、統計與寫作日誌** | `integration/test_phase12.py`<br>`ui/test_stats_settings.py`<br>`unit/test_stats_ai_breakdown.py`<br>`unit/test_writing_log_enhancements.py`<br>`unit/test_writing_log_service.py` | 34 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、AI 輔助創作誠信指標細項打點、寫作打卡熱力圖覆蓋修復、各章節字數長條圖提取修復、短時間大量文字貼上與刪除行為即時監控、排除正常打字與輸入法組字誤觸大量刪除、固定時間窗口防無窮累積、背景儀表板非可見時跳過重繪以消除打字卡頓、創作日誌文字與介面全域 UI 縮放反應、全書字數目標進度條、WritingLogService 純邏輯計算與表格文字格式化 |
-| **7. 視窗設定、大綱與匯出** | `integration/test_window_settings.py`<br>`ui/test_focus_and_outline.py`<br>`unit/test_markdown_converter.py`<br>`unit/test_export.py`<br>`ui/test_search.py` | 33 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索與樹操作即時同步、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT) |
+| **7. 視窗設定、大綱與匯出** | `integration/test_window_settings.py`<br>`ui/test_focus_and_outline.py`<br>`unit/test_markdown_converter.py`<br>`unit/test_export.py`<br>`unit/test_dataset_export.py`<br>`ui/test_search.py` | 37 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索與樹操作即時同步、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT)、設定資料集匯出精靈勾選過濾與深層卡片動態標題降級排版 |
 | **8. 主題樣式與對話框色彩** | `ui/test_theme_dialogs.py` | 10 | 全 6 種主題之彈出視窗高對比度 Token、按鈕/核取/單選指示器渲染、所有對話框主題色彩套用相容 |
 | **9. 外部文件匯入與樹狀適應** | `unit/test_import_service.py`<br>`integration/test_import_controller.py` | 12 | 中文小說正則切分（卷/章/場景）、Markdown 標題對應、Word 大綱樣式、多編碼自動偵測 (UTF-8/Big5)、單檔不切分、預覽精靈勾選過濾與三種掛載模式 |
 | **10. 稿件未儲存防護** | `integration/test_unsaved_changes.py` | 9 | 編輯器輸入與章節樹異動髒標記、關閉確認對話框存檔/不存檔/取消選擇機制 |
@@ -138,14 +138,14 @@
 - `test_volume_and_book_title_independence`：測試修改書名與修改第一卷名稱各自獨立、互不干擾。
 - `test_writing_log_ai_fields_roundtrip`：驗證 `_build_jne_project` 與 `load_project_data` 完整保留 AI 介入度欄位。
 
-#### `ui/test_right_panel_split.py` (9 項)
+#### `ui/test_right_panel_split.py` (8 項)
 - `test_card_rename_sync_with_editing_panel`：測試卡片更名時，下方正在編輯中的面板標題即時連動更新。
 - `test_click_card_loads_content`：測試點選卡片節點時，下方欄位切換至編輯頁 (Index 1) 並載入標題與內文。
 - `test_click_category_shows_placeholder`：測試點擊分類節點時切換回預設提示頁 (Index 0)。
 - `test_delete_editing_card_resets_to_placeholder`：測試當正在編輯的卡片遭刪除時，下方重設為提示頁。
 - `test_initial_state_placeholder`：測試右側下方預設呈現提示導引頁面。
 - `test_markdown_highlighter_and_formatting`：測試卡片編輯區支援富文本所見即所得與工具列格式化。
-- `test_markdown_preview_toggle`：測試卡片 Markdown 預覽模式切換。
+
 - `test_save_card_from_panel`：測試在下方欄位修改內容並儲存，資料模型與上方面板節點皆正確同步。
 - `test_scene_panel_switch`：測試切換為「幕」屬性編輯面板 (Index 2)。
 
@@ -303,7 +303,7 @@
 
 ---
 
-### 3.7 視窗設定、大綱檢視、搜尋與匯出（31 項）
+### 3.7 視窗設定、大綱檢視、搜尋與匯出（37 項）
 
 #### `integration/test_window_settings.py` (10 項)
 - `test_app_settings_service_load_save`：測試 AppSettingsService 設定讀取與儲存。
@@ -339,6 +339,12 @@
 - `test_export_md`：測試匯出為 Markdown (.md) 文件。
 - `test_export_txt`：測試匯出為純文字檔 (.txt)。
 - `test_export_default_dir_follows_storage_path`：測試匯出預設目錄正確跟隨 `mc.get_export_dir()` 與自訂存檔路徑連動。
+
+#### `unit/test_dataset_export.py` (4 項)
+- `test_dataset_formatter_depth_degradation`：測試 DatasetFormatter 結構化轉 Markdown 語法，驗證前三層使用 H1~H3 標題，深度達第四層與第五層時觸發動態標題降級機制，改採麵包屑階層清單與引言縮排，確保深層大綱排版不失序。
+- `test_dataset_export_dialog_filtering`：測試 DatasetExportDialog 的分類與卡片勾選連動邏輯，驗證取消特定分類勾選後，未勾選之卡片能安全且精確被剔除。
+- `test_dataset_render_to_docx`：測試 DatasetFormatter 產出之 Markdown 文字可透過 MarkdownConverter 順利轉為 Word (.docx) 文件段落並保持正確內容。
+- `test_menu_actions_and_shortcuts`：測試選單匯出選項更名為「匯出小說文本(&E)...」，並驗證新增「匯出設定資料集(&D)...」動作與快速鍵 Ctrl+Shift+E 正確綁定。
 
 #### `ui/test_search.py` (6 項)
 - `test_find_in_editor_and_navigation`：測試編輯器內關鍵字搜尋與上一個/下一個導航。

@@ -18,7 +18,7 @@ class BackupController:
 
     def export_backup_zip(self):
         """將專案資料庫打包為 ZIP 備份檔。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         self.mc.project.save_temp_doc()
 
         db_path = self.mc.project.get_active_db_path()

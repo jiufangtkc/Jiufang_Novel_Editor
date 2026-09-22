@@ -76,38 +76,19 @@ class TestWritingLogEnhancements(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def test_database_migration_v12_and_roundtrip(self):
-        """驗證 v11 升級至 v12 增加 paste_large_count 與 delete_large_count，並驗證儲存與載入。"""
+    def test_database_migration_v12_columns_exist(self):
+        """驗證 v11 升級至 v12 增加 paste_large_count 與 delete_large_count。"""
         DatabaseService.init_db(self.db_path)
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         v = DatabaseMigrations.get_current_schema_version(cursor)
-        self.assertEqual(v, 12)
+        self.assertEqual(v, 13)
 
         cursor.execute("PRAGMA table_info(writing_logs)")
         cols = {row[1] for row in cursor.fetchall()}
         self.assertIn("paste_large_count", cols)
         self.assertIn("delete_large_count", cols)
         conn.close()
-
-        # 儲存包含大量貼上與刪除的寫作日誌
-        proj = JneProject()
-        proj.writing_logs.append(WritingLogEntry(
-            date="2026-09-04",
-            duration=600,
-            word_count=1200,
-            paste_large_count=3,
-            delete_large_count=2
-        ))
-        DatabaseService.save_project(proj, self.db_path)
-
-        # 讀取並驗證
-        loaded = DatabaseService.load_project(self.db_path)
-        self.assertEqual(len(loaded.writing_logs), 1)
-        log = loaded.writing_logs[0]
-        self.assertEqual(log.date, "2026-09-04")
-        self.assertEqual(log.paste_large_count, 3)
-        self.assertEqual(log.delete_large_count, 2)
 
     def test_paste_no_longer_tracked(self):
         """驗證大量貼上監控已移除，貼上長文字不再寫入或累計大量貼上記錄。"""

@@ -212,18 +212,7 @@ class RightPanelView(QWidget):
 
         toolbar_layout.addStretch()
 
-        self.btn_toggle_card_preview = QPushButton("📖 預覽")
-        self.btn_toggle_card_preview.setFont(FontManager.get_font(size=8, weight=QFont.Weight.Bold))
-        self.btn_toggle_card_preview.setToolTip("切換 Markdown 富文本渲染預覽與編輯模式")
-        self.btn_toggle_card_preview.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_toggle_card_preview.setFixedHeight(22)
-        self.btn_toggle_card_preview.clicked.connect(self._toggle_card_preview_mode)
-        toolbar_layout.addWidget(self.btn_toggle_card_preview)
-
         cd_layout.addWidget(self.card_toolbar)
-
-        # 內容堆疊：Markdown 編輯器 (Index 0) / 富文本 HTML 預覽 (Index 1)
-        self.card_content_stack = QStackedWidget()
 
         self.card_content_edit = RightPanelCardEditor()
         self.card_content_edit.setPlaceholderText("在此輸入卡片內容（支援 Markdown 語法高亮）...")
@@ -231,14 +220,7 @@ class RightPanelView(QWidget):
         self.card_content_edit.signal_save_requested.connect(self._on_save_card_clicked)
         self.card_content_edit.textChanged.connect(self._on_save_card_clicked)
         self.card_content_edit.signal_ai_chat.connect(self._open_ai_chat_for_card)
-        self.card_content_stack.addWidget(self.card_content_edit)
-
-        self.card_preview_browser = QTextEdit()
-        self.card_preview_browser.setReadOnly(True)
-        self.card_preview_browser.setFont(FontManager.get_font(size=9))
-        self.card_content_stack.addWidget(self.card_preview_browser)
-
-        cd_layout.addWidget(self.card_content_stack, 1)
+        cd_layout.addWidget(self.card_content_edit, 1)
 
         self.bottom_stack.addWidget(self.card_detail_panel)
 
@@ -317,13 +299,14 @@ class RightPanelView(QWidget):
             icon_char = CATEGORY_ICONS.get(key, "📁")
             self.combo_add_category.addItem(f"{icon_char} {display}", key)
 
-    def rebuild_category_combo(self, category_order: list, custom_categories: list):
+    def rebuild_category_combo(self, category_order: list, custom_categories: list, categories_meta: dict = None):
         """CardController 呼叫以同步自訂分類到下拉選單（相容用）。"""
+        categories_meta = categories_meta or {}
         self.combo_add_category.clear()
         for key in category_order:
             if key == "ai_chat":
                 continue
-            display = CATEGORY_DISPLAY_NAMES.get(key, key)
+            display = categories_meta.get(key, CATEGORY_DISPLAY_NAMES.get(key, key))
             icon_char = CATEGORY_ICONS.get(key, CATEGORY_ICONS["_custom"])
             self.combo_add_category.addItem(f"{icon_char} {display}", key)
 
@@ -344,36 +327,9 @@ class RightPanelView(QWidget):
         self.card_content_edit.blockSignals(True)
         self.card_content_edit.set_markdown(content)
         self.card_content_edit.blockSignals(False)
-
-        # 若當前處於預覽模式，同步更新預覽 HTML
-        if self.card_content_stack.currentIndex() == 1:
-            self.card_preview_browser.setHtml(markdown_to_html(content))
         self.bottom_stack.setCurrentIndex(1)
 
-    def _toggle_card_preview_mode(self):
-        """切換卡片內容的編輯與 Markdown 富文本預覽模式"""
-        if self.card_content_stack.currentIndex() == 0:
-            # 切換到預覽
-            content = self.card_content_edit.to_markdown()
-            html_content = markdown_to_html(content)
-            self.card_preview_browser.setHtml(html_content)
-            self.card_content_stack.setCurrentIndex(1)
-            self.btn_toggle_card_preview.setText("📝 編輯")
-            self._set_formatting_buttons_enabled(False)
-        else:
-            # 切換回編輯
-            self.card_content_stack.setCurrentIndex(0)
-            self.btn_toggle_card_preview.setText("📖 預覽")
-            self._set_formatting_buttons_enabled(True)
 
-    def _set_formatting_buttons_enabled(self, enabled: bool):
-        for btn in [
-            self.btn_format_bold, self.btn_format_italic,
-            self.btn_format_header, self.btn_format_list,
-            self.btn_format_strike, self.btn_format_ellipsis,
-            self.btn_format_emdash
-        ]:
-            btn.setEnabled(enabled)
 
     def _open_ai_chat_for_card(self, context_text: str):
         """開啟 AI 對話視窗並引用卡片文字"""
@@ -482,7 +438,6 @@ class RightPanelView(QWidget):
         self.lbl_card_category.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
         self.card_title_edit.setFont(FontManager.get_font(size=int(9 * scale), weight=QFont.Weight.Bold))
         self.card_content_edit.setFont(FontManager.get_font(size=int(9 * scale)))
-        self.card_preview_browser.setFont(FontManager.get_font(size=int(9 * scale)))
 
         if hasattr(self, "btn_format_bold"):
             self.btn_format_bold.setFont(FontManager.get_font(size=int(8 * scale), weight=QFont.Weight.Bold))
@@ -499,8 +454,6 @@ class RightPanelView(QWidget):
             self.btn_format_ellipsis.setFixedSize(int(26 * scale), int(22 * scale))
             self.btn_format_emdash.setFont(FontManager.get_font(size=int(7 * scale)))
             self.btn_format_emdash.setFixedSize(int(26 * scale), int(22 * scale))
-            self.btn_toggle_card_preview.setFont(FontManager.get_font(size=int(8 * scale), weight=QFont.Weight.Bold))
-            self.btn_toggle_card_preview.setFixedHeight(int(22 * scale))
 
 
 

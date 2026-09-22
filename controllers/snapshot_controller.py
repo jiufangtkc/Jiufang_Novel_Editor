@@ -16,7 +16,7 @@ class SnapshotController:
 
     def manage_snapshots(self):
         """開啟版本快照管理對話框。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         self.mc.project.save_temp_doc()
 
         db_path = self.mc.project.get_active_db_path()
@@ -31,7 +31,7 @@ class SnapshotController:
 
     def create_snapshot(self, dialog: SnapshotDialog = None):
         """彈出輸入名稱對話框並建立新快照。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         name, ok = QInputDialog.getText(
             dialog or self.view,
             "建立版本快照",

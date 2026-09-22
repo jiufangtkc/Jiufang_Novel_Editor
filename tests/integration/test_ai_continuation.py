@@ -21,7 +21,15 @@ class MockStats:
     def record_ai_activity(self, continuation_count=0, continuation_chars=0, chat_count=0):
         pass
 
+    def update_status_bar(self):
+        pass
 
+
+class MockProject:
+    def __init__(self, mc):
+        self.mc = mc
+    def save_temp_doc(self):
+        self.mc.saved = True
 
 class MockMainController:
     def __init__(self, editor):
@@ -33,13 +41,11 @@ class MockMainController:
                 self.right_widget = None
         self.view = MockView(editor)
         self.stats = MockStats()
+        self.project = MockProject(self)
         self.saved = False
 
     def update_status_bar(self):
         pass
-
-    def save_temp_doc(self):
-        self.saved = True
 
 
 class TestAIContinuation(unittest.TestCase):

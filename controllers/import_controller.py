@@ -15,7 +15,7 @@ class ImportController:
 
     def show_import_dialog(self, target_item: Optional[QTreeWidgetItem] = None):
         """開啟匯入對話框並處理使用者確認之章節注入。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
 
         curr_item = target_item
         if curr_item is None:
@@ -135,7 +135,7 @@ class ImportController:
         # 狀態標記與統計重算
         self.mc.mark_dirty(True)
         self.mc.stats.recalculate_all_word_stats()
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
         # 自動選取並載入第一個新匯入的章節
         if first_file_item:

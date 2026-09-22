@@ -33,6 +33,7 @@ class ProjectInfo:
     target_word_count: int = 100000
     daily_target_word_count: int = 1000
     expanded_categories: Optional[List[str]] = None
+    categories_meta: Dict[str, str] = field(default_factory=dict)
 
 @dataclass
 class CardNode:
@@ -58,17 +59,6 @@ class AIChatRecord:
     color: str = "#1a2a3a"
     is_collapsed: bool = False
     children: List[CardNode] = field(default_factory=list)  # 不使用子卡片
-
-    def to_card_node(self) -> CardNode:
-        """將 AIChatRecord 轉換為 CardNode 以統一存放在 project_cards 中。"""
-        return CardNode(
-            title=self.title,
-            id=self.id,
-            content=self.content,
-            color=self.color,
-            is_collapsed=self.is_collapsed,
-            children=[]
-        )
 
 # 內建分類清單（固定，AI 功能僅支援此列表）
 BUILTIN_CATEGORIES: List[str] = ["summary", "character", "world", "timeline", "ai_chat"]
@@ -123,9 +113,6 @@ class WritingLogEntry:
     ai_continuation_chars: int = 0    # AI 續寫字數
     ai_chat_count: int = 0            # AI 對話次數
     ai_details: Dict[str, int] = field(default_factory=dict)  # AI 細部功能面向次數 (例: chat, character, proofread 等)
-    # [已廢棄] 僅供舊版 SQLite/JSON 向後相容反序列化，新業務邏輯與統計不再使用
-    paste_large_count: int = 0
-    delete_large_count: int = 0
 
 
 @dataclass

@@ -232,7 +232,7 @@ class TreeController:
         if not self.is_item_valid(item):
             return
 
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
 
         clone_item = self._clone_item_recursive(item, is_root=True)
         parent = item.parent()
@@ -244,7 +244,7 @@ class TreeController:
             idx = self.view.tree_widget.indexOfTopLevelItem(item)
             self.view.tree_widget.insertTopLevelItem(idx + 1, clone_item)
 
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
         self.view.tree_widget.setCurrentItem(clone_item)
         self.on_tree_item_clicked(clone_item, 0)
@@ -304,7 +304,7 @@ class TreeController:
             # 轉換為卷
             # 若目前正在編輯此節點，先儲存文字內容後卸載
             if self.mc.current_file_item == item:
-                self.mc.save_current_editor_content()
+                self.mc.editor.save_current_editor_content()
                 self.mc.current_file_item = None
                 self.view.editor.blockSignals(True)
                 self.view.editor.clear()
@@ -320,7 +320,7 @@ class TreeController:
             # folder 不計入 file_word_stats
             if item_id and item_id in self.mc.file_word_stats:
                 self.mc.file_word_stats.pop(item_id, None)
-                self.mc.update_status_bar()
+                self.mc.stats.update_status_bar()
                 self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
 
             data["type"] = "folder"
@@ -350,7 +350,7 @@ class TreeController:
             # 更新字數快取
             if item_id:
                 self.mc.file_word_stats[item_id] = self.mc.stats.analyze_exclusions_from_markdown(data.get("content", ""))
-                self.mc.update_status_bar()
+                self.mc.stats.update_status_bar()
                 self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
 
             # 若當前焦點即此項目，載入編輯器
@@ -377,7 +377,7 @@ class TreeController:
             # 更新字數快取
             if item_id:
                 self.mc.file_word_stats[item_id] = self.mc.stats.analyze_exclusions_from_markdown(data.get("content", ""))
-                self.mc.update_status_bar()
+                self.mc.stats.update_status_bar()
                 self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
 
             # 若當前焦點即此項目，載入編輯器與幕屬性
@@ -472,7 +472,7 @@ class TreeController:
             item_id = self.get_item_id(new_item)
             if item_id:
                 self.mc.file_word_stats[item_id] = {"valid": 0, "spaces": 0, "alpha": 0, "sym": 0}
-            self.mc.update_status_bar()
+            self.mc.stats.update_status_bar()
             self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
 
         was_outline_active = hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3
@@ -495,7 +495,7 @@ class TreeController:
         item_id = self.get_item_id(new_item)
         if item_id:
             self.mc.file_word_stats[item_id] = {"valid": 0, "spaces": 0, "alpha": 0, "sym": 0}
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         was_outline_active = hasattr(self.view, "center_stack") and self.view.center_stack.currentIndex() == 3
         self.view.tree_widget.setCurrentItem(new_item)
         self.on_tree_item_clicked(new_item, 0)
@@ -587,7 +587,7 @@ class TreeController:
         if self.view.center_stack.currentIndex() == 1:
             self.refresh_trash_ui()
 
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
         self._sync_outline_view_if_active()
         self.mc.project.save_temp_doc()
@@ -638,7 +638,7 @@ class TreeController:
         if data and node_type in ("file", "scene"):
             if not self.is_item_valid(self.mc.current_file_item):
                 self.mc.current_file_item = None
-            self.mc.save_current_editor_content()
+            self.mc.editor.save_current_editor_content()
             if self.mc.current_file_item:
                 t_id = self.get_item_id(self.mc.current_file_item)
                 if t_id:
@@ -661,7 +661,7 @@ class TreeController:
             item_id = self.get_item_id(item)
             if item_id:
                 self.mc.file_word_stats[item_id] = stats
-            self.mc.update_status_bar()
+            self.mc.stats.update_status_bar()
 
     def save_scene_info(self):
         """將幕屬性編輯頁籤的內容寫回當前選取的 scene 節點並觸發暫存"""
@@ -677,7 +677,7 @@ class TreeController:
             self.view.tree_widget.blockSignals(False)
             self.mc.project.save_temp_doc()
             # 顯示短暫的成功提示 (可選)
-            self.mc.update_status_bar()
+            self.mc.stats.update_status_bar()
 
     def get_item_path_string(self, item) -> str:
         path = []
@@ -736,7 +736,7 @@ class TreeController:
         restore_cache(item)
 
         self.refresh_trash_ui()
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
         self._sync_outline_view_if_active()
         self.mc.project.save_temp_doc()
@@ -834,7 +834,7 @@ class TreeController:
 
     def show_outline_page(self):
         """切換至全書大綱總覽模式 (Page 3)。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         self.view.outline_view.populate_from_tree(
             self.view.tree_widget,
             self.view.folder_icon_color,

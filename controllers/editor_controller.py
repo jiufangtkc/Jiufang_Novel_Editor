@@ -43,7 +43,7 @@ class EditorController:
                 self.mc.file_word_stats[item_id] = stats
 
         self.mc.mark_dirty(True)
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         if self.mc.typewriter_mode:
             self.align_typewriter_center()
 
@@ -228,7 +228,7 @@ class EditorController:
                         self.view.editor.set_markdown(content)
 
                 self.mc.mark_dirty(True)
-                self.mc.update_status_bar()
+                self.mc.stats.update_status_bar()
 
     def open_lint_dialog(self):
         """開啟文風與贅詞檢查對話框。"""

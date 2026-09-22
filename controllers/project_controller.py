@@ -110,7 +110,7 @@ class ProjectController:
             if item_id:
                 self.mc.file_word_stats[item_id] = {"valid": 0, "spaces": 0, "alpha": 0, "sym": 0}
 
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         self.view.tree_widget.setCurrentItem(scene_item)
         self.mc.tree.on_tree_item_clicked(scene_item, 0)
         self.mc.mark_dirty(False)
@@ -160,7 +160,7 @@ class ProjectController:
 
     def on_close_event(self, event):
         # 1. 確保當前編輯器中的內文已同步
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
 
         # 2. 稿件有變更且尚未存檔時提示確認（互動模式下提示，防範單元測試環境阻塞）
         if getattr(self.mc, "is_dirty", False) and getattr(self.mc, "interactive_startup", False):
@@ -184,7 +184,7 @@ class ProjectController:
                 return
 
         # 3. 正常結束流程與偏好設定儲存
-        self.mc.flush_active_writing_session()
+        self.mc.stats.flush_active_writing_session()
         # 只有在非放棄存檔時（即已存檔或無變更），才更新 temp_doc
         if not getattr(self.mc, "is_dirty", False):
             self.save_temp_doc()
@@ -204,7 +204,7 @@ class ProjectController:
 
     def _build_jne_project(self) -> JneProject:
         """從 UI 與共享狀態建構 JneProject dataclass。"""
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         self.mc.card.sync_expansion_states_from_tree()
 
         project = JneProject(
@@ -217,7 +217,8 @@ class ProjectController:
                 editor_font_size=self.mc.editor_font_size,
                 target_word_count=getattr(self.mc.project_info, 'target_word_count', 100000),
                 daily_target_word_count=getattr(self.mc.project_info, 'daily_target_word_count', 1000),
-                expanded_categories=getattr(self.mc.project_info, 'expanded_categories', None)
+                expanded_categories=getattr(self.mc.project_info, 'expanded_categories', None),
+                categories_meta=getattr(self.mc.project_info, 'categories_meta', {})
             ),
             current_theme=self.view.current_theme
         )
@@ -371,7 +372,7 @@ class ProjectController:
 
 
         self.update_project_labels()
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
 
         def find_first_visible_file(item):
@@ -414,7 +415,7 @@ class ProjectController:
 
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
         self.mc.mark_dirty(False)
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
     def get_project_data(self) -> dict:
         """導出專案資料字典（供相容性需求使用）。"""
@@ -612,7 +613,7 @@ class ProjectController:
 
     def save_project(self, silent: bool = True) -> bool:
         """正式存檔為 SQLite .db 格式。除非另存新檔，否則使用現有檔名，或依書名命名存檔（不再附帶時間戳），預設安靜存檔。"""
-        self.mc.flush_active_writing_session()
+        self.mc.stats.flush_active_writing_session()
         try:
             story_dir = self.mc.get_story_dir()
             os.makedirs(story_dir, exist_ok=True)
@@ -656,7 +657,7 @@ class ProjectController:
 
     def save_project_as(self) -> bool:
         """另存新檔：採用 SQLite .db 格式"""
-        self.mc.flush_active_writing_session()
+        self.mc.stats.flush_active_writing_session()
         story_dir = self.mc.get_story_dir()
         os.makedirs(story_dir, exist_ok=True)
 

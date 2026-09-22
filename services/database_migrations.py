@@ -3,7 +3,7 @@ import datetime
 
 class DatabaseMigrations:
     """管理 SQLite 資料庫 schema_version 與歷代版本升級 (Migrations)。"""
-    CURRENT_SCHEMA_VERSION = 12
+    CURRENT_SCHEMA_VERSION = 13
 
     @staticmethod
     def get_current_schema_version(cursor: sqlite3.Cursor) -> int:
@@ -58,7 +58,13 @@ class DatabaseMigrations:
         if "daily_target_word_count" not in p_cols:
             return 9
 
-        return 10
+        if "paste_large_count" not in w_cols:
+            return 11
+
+        if "categories_meta" not in p_cols:
+            return 12
+
+        return 13
 
     @staticmethod
     def upgrade_v1_to_v2(cursor: sqlite3.Cursor):
@@ -194,6 +200,17 @@ class DatabaseMigrations:
         if "delete_large_count" not in cols:
             cursor.execute("ALTER TABLE writing_logs ADD COLUMN delete_large_count INTEGER DEFAULT 0")
 
+    @staticmethod
+    def upgrade_v12_to_v13(cursor: sqlite3.Cursor):
+        """v12 -> v13：project_info 增加 categories_meta 欄位記錄自訂分類名稱"""
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='project_info'")
+        if not cursor.fetchone():
+            return
+        cursor.execute("PRAGMA table_info(project_info)")
+        cols = {row[1] for row in cursor.fetchall()}
+        if "categories_meta" not in cols:
+            cursor.execute("ALTER TABLE project_info ADD COLUMN categories_meta TEXT DEFAULT '{}'")
+
     @classmethod
     def apply_migrations(cls, cursor: sqlite3.Cursor):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -221,6 +238,7 @@ class DatabaseMigrations:
             (9, cls.upgrade_v9_to_v10),
             (10, cls.upgrade_v10_to_v11),
             (11, cls.upgrade_v11_to_v12),
+            (12, cls.upgrade_v12_to_v13),
         ]
 
         for from_v, step_fn in migrations:

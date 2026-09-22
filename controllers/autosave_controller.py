@@ -43,7 +43,7 @@ class AutosaveController:
 
     def save_temp_doc(self):
         """將當前專案狀態即時暫存至 Temp_doc 目錄下的 SQLite .db 格式。"""
-        self.mc.flush_active_writing_session()
+        self.mc.stats.flush_active_writing_session()
         try:
             temp_dir = self.mc.get_temp_dir()
             os.makedirs(temp_dir, exist_ok=True)

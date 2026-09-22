@@ -34,7 +34,7 @@ class AIController:
     def open_ai_proofread_dialog(self):
         """開啟 AI 校稿對話框。"""
         # 確保已儲存最新內容
-        self.mc.save_current_editor_content()
+        self.mc.editor.save_current_editor_content()
         self.mc.project.save_temp_doc()
         
         cursor = self.view.editor.textCursor()
@@ -165,13 +165,13 @@ class AIController:
         cursor.insertText(text)
         self.view.editor.setTextCursor(cursor)
         self.view.editor.ensureCursorVisible()
-        self.mc.update_status_bar()
-        self.mc.save_temp_doc()
+        self.mc.stats.update_status_bar()
+        self.mc.project.save_temp_doc()
 
     def handle_editor_ai_analyze(self, task_type: str, text: str):
         """處理編輯器右鍵或選單觸發的 AI 分析。"""
         if task_type in ["character", "impression", "world", "timeline"]:
-            self.mc.save_current_editor_content()
+            self.mc.editor.save_current_editor_content()
             dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=text, task_type=task_type)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 scope_data = dlg.get_scope_content()
@@ -192,7 +192,7 @@ class AIController:
 
         # 彈出專屬範圍與演算法選擇對話框（可選全文、當前章節、部分章節）
         if task_type in ["character", "impression", "world", "timeline"]:
-            self.mc.save_current_editor_content()
+            self.mc.editor.save_current_editor_content()
             dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=selected_text, task_type=task_type)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 scope_data = dlg.get_scope_content()
@@ -244,7 +244,7 @@ class AIController:
         if self.ai_worker and self.ai_worker.isRunning():
             self.ai_worker.cancel()
             self.ai_worker.wait(1000)
-            self.mc.update_status_bar()
+            self.mc.stats.update_status_bar()
 
     def on_ai_analysis_progress(self, current: int, total: int, message: str):
         """AI 分析進度回報更新至浮動 HUD。"""
@@ -255,7 +255,7 @@ class AIController:
         """AI 分析成功回傳後的處理流程。"""
         if self.ai_floating_hud:
             self.ai_floating_hud.finish("分析完成！")
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
 
         task_type = result_data.get("task_type", "")
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
@@ -292,7 +292,7 @@ class AIController:
         """AI 分析發生錯誤時的回報與導引。"""
         if self.ai_floating_hud:
             self.ai_floating_hud.set_error(err_msg)
-        self.mc.update_status_bar()
+        self.mc.stats.update_status_bar()
         reply = QMessageBox.critical(
             self.view,
             "AI 分析失敗",
@@ -368,7 +368,7 @@ class AIController:
         self.ai_task_overlay.finish_task()
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
             self.mc.stats.record_ai_activity(continuation_count=1, continuation_chars=len(full_text), feature_key="continuation")
-            self.mc.update_status_bar()
+            self.mc.stats.update_status_bar()
 
     def _on_expansion_error(self, err_msg: str):
         self.ai_task_overlay.error_task(err_msg)
@@ -404,7 +404,7 @@ class AIController:
         )
         self.mc.project_cards[category].append(new_card)
         self.mc.card.rebuild_card_tree()
-        self.mc.save_temp_doc()
+        self.mc.project.save_temp_doc()
 
         # 在樹狀導航中選取並捲動到新卡片
         new_item = self.mc.card._find_tree_item_by_id(new_card.id)
