@@ -108,8 +108,10 @@
   2. 最佳化計畫 (Phase O-7) 開發工具鏈導入已完成。
   3. 已在專案根目錄建立 `pyproject.toml` 與 `.pre-commit-config.yaml`，提供 ruff 設定檔。
   4. **Phase O-1 至 O-7 全數執行完畢！** 專案已大幅度瘦身並提高型別安全與效能。
+  5. 2026-09-22: 建立 `v0.1.7-beta` 標籤並推送到 GitHub。已撰寫發布說明於 `pre-release/release_notes_v0.1.7-beta.txt`。
 
 - **下一個 Agent 的任務指引**：
-  1. 原本的最佳化計畫已全數結案。可待使用者提出新需求，或進一步尋找其他重構點。
-  2. 嚴格遵守 `.agents/rules/workspace_rules.md`。
-  3. 執行測試請使用 `py -m pytest tests/`，確保 100% 通過。
+  1. 協助使用者完成 GitHub Release 上傳 (因為本機無 gh CLI)。
+  2. 原本的最佳化計畫已全數結案。可待使用者提出新需求，或進一步尋找其他重構點。
+  3. 嚴格遵守 `.agents/rules/workspace_rules.md`。
+  4. 執行測試請使用 `py -m pytest tests/`，確保 100% 通過。
