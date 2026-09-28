@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
-> **最後更新**：2026-09-22  
-> **測試總數**：260 項自動化測試（41 個測試模組）  
+> **最後更新**：2026-09-28  
+> **測試總數**：262 項自動化測試（41 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,7 +11,7 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 260 項測試
+# 執行全部 262 項測試
 py -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
@@ -30,7 +30,7 @@ py -m pytest tests/unit/test_dataset_export.py
 | **1. AI 輔助與長文本分析** | `integration/test_ai_cancellation.py`<br>`integration/test_ai_character_extraction.py`<br>`integration/test_ai_chat.py`<br>`integration/test_ai_continuation.py`<br>`ui/test_ai_scope_dialog.py`<br>`unit/test_ai_service.py`<br>`unit/test_ai_settings_and_worker.py`<br>`unit/test_hardware_detector.py`<br>`unit/test_token_estimator.py` | 54 | 任務取消主動中斷機制與連線 Socket 立即關閉、結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、Token估算與 Context 防護攔截、動態硬體記憶體感知偵測（NVIDIA VRAM / 系統 RAM）、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試、Ollama tokenize 端點命中與 fallback、LM Studio context 上限主動撈取與 AISettingsDialog 設定同步、AIScopeDialog 無 Emoji 介面與綠黃紅狀態按鈕禁用防護、Local LLM 本地端點離線即時探測與啟動按鈕防禦禁用、長篇文本單一串流請求無錯誤執行、純本機零延遲 Token 估算與 LM Studio 終端機報錯消除 |
 | **2. 編輯器與右側資料卡片** | `integration/test_controllers.py`<br>`ui/test_typewriter_mode.py`<br>`ui/test_right_panel_split.py`<br>`ui/test_card_detail_dialog.py` | 29 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
 | **3. 章節樹與三層結構（幕）** | `ui/test_context_menus.py`<br>`integration/test_scene.py` | 22 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記/轉換為卷章幕）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
-| **4. 資料庫、備份與路徑移轉** | `unit/test_database.py`<br>`unit/test_daily_progress_sync.py`<br>`unit/test_backup.py`<br>`unit/test_snapshot.py`<br>`integration/test_tree_expansion_persistence.py`<br>`integration/test_storage_path.py`<br>`integration/test_save_rules.py` | 30 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則 |
+| **4. 資料庫、備份與路徑移轉** | `unit/test_database.py`<br>`unit/test_daily_progress_sync.py`<br>`unit/test_backup.py`<br>`unit/test_snapshot.py`<br>`integration/test_tree_expansion_persistence.py`<br>`integration/test_storage_path.py`<br>`integration/test_save_rules.py` | 32 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則、Schema v14 游標位置與最後開啟節點持久化與遷移 |
 | **5. 自動存檔與崩潰恢復** | `integration/test_autosave_and_startup.py` | 9 | 啟動導引視窗（新建/開啟/最新）、異常結束崩潰自動恢復（Crash Recovery）、暫存檔配額清理與自動存檔週期 |
 | **6. 審校、統計與寫作日誌** | `integration/test_phase12.py`<br>`ui/test_stats_settings.py`<br>`unit/test_stats_ai_breakdown.py`<br>`unit/test_writing_log_enhancements.py`<br>`unit/test_writing_log_service.py` | 34 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、AI 輔助創作誠信指標細項打點、寫作打卡熱力圖覆蓋修復、各章節字數長條圖提取修復、短時間大量文字貼上與刪除行為即時監控、排除正常打字與輸入法組字誤觸大量刪除、固定時間窗口防無窮累積、背景儀表板非可見時跳過重繪以消除打字卡頓、創作日誌文字與介面全域 UI 縮放反應、全書字數目標進度條、WritingLogService 純邏輯計算與表格文字格式化 |
 | **7. 視窗設定、大綱與匯出** | `integration/test_window_settings.py`<br>`ui/test_focus_and_outline.py`<br>`unit/test_markdown_converter.py`<br>`unit/test_export.py`<br>`unit/test_dataset_export.py`<br>`ui/test_search.py` | 37 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索與樹操作即時同步、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT)、設定資料集匯出精靈勾選過濾與深層卡片動態標題降級排版 |
@@ -192,10 +192,11 @@ py -m pytest tests/unit/test_dataset_export.py
 
 ---
 
-### 3.4 專案儲存、快照、備份與自訂路徑（30 項）
+### 3.4 專案儲存、快照、備份與自訂路徑（32 項）
 
-#### `unit/test_database.py` (1 項)
-- `test_save_and_load_project`：測試 SQLite 資料庫儲存專案並重新完整載入。
+#### `unit/test_database.py` (2 項)
+- `test_save_and_load_project`：測試 SQLite 資料庫儲存專案並重新完整載入，包含章節樹、卡片、寫作日誌與 Schema v14 游標位置/最後開啟節點。
+- `test_database_migration_v13_to_v14`：測試舊版 v13 資料庫自動平滑升級至 v14，並為 `project_info` 資料表自動補齊 `last_opened_node_id` 與 `last_cursor_position` 欄位。
 
 #### `unit/test_daily_progress_sync.py` (7 項)
 - `test_database_daily_target_persistence`：測試 `ProjectInfo.daily_target_word_count` 在 SQLite 資料庫之儲存與載入。
@@ -218,9 +219,10 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_snapshot_dialog_populate_and_selection`：測試快照管理視窗的清單呈現與點選切換。
 - `test_restore_snapshot_clears_trash_bin`：測試還原快照時垃圾桶安全清空與 UI 刷新，排除孤兒節點殘留。
 
-#### `integration/test_tree_expansion_persistence.py` (2 項)
+#### `integration/test_tree_expansion_persistence.py` (3 項)
 - `test_database_expansion_persistence`：測試 DatabaseService 對樹狀展開狀態的資料庫儲存。
 - `test_ui_tree_expansion_workflow`：測試完整 UI 流程：操作展開/折疊節點後存檔，重新開檔驗證樹狀展開狀態精準還原。
+- `test_last_opened_node_and_cursor_persistence`：測試專案存檔時記錄最後開啟節點與游標位置，並在重新開檔載入時精確還原選取節點與編輯器游標。
 
 #### `integration/test_storage_path.py` (6 項)
 - `test_app_settings_storage_path_helpers`：測試 AppSettingsService 自訂存檔路徑解析輔助方法。

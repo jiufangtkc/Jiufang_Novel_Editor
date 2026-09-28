@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+import sqlite3
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -25,7 +26,9 @@ class TestDatabaseService(unittest.TestCase):
             global_font_family="Iansui",
             global_font_size=14,
             editor_font_family="Iansui",
-            editor_font_size=13
+            editor_font_size=13,
+            last_opened_node_id="sec-1-test-id",
+            last_cursor_position=42
         )
         project.current_theme = "celadon"
 
@@ -61,6 +64,8 @@ class TestDatabaseService(unittest.TestCase):
         self.assertEqual(loaded.project_info.global_font_family, "Iansui")
         self.assertEqual(loaded.project_info.global_font_size, 14)
         self.assertEqual(loaded.project_info.editor_font_size, 13)
+        self.assertEqual(loaded.project_info.last_opened_node_id, "sec-1-test-id")
+        self.assertEqual(loaded.project_info.last_cursor_position, 42)
 
         # 驗證章節樹階層
         self.assertEqual(len(loaded.tree), 1)
@@ -85,6 +90,49 @@ class TestDatabaseService(unittest.TestCase):
         self.assertEqual(loaded.writing_logs[0].date, "2026-08-20")
         self.assertEqual(loaded.writing_logs[0].duration, 3600)
         self.assertEqual(loaded.writing_logs[0].word_count, 2500)
+
+    def test_database_migration_v13_to_v14(self):
+        """驗證 v13 資料庫能平滑遷移至 v14，並補齊 last_opened_node_id 與 last_cursor_position 欄位。"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        # 建立 v13 結構的 project_info（不含 last_opened_node_id 與 last_cursor_position）
+        cursor.execute('''
+            CREATE TABLE project_info (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                logline TEXT,
+                current_theme TEXT,
+                global_font_family TEXT,
+                global_font_size INTEGER,
+                editor_font_family TEXT,
+                editor_font_size INTEGER,
+                target_word_count INTEGER DEFAULT 100000,
+                daily_target_word_count INTEGER DEFAULT 1000,
+                category_order TEXT DEFAULT NULL,
+                expanded_categories TEXT DEFAULT NULL,
+                categories_meta TEXT DEFAULT NULL
+            )
+        ''')
+        cursor.execute("CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT)")
+        cursor.execute("INSERT INTO schema_version VALUES (13, '2026-09-22 00:00:00')")
+        cursor.execute('''
+            INSERT INTO project_info (title, logline) VALUES ('舊版本作品', '大綱')
+        ''')
+        conn.commit()
+        conn.close()
+
+        # 使用 DatabaseService 載入，觸發遷移
+        loaded = DatabaseService.load_project(self.db_path)
+        self.assertEqual(loaded.project_info.title, "舊版本作品")
+        self.assertIsNone(loaded.project_info.last_opened_node_id)
+        self.assertEqual(loaded.project_info.last_cursor_position, 0)
+
+        # 驗證 schema_version 是否升級為 14
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(version) FROM schema_version")
+        self.assertEqual(cursor.fetchone()[0], 14)
+        conn.close()
 
 
 if __name__ == "__main__":

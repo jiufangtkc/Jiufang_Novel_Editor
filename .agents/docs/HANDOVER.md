@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-22，最佳化計畫開始執行。
+> 最後更新：2026-09-28，完成專案狀態記憶功能 (Schema v14) 與巡檢維護。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -14,7 +14,7 @@
 
 ## 1. 接手概覽 (Overview)
 
-這是一個基於 Python + PyQt6 的桌面端小說寫作軟體。專案採用嚴格 MVC 架構，並具備 260 項以上的單元與整合測試。
+這是一個基於 Python + PyQt6 的桌面端小說寫作軟體。專案採用嚴格 MVC 架構，並具備 262 項以上的單元與整合測試。
 目前已經完成核心寫作、資料集面板、儲存(SQLite)、多格式匯出、AI 助手與長文分析、數據儀表板、文風檢查等完整功能。
 詳細架構請務必閱讀 `.agents/docs/ARCHITECTURE.md`。歷史修改紀錄請參閱 `CHANGELOG.md`。
 
@@ -89,7 +89,7 @@
 - 在測試 `AIService.detect_local_models` 時，不得直接發送真實 HTTP request 到未開放的本機端點（如 `99999` port），否則在 Windows 系統連線 socket 超時會導致測試每次延遲 2 秒以上，應使用 `unittest.mock.patch("urllib.request.urlopen")` 模擬異常以保持測試純淨與毫秒級快速執行。
 
 ### 陷阱 22：Antigravity Agent 執行測試與背景工作機制
-- 專案全套測試數量達 154 項，完整執行需耗時約 17 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須使用 `manage_task` 追蹤狀態直至 `DONE` 並讀取日誌回報結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
+- 專案全套測試數量達 262 項，完整執行需耗時約 35 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須使用 `manage_task` 追蹤狀態直至 `DONE` 並讀取日誌回報結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
 
 ### 陷阱 23：SQLite Migration v10 -> v11 與 writing_logs.ai_details 序列化
 - 在擴充 `writing_logs` 紀錄 AI 細部功能次數時，採用 JSON 格式儲存於 `ai_details` 欄位（而不是為每個可能新增的 AI 功能增加 SQL 欄位），以維持彈性擴充。
@@ -109,9 +109,9 @@
   3. 已在專案根目錄建立 `pyproject.toml` 與 `.pre-commit-config.yaml`，提供 ruff 設定檔。
   4. **Phase O-1 至 O-7 全數執行完畢！** 專案已大幅度瘦身並提高型別安全與效能。
   5. 2026-09-22: 建立 `v0.1.7-beta` 標籤並推送到 GitHub。已撰寫發布說明於 `pre-release/release_notes_v0.1.7-beta.txt`。
+  6. 2026-09-28: 新增記憶專案上次開啟檔案與游標位置的功能 (Schema Version 14)，包含單元與整合測試，測試套件總數增至 262 項，全數綠燈通過。
 
 - **下一個 Agent 的任務指引**：
   1. 協助使用者完成 GitHub Release 上傳 (因為本機無 gh CLI)。
-  2. 原本的最佳化計畫已全數結案。可待使用者提出新需求，或進一步尋找其他重構點。
-  3. 嚴格遵守 `.agents/rules/workspace_rules.md`。
-  4. 執行測試請使用 `py -m pytest tests/`，確保 100% 通過。
+  2. 嚴格遵守 `.agents/rules/workspace_rules.md`。
+  3. 執行測試請使用 `py -m pytest tests/`，確保 100% 通過。

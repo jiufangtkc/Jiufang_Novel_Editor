@@ -39,7 +39,9 @@ class DatabaseService:
                 daily_target_word_count INTEGER DEFAULT 1000,
                 category_order TEXT DEFAULT NULL,
                 expanded_categories TEXT DEFAULT NULL,
-                categories_meta TEXT DEFAULT NULL
+                categories_meta TEXT DEFAULT NULL,
+                last_opened_node_id TEXT DEFAULT NULL,
+                last_cursor_position INTEGER DEFAULT 0
             )
         ''')
 
@@ -149,8 +151,9 @@ class DatabaseService:
                 global_font_family, global_font_size,
                 editor_font_family, editor_font_size,
                 target_word_count, daily_target_word_count,
-                category_order, expanded_categories, categories_meta
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                category_order, expanded_categories, categories_meta,
+                last_opened_node_id, last_cursor_position
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (
                 project.project_info.title,
                 project.project_info.logline,
@@ -163,7 +166,9 @@ class DatabaseService:
                 getattr(project.project_info, 'daily_target_word_count', 1000),
                 category_order_json,
                 expanded_categories_json,
-                categories_meta_json
+                categories_meta_json,
+                getattr(project.project_info, 'last_opened_node_id', None),
+                getattr(project.project_info, 'last_cursor_position', 0)
             )
         )
         
@@ -246,6 +251,8 @@ class DatabaseService:
             editor_font_size = p_row['editor_font_size'] if 'editor_font_size' in keys and p_row['editor_font_size'] else 12
             target_word_count = p_row['target_word_count'] if 'target_word_count' in keys and p_row['target_word_count'] is not None else 100000
             daily_target_word_count = p_row['daily_target_word_count'] if 'daily_target_word_count' in keys and p_row['daily_target_word_count'] is not None else 1000
+            last_opened_node_id = p_row['last_opened_node_id'] if 'last_opened_node_id' in keys else None
+            last_cursor_position = p_row['last_cursor_position'] if 'last_cursor_position' in keys and p_row['last_cursor_position'] is not None else 0
 
             project.project_info = ProjectInfo(
                 title=p_row['title'],
@@ -255,7 +262,9 @@ class DatabaseService:
                 editor_font_family=editor_font_family,
                 editor_font_size=int(editor_font_size),
                 target_word_count=int(target_word_count),
-                daily_target_word_count=int(daily_target_word_count)
+                daily_target_word_count=int(daily_target_word_count),
+                last_opened_node_id=last_opened_node_id,
+                last_cursor_position=int(last_cursor_position)
             )
             
             if 'categories_meta' in keys and p_row['categories_meta']:

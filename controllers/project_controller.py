@@ -207,6 +207,20 @@ class ProjectController:
         self.mc.editor.save_current_editor_content()
         self.mc.card.sync_expansion_states_from_tree()
 
+        current_node_id = None
+        current_item = self.mc.current_file_item
+        if current_item:
+            data = current_item.data(0, Qt.ItemDataRole.UserRole)
+            if data and "id" in data:
+                current_node_id = data["id"]
+                
+        cursor_pos = 0
+        if hasattr(self.view, "editor"):
+            try:
+                cursor_pos = self.view.editor.textCursor().position()
+            except Exception:
+                pass
+
         project = JneProject(
             project_info=ProjectInfo(
                 title=self.mc.project_info.title,
@@ -218,7 +232,9 @@ class ProjectController:
                 target_word_count=getattr(self.mc.project_info, 'target_word_count', 100000),
                 daily_target_word_count=getattr(self.mc.project_info, 'daily_target_word_count', 1000),
                 expanded_categories=getattr(self.mc.project_info, 'expanded_categories', None),
-                categories_meta=getattr(self.mc.project_info, 'categories_meta', {})
+                categories_meta=getattr(self.mc.project_info, 'categories_meta', {}),
+                last_opened_node_id=current_node_id,
+                last_cursor_position=cursor_pos
             ),
             current_theme=self.view.current_theme
         )
@@ -397,12 +413,31 @@ class ProjectController:
                     return res
             return None
 
-        # 優先尋找已展開目錄下的第一個檔案（避免強制展開使用者收合的卷）
+        def find_file_by_id(item, node_id):
+            data = item.data(0, Qt.ItemDataRole.UserRole)
+            if data and data.get("id") == node_id:
+                return item
+            for i in range(item.childCount()):
+                res = find_file_by_id(item.child(i), node_id)
+                if res:
+                    return res
+            return None
+
+        # 優先尋找上次開啟的檔案
         first_file = None
-        for i in range(self.view.tree_widget.topLevelItemCount()):
-            first_file = find_first_visible_file(self.view.tree_widget.topLevelItem(i))
-            if first_file:
-                break
+        last_opened_id = getattr(project.project_info, 'last_opened_node_id', None)
+        if last_opened_id:
+            for i in range(self.view.tree_widget.topLevelItemCount()):
+                first_file = find_file_by_id(self.view.tree_widget.topLevelItem(i), last_opened_id)
+                if first_file:
+                    break
+
+        if not first_file:
+            # 尋找已展開目錄下的第一個檔案（避免強制展開使用者收合的卷）
+            for i in range(self.view.tree_widget.topLevelItemCount()):
+                first_file = find_first_visible_file(self.view.tree_widget.topLevelItem(i))
+                if first_file:
+                    break
         if not first_file:
             for i in range(self.view.tree_widget.topLevelItemCount()):
                 first_file = find_first_file(self.view.tree_widget.topLevelItem(i))
@@ -410,8 +445,25 @@ class ProjectController:
                     break
 
         if first_file:
+            if last_opened_id:
+                p = first_file.parent()
+                while p:
+                    p.setExpanded(True)
+                    p = p.parent()
             self.view.tree_widget.setCurrentItem(first_file)
             self.mc.tree.on_tree_item_clicked(first_file, 0)
+
+            # 恢復游標位置
+            last_pos = getattr(project.project_info, 'last_cursor_position', 0)
+            if last_pos and hasattr(self.view, "editor"):
+                try:
+                    cursor = self.view.editor.textCursor()
+                    text_len = len(self.view.editor.toPlainText())
+                    cursor.setPosition(min(last_pos, text_len))
+                    self.view.editor.setTextCursor(cursor)
+                    self.view.editor.ensureCursorVisible()
+                except Exception:
+                    pass
 
         self.mc.last_known_word_count = sum(x["valid"] for x in self.mc.file_word_stats.values())
         self.mc.mark_dirty(False)

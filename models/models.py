@@ -34,6 +34,8 @@ class ProjectInfo:
     daily_target_word_count: int = 1000
     expanded_categories: Optional[List[str]] = None
     categories_meta: Dict[str, str] = field(default_factory=dict)
+    last_opened_node_id: Optional[str] = None
+    last_cursor_position: int = 0
 
 @dataclass
 class CardNode:

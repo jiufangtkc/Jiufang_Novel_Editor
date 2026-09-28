@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -189,6 +190,42 @@ class TestTreeExpansionPersistence(unittest.TestCase):
 
         self.assertTrue(found_character)
         self.assertTrue(found_world)
+
+    def test_last_opened_node_and_cursor_persistence(self):
+        """測試專案存檔時記錄最後開啟節點與游標位置，並在重新載入時完整還原。"""
+        # 1. 建立具有兩章內容的專案
+        file1 = ChapterNode(name="第一章", node_type="file", content="這是第一章的內容。")
+        file2 = ChapterNode(name="第二章", node_type="file", content="這是第二章更長的內容段落，用來測試游標恢復。")
+        proj = JneProject(
+            project_info=ProjectInfo(title="游標與節點恢復測試專案"),
+            tree=[file1, file2]
+        )
+        self.mc.project.load_project_data(proj)
+
+        # 2. 模擬使用者點擊第二章，並將游標移至索引 12
+        item_chap2 = self.view.tree_widget.topLevelItem(1)
+        self.view.tree_widget.setCurrentItem(item_chap2)
+        self.mc.tree.on_tree_item_clicked(item_chap2, 0)
+
+        cursor = self.view.editor.textCursor()
+        cursor.setPosition(12)
+        self.view.editor.setTextCursor(cursor)
+
+        # 3. 執行儲存
+        saved_proj = self.mc.project._build_jne_project()
+        chap2_id = item_chap2.data(0, Qt.ItemDataRole.UserRole)["id"]
+        self.assertEqual(saved_proj.project_info.last_opened_node_id, chap2_id)
+        self.assertEqual(saved_proj.project_info.last_cursor_position, 12)
+        DatabaseService.save_project(saved_proj, self.db_path)
+
+        # 4. 重新載入並驗證 UI
+        reloaded = DatabaseService.load_project(self.db_path)
+        self.mc.project.load_project_data(reloaded)
+
+        current_item = self.view.tree_widget.currentItem()
+        self.assertIsNotNone(current_item)
+        self.assertEqual(current_item.text(0), "第二章")
+        self.assertEqual(self.view.editor.textCursor().position(), 12)
 
 
 if __name__ == '__main__':

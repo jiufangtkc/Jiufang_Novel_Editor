@@ -82,7 +82,7 @@ class TestWritingLogEnhancements(unittest.TestCase):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         v = DatabaseMigrations.get_current_schema_version(cursor)
-        self.assertEqual(v, 13)
+        self.assertEqual(v, 14)
 
         cursor.execute("PRAGMA table_info(writing_logs)")
         cols = {row[1] for row in cursor.fetchall()}

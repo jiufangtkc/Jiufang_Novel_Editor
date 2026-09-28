@@ -3,7 +3,7 @@ import datetime
 
 class DatabaseMigrations:
     """管理 SQLite 資料庫 schema_version 與歷代版本升級 (Migrations)。"""
-    CURRENT_SCHEMA_VERSION = 13
+    CURRENT_SCHEMA_VERSION = 14
 
     @staticmethod
     def get_current_schema_version(cursor: sqlite3.Cursor) -> int:
@@ -64,7 +64,10 @@ class DatabaseMigrations:
         if "categories_meta" not in p_cols:
             return 12
 
-        return 13
+        if "last_opened_node_id" not in p_cols:
+            return 13
+
+        return 14
 
     @staticmethod
     def upgrade_v1_to_v2(cursor: sqlite3.Cursor):
@@ -211,6 +214,19 @@ class DatabaseMigrations:
         if "categories_meta" not in cols:
             cursor.execute("ALTER TABLE project_info ADD COLUMN categories_meta TEXT DEFAULT '{}'")
 
+    @staticmethod
+    def upgrade_v13_to_v14(cursor: sqlite3.Cursor):
+        """v13 -> v14：project_info 增加 last_opened_node_id 與 last_cursor_position 欄位記錄編輯進度"""
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='project_info'")
+        if not cursor.fetchone():
+            return
+        cursor.execute("PRAGMA table_info(project_info)")
+        cols = {row[1] for row in cursor.fetchall()}
+        if "last_opened_node_id" not in cols:
+            cursor.execute("ALTER TABLE project_info ADD COLUMN last_opened_node_id TEXT DEFAULT NULL")
+        if "last_cursor_position" not in cols:
+            cursor.execute("ALTER TABLE project_info ADD COLUMN last_cursor_position INTEGER DEFAULT 0")
+
     @classmethod
     def apply_migrations(cls, cursor: sqlite3.Cursor):
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -239,6 +255,7 @@ class DatabaseMigrations:
             (10, cls.upgrade_v10_to_v11),
             (11, cls.upgrade_v11_to_v12),
             (12, cls.upgrade_v12_to_v13),
+            (13, cls.upgrade_v13_to_v14),
         ]
 
         for from_v, step_fn in migrations:
