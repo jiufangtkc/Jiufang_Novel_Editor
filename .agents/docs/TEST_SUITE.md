@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
-> **最後更新**：2026-09-28  
-> **測試總數**：262 項自動化測試（41 個測試模組）  
+> **最後更新**：2026-11-01  
+> **測試總數**：275 項自動化測試（42 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,7 +11,7 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 262 項測試
+# 執行全部 275 項測試
 py -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
@@ -27,7 +27,7 @@ py -m pytest tests/unit/test_dataset_export.py
 
 | 分類領域 | 測試模組檔名 | 測試數 | 核心測試目標 |
 | :--- | :--- | :---: | :--- |
-| **1. AI 輔助與長文本分析** | `integration/test_ai_cancellation.py`<br>`integration/test_ai_character_extraction.py`<br>`integration/test_ai_chat.py`<br>`integration/test_ai_continuation.py`<br>`ui/test_ai_scope_dialog.py`<br>`unit/test_ai_service.py`<br>`unit/test_ai_settings_and_worker.py`<br>`unit/test_hardware_detector.py`<br>`unit/test_token_estimator.py` | 54 | 任務取消主動中斷機制與連線 Socket 立即關閉、結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、Token估算與 Context 防護攔截、動態硬體記憶體感知偵測（NVIDIA VRAM / 系統 RAM）、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試、Ollama tokenize 端點命中與 fallback、LM Studio context 上限主動撈取與 AISettingsDialog 設定同步、AIScopeDialog 無 Emoji 介面與綠黃紅狀態按鈕禁用防護、Local LLM 本地端點離線即時探測與啟動按鈕防禦禁用、長篇文本單一串流請求無錯誤執行、純本機零延遲 Token 估算與 LM Studio 終端機報錯消除 |
+| **1. AI 輔助與長文本分析** | `integration/test_ai_cancellation.py`<br>`integration/test_ai_character_extraction.py`<br>`integration/test_ai_chat.py`<br>`integration/test_ai_continuation.py`<br>`ui/test_ai_scope_dialog.py`<br>`unit/test_ai_proofread_worker.py`<br>`unit/test_ai_service.py`<br>`unit/test_ai_settings_and_worker.py`<br>`unit/test_hardware_detector.py`<br>`unit/test_token_estimator.py` | 67 | 任務取消主動中斷機制與連線 Socket 立即關閉、結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、Token估算與 Context 防護攔截、動態硬體記憶體感知偵測（NVIDIA VRAM / 系統 RAM）、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試、Ollama tokenize 端點命中與 fallback、LM Studio context 上限主動撈取與 AISettingsDialog 設定同步、AIScopeDialog 無 Emoji 介面與綠黃紅狀態按鈕禁用防護、Local LLM 本地端點離線即時探測與啟動按鈕防禦禁用、長篇文本單一串流請求無錯誤執行、純本機零延遲 Token 估算與 LM Studio 終端機報錯消除、純本機語意校稿背景推論 Worker（段落切片 Chunking、字元偏移校正、結構化 JSON 容錯解析、忽略規則比對與取消機制） |
 | **2. 編輯器與右側資料卡片** | `integration/test_controllers.py`<br>`ui/test_typewriter_mode.py`<br>`ui/test_right_panel_split.py`<br>`ui/test_card_detail_dialog.py` | 29 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
 | **3. 章節樹與三層結構（幕）** | `ui/test_context_menus.py`<br>`integration/test_scene.py` | 22 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記/轉換為卷章幕）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
 | **4. 資料庫、備份與路徑移轉** | `unit/test_database.py`<br>`unit/test_daily_progress_sync.py`<br>`unit/test_backup.py`<br>`unit/test_snapshot.py`<br>`integration/test_tree_expansion_persistence.py`<br>`integration/test_storage_path.py`<br>`integration/test_save_rules.py` | 32 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則、Schema v14 游標位置與最後開啟節點持久化與遷移 |
@@ -44,7 +44,7 @@ py -m pytest tests/unit/test_dataset_export.py
 
 ## 3. 各測試模組詳細項目清單
 
-### 3.1 AI 輔助與長文本分析（54 項）
+### 3.1 AI 輔助與長文本分析（67 項）
 
 #### `integration/test_ai_cancellation.py` (4 項)
 - `test_base_ai_worker_cancel_closes_active_response`：驗證 `BaseAIWorker` 在呼叫 `cancel()` 時會主動呼叫 response 與底層 raw socket 的 `close()`。
@@ -117,6 +117,21 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_estimate_request_red_status`：驗證 Token 估算結果在超出上限時回傳 RED。
 - `test_estimate_request_no_context_limit`：驗證未設定上限或取得失敗時，預設回傳 YELLOW。
 - `test_fast_estimate_tokens`：驗證本地快速估算對空字串、純中文與中英混合文本的即時估算精度。
+
+#### `unit/test_ai_proofread_worker.py` (13 項)
+- `test_worker_initialization`：驗證 `AIProofreadWorker` 屬性、選項與未取消初始狀態。
+- `test_prompt_generation_options`：驗證依據 options（typo / usage / suggestion）動態組裝結構化 JSON 提示詞。
+- `test_split_into_chunks_short_text`：驗證低於 chunk_size 限制之短文本保持單一區塊且字元位移為 0。
+- `test_split_into_chunks_multiline_long_text`：驗證長篇多段落文本按行切割，且字元位移與全文嚴密吻合。
+- `test_split_into_chunks_oversized_single_line`：驗證單行超長文字強制切分與位移計算。
+- `test_parse_proofread_json_valid_and_markdown`：驗證純 JSON 陣列、Markdown code block 包覆與前後雜訊之容錯解析。
+- `test_parse_proofread_json_invalid`：驗證非陣列、非 JSON 或空字串之例外防禦。
+- `test_worker_run_success_and_offset_alignment`：驗證串流推論成功、進度與完成信號發射，以及在正文中精準搜尋校正 `char_offset` 與 `match_len`。
+- `test_worker_cancellation`：驗證推論途中呼叫 `cancel()` 立即中斷且不發射 `finished_signal`。
+- `test_worker_error_signal`：驗證未設定 API 網址時拋出例外並發射 `error_signal`。
+- `test_controller_ignored_rules_filtering`：驗證 Controller 接收結果時能比對 `proofread_ignored_rules` 排除已忽略項目並正確存檔。
+- `test_controller_handle_start_proofread_starts_worker`：驗證 Controller 非同步啟動 `AIProofreadWorker` 與文字傳遞。
+- `test_controller_handle_start_proofread_empty_text`：驗證校稿範圍為空文字時跳出提示並重設對話框按鈕狀態。
 
 ---
 

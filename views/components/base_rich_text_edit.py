@@ -12,8 +12,6 @@ class BaseRichTextEdit(QTextEdit):
     - 提供雙重貼上模式：富文本 (Ctrl+V) 與 純文字 (Ctrl+Shift+V)
     - 提供基礎的右鍵選單
     """
-    # 發射信號：(context_text) 供子類別或外部處理 AI 對話
-    signal_ai_chat = pyqtSignal(str)
     # 發射信號：(pasted_text) 貼上文字信號
     signal_text_pasted = pyqtSignal(str)
 

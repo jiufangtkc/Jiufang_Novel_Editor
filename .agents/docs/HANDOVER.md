@@ -1,6 +1,6 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-09-28，完成專案狀態記憶功能 (Schema v14) 與巡檢維護。
+> 最後更新：2026-11-02，完成純本機 AI 語意校稿引擎轉向 — UI 介面收斂與多餘入口拆除 (Phase 2)。
 
 ## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
 
@@ -110,8 +110,30 @@
   4. **Phase O-1 至 O-7 全數執行完畢！** 專案已大幅度瘦身並提高型別安全與效能。
   5. 2026-09-22: 建立 `v0.1.7-beta` 標籤並推送到 GitHub。已撰寫發布說明於 `pre-release/release_notes_v0.1.7-beta.txt`。
   6. 2026-09-28: 新增記憶專案上次開啟檔案與游標位置的功能 (Schema Version 14)，包含單元與整合測試，測試套件總數增至 262 項，全數綠燈通過。
+  7. 2026-11-01: 完成「純本機 AI 語意校稿引擎與架構減法重構 (Phase 30)」戰略評估與分階段實施規劃。已建立專屬架構指南文件 `.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md`，並同步更新 `ROADMAP.md`。
+  8. **2026-11-01: 完成 Phase 1（核心校稿推論引擎實裝與驗證）**：
+     - 在 `services/ai_worker.py` 實作 `AIProofreadWorker`（繼承 `BaseAIWorker`，具備段落切片 Chunking、字元偏移量搜尋校正、結構化 JSON 輸出 Prompt、容錯解析、Socket 取消中斷機制）。
+     - 在 `services/ai_service.py` re-export `AIProofreadWorker`。
+     - 改寫 `controllers/ai_controller.py` 的 `handle_start_proofread`，移除寫死假資料，非同步啟動 `AIProofreadWorker`，並在 `_on_proofread_finished` 比對 `DatabaseService.load_ignored_rules` 忽略名單過濾後儲存至資料庫。
+     - 新增單元測試 `tests/unit/test_ai_proofread_worker.py`（13 項單元測試），全套測試 275 項 100% 綠燈通過。
+     - 同步更新 `.agents/docs/TEST_SUITE.md`。
+  9. **2026-11-02: 完成 Phase 2（UI 介面收斂與多餘入口拆除）**：
+     - 頂部選單清理 (`views/components/menu_builder.py`)：選單標題移除 Emoji（改為「AI 助手(&A)」），徹底移除 `action_ai_chat`、`action_ai_continuation`、`action_ai_impression`、`action_ai_character`、`action_ai_world`、`action_ai_timeline`，僅保留「AI 校稿(&P)...」與「AI 助手設定(&S)...」。
+     - 視窗協定同步 (`views/protocols.py`)：自 `MainWindowProtocol` 移除上述 6 個廢棄 Action 型別屬性。
+     - 主控制器信號綁定解耦 (`controllers/main_controller.py`)：移除上述 6 個 Action 與編輯器 `signal_ai_analyze`、`signal_ai_chat`、`signal_ai_continuation` 之觸發綁定。
+     - 編輯器右鍵選單收斂 (`views/components/jne_text_edit.py`)：移除「與 AI 討論」、「AI 智慧擴寫」與「AI 結構化分析」子選單，清理相關訊號宣告。
+     - 卡片編輯器右鍵選單收斂 (`views/components/right_panel_card_editor.py`、`views/components/right_panel_view.py`、`views/dialogs/card_detail_dialog.py`、`views/components/base_rich_text_edit.py`)：全面移除右鍵「與 AI 討論」選單項目、`signal_ai_chat` 信號宣告與容器槽函式連接。
+     - AI 設定對話框簡化 (`views/dialogs/ai_settings_dialog.py`)：服務供應商收斂為僅支援本機端點 (`["Ollama", "LM Studio"]`)，移除雲端 API Key 輸入框，移除擴寫安全機制與提示詞自訂分頁，標籤與按鈕全面去除 Emoji。
+     - AI 控制器視窗引用減法整理 (`controllers/ai_controller.py`)：頂部移除 `AIChatDialog`、`AIExpansionDialog` 等 7 個 Dialog/HUD/Overlay import，`__init__` 移除相關成員變數初始化，過渡期方法採延遲載入防護確保不影響現有測試。
+     - 全套 275 項單元與整合測試 100% 綠燈通過，GUI 自動化驗證腳本確認選單渲染俐落正確。
 
 - **下一個 Agent 的任務指引**：
-  1. 協助使用者完成 GitHub Release 上傳 (因為本機無 gh CLI)。
-  2. 嚴格遵守 `.agents/rules/workspace_rules.md`。
-  3. 執行測試請使用 `py -m pytest tests/`，確保 100% 通過。
+  1. **必讀文件**：請務必詳讀 [`.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md`](file:///d:/OneDrive/JiuFangTKC/655.AI_agent_AntiGravity/Jiufang_Novel_Editor/.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md)。
+  2. **當前執行起點**：請接續推進 **Phase 3（Controller 與 Service 層深度解耦與死碼清理）**：
+     - `controllers/ai_controller.py` 瘦身：刪除續寫、擴寫、角色抽取、單卡/多卡生成等過渡方法，專職負責本機校稿與本機設定。
+     - `services/ai_service.py` 簡化：移除 Anthropic / Google Gemini 等雲端特化封裝，統一走本機標準 OpenAI 相容介面 (`/v1/chat/completions`)；移除 `TokenEstimator` 依賴。
+     - `services/ai_worker.py` 清理：移除舊版 `AIWorker`、`AIChatWorker`、`AIContinuationWorker`、`AIStreamWorker`。
+     - 統計與日誌相容：確認 `writing_log_service.py` 與 `stats_controller.py` 維持校稿次數記錄且手創比例維持 100%。
+  3. **鐵律遵守**：嚴格遵守小步快跑、防死循環原則，每次修改檔案前必須使用 `view_file` 讀取，測試請使用 `py -m pytest tests/` 確認通過。
+
+

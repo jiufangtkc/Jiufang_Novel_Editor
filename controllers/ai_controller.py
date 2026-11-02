@@ -1,19 +1,12 @@
 from PyQt6.QtWidgets import QDialog, QMessageBox
 from PyQt6.QtGui import QTextCursor
-from services.ai_service import AIService, AIWorker, AIContinuationWorker, AIStreamWorker
+from services.ai_service import AIService, AIWorker, AIContinuationWorker, AIStreamWorker, AIProofreadWorker
 from views.dialogs.ai_settings_dialog import AISettingsDialog
-from views.dialogs.ai_preview_dialog import AIPreviewDialog
-from views.dialogs.ai_chat_dialog import AIChatDialog
-from views.dialogs.ai_expansion_dialog import AIExpansionDialog
 from views.dialogs.ai_proofread_dialog import AIProofreadDialog
-from views.dialogs.ai_scope_dialog import AIScopeDialog
-from views.dialogs.ai_character_review_dialog import AICharacterReviewDialog
-from views.components.ai_task_overlay import AITaskOverlay
-from views.components.ai_floating_hud import AIFloatingHUD
 
 
 class AIController:
-    """負責 AI 輔助分析、多輪對話、智慧續寫、卡片生成與非同步背景任務之控制器。"""
+    """負責 AI 語意校稿與非同步背景任務之控制器。"""
 
     def __init__(self, main_controller):
         self.mc = main_controller
@@ -21,10 +14,8 @@ class AIController:
         self.ai_worker = None
         self.continuation_worker = None
         self.stream_worker = None
-        self.ai_task_overlay = None
-        self.ai_floating_hud = None
+        self.proofread_worker = None
         self.proofread_dialog = None
-        self.chat_dialog = None
 
     def open_ai_settings_dialog(self):
         """開啟 AI 助手設定對話框。"""
@@ -68,48 +59,76 @@ class AIController:
                 self.proofread_dialog.load_results(active_results)
 
     def handle_start_proofread(self, scope: str, options: dict):
-        from services.database import DatabaseService
-        import uuid
-        import datetime
-        
         db_path = self.mc.project.get_active_db_path()
         if not db_path:
             QMessageBox.warning(self.view, "錯誤", "找不到專案資料庫路徑。")
-            self.proofread_dialog.finish_proofreading()
+            if self.proofread_dialog:
+                self.proofread_dialog.finish_proofreading()
             return
-            
-        node_id = self.mc.tree.get_item_id(self.mc.current_file_item)
+
+        node_id = self.mc.tree.get_item_id(self.mc.current_file_item) if self.mc.current_file_item else ""
         chapter_name = self.mc.current_file_item.text(0) if self.mc.current_file_item else "未知章節"
-        text = self.view.editor.toPlainText()
-        
-        # 模擬產生假資料 (以展示 UI 和導航功能)
-        words_to_find = []
-        if options.get("typo"): words_to_find.append(("的", "typo", "得"))
-        if options.get("usage"): words_to_find.append(("十分", "usage", "非常"))
-        if options.get("suggestion"): words_to_find.append(("然後", "suggestion", "接著"))
-        
-        for word, cat, sugg in words_to_find:
-            idx = text.find(word)
-            if idx != -1:
-                res = {
-                    "id": str(uuid.uuid4()),
-                    "category": cat,
-                    "node_id": node_id,
-                    "chapter_name": chapter_name,
-                    "char_offset": idx,
-                    "match_len": len(word),
-                    "original_text": word,
-                    "suggestion": sugg,
-                    "reason": "AI 模擬檢查出的問題",
-                    "status": "pending",
-                    "created_at": datetime.datetime.now().isoformat()
-                }
+
+        if scope == "目前選取文字":
+            cursor = self.view.editor.textCursor()
+            text = cursor.selectedText().replace("\u2029", "\n")
+        else:
+            text = self.view.editor.toPlainText()
+
+        if not text.strip():
+            QMessageBox.information(self.view, "提示", "目前校稿範圍無任何文字內容。")
+            if self.proofread_dialog:
+                self.proofread_dialog.finish_proofreading()
+            return
+
+        # 若前次校稿任務仍在執行，先主動取消
+        if self.proofread_worker and self.proofread_worker.isRunning():
+            self.proofread_worker.cancel()
+            self.proofread_worker.wait(500)
+
+        # 啟動非同步校稿背景執行緒
+        self.proofread_worker = AIProofreadWorker(
+            text_content=text,
+            chapter_name=chapter_name,
+            node_id=node_id,
+            options=options
+        )
+        self.proofread_worker.progress_signal.connect(self._on_proofread_progress)
+        self.proofread_worker.finished_signal.connect(self._on_proofread_finished)
+        self.proofread_worker.error_signal.connect(self._on_proofread_error)
+        self.proofread_worker.start()
+
+    def _on_proofread_progress(self, current: int, total: int, message: str):
+        if self.proofread_dialog and hasattr(self.proofread_dialog, "btn_start"):
+            self.proofread_dialog.btn_start.setText(f"校稿中 ({current}/{total})...")
+
+    def _on_proofread_finished(self, results: list):
+        from services.database import DatabaseService
+        db_path = self.mc.project.get_active_db_path()
+        if db_path:
+            # 讀取使用者設定之忽略規則清單並進行過濾
+            ignored_rules = DatabaseService.load_ignored_rules(db_path)
+            ignored_set = {(r.get("rule_type"), r.get("target_word")) for r in ignored_rules}
+
+            for res in results:
+                # 若吻合已忽略規則，略過不寫入資料庫
+                if (res.get("category"), res.get("original_text")) in ignored_set:
+                    continue
                 DatabaseService.save_proofread_result(db_path, res)
-                
-        self.reload_proofread_results()
-        self.proofread_dialog.finish_proofreading()
-        if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
+
+            self.reload_proofread_results()
+
+        if self.proofread_dialog:
+            self.proofread_dialog.finish_proofreading()
+
+        if hasattr(self.mc, "stats") and hasattr(self.mc.stats, "record_ai_activity"):
             self.mc.stats.record_ai_activity(chat_count=1, feature_key="proofread")
+
+    def _on_proofread_error(self, error_message: str):
+        if self.proofread_dialog:
+            self.proofread_dialog.finish_proofreading()
+        QMessageBox.warning(self.view, "AI 校稿失敗", f"AI 校稿執行失敗：\n{error_message}")
+
         
     def handle_proofread_status_change(self, result_id: str, new_status: str):
         from services.database import DatabaseService
@@ -142,7 +161,8 @@ class AIController:
             if selected:
                 context_text = selected
 
-        if self.chat_dialog is None:
+        if not getattr(self, "chat_dialog", None):
+            from views.dialogs.ai_chat_dialog import AIChatDialog
             self.chat_dialog = AIChatDialog(self.view, initial_context=context_text)
             self.chat_dialog.signal_insert_to_editor.connect(self.insert_text_to_editor)
             self.chat_dialog.signal_save_as_card.connect(
@@ -172,6 +192,7 @@ class AIController:
         """處理編輯器右鍵或選單觸發的 AI 分析。"""
         if task_type in ["character", "impression", "world", "timeline"]:
             self.mc.editor.save_current_editor_content()
+            from views.dialogs.ai_scope_dialog import AIScopeDialog
             dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=text, task_type=task_type)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 scope_data = dlg.get_scope_content()
@@ -193,6 +214,7 @@ class AIController:
         # 彈出專屬範圍與演算法選擇對話框（可選全文、當前章節、部分章節）
         if task_type in ["character", "impression", "world", "timeline"]:
             self.mc.editor.save_current_editor_content()
+            from views.dialogs.ai_scope_dialog import AIScopeDialog
             dlg = AIScopeDialog(self.view, current_item=self.mc.current_file_item, selected_text=selected_text, task_type=task_type)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 scope_data = dlg.get_scope_content()
@@ -217,9 +239,13 @@ class AIController:
             QMessageBox.warning(self.view, "提示", "AI 分析進行中，請稍候完成後再發起新請求。")
             return
 
-        if not self.ai_floating_hud:
-            self.ai_floating_hud = AIFloatingHUD(self.view)
-            self.ai_floating_hud.signal_cancel.connect(self.cancel_ai_analysis)
+        try:
+            from views.components.ai_floating_hud import AIFloatingHUD
+            if not getattr(self, "ai_floating_hud", None):
+                self.ai_floating_hud = AIFloatingHUD(self.view)
+                self.ai_floating_hud.signal_cancel.connect(self.cancel_ai_analysis)
+        except Exception:
+            self.ai_floating_hud = None
 
         task_name_map = {
             "character": "登場角色提取",
@@ -230,7 +256,8 @@ class AIController:
         t_name = task_name_map.get(task_type, "AI 文本分析")
         if chapter_title:
             t_name = f"{t_name}：{chapter_title}"
-        self.ai_floating_hud.start(t_name)
+        if getattr(self, "ai_floating_hud", None):
+            self.ai_floating_hud.start(t_name)
 
         self.ai_worker = AIWorker(task_type, text, chapter_title=chapter_title)
             
@@ -248,12 +275,12 @@ class AIController:
 
     def on_ai_analysis_progress(self, current: int, total: int, message: str):
         """AI 分析進度回報更新至浮動 HUD。"""
-        if self.ai_floating_hud:
+        if getattr(self, "ai_floating_hud", None):
             self.ai_floating_hud.update_progress(current, total, message)
 
     def on_ai_analysis_finished(self, result_data: dict):
         """AI 分析成功回傳後的處理流程。"""
-        if self.ai_floating_hud:
+        if getattr(self, "ai_floating_hud", None):
             self.ai_floating_hud.finish("分析完成！")
         self.mc.stats.update_status_bar()
 
@@ -262,6 +289,7 @@ class AIController:
             self.mc.stats.record_ai_activity(chat_count=1, feature_key=task_type)
         if task_type == "character":
             # 角色提取：開啟多角色卡與關係卡審核對話框
+            from views.dialogs.ai_character_review_dialog import AICharacterReviewDialog
             dlg = AICharacterReviewDialog(self.view, result_data)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 cards = dlg.get_selected_cards()
@@ -276,6 +304,7 @@ class AIController:
                 QMessageBox.information(self.view, "成功", f"已成功建立 {len(cards)} 張角色卡片與關係卡至資料集！")
         else:
             # 其他一般分析：開啟單卡審核對話框
+            from views.dialogs.ai_preview_dialog import AIPreviewDialog
             dlg = AIPreviewDialog(self.view, result_data)
             if dlg.exec() == QDialog.DialogCode.Accepted:
                 card_info = dlg.get_card_data()
@@ -290,7 +319,7 @@ class AIController:
 
     def on_ai_analysis_error(self, err_msg: str):
         """AI 分析發生錯誤時的回報與導引。"""
-        if self.ai_floating_hud:
+        if getattr(self, "ai_floating_hud", None):
             self.ai_floating_hud.set_error(err_msg)
         self.mc.stats.update_status_bar()
         reply = QMessageBox.critical(
@@ -322,16 +351,21 @@ class AIController:
             QMessageBox.warning(self.view, "提示", "AI 擴寫生成中，請稍候...")
             return
 
+        from views.dialogs.ai_expansion_dialog import AIExpansionDialog
         dlg = AIExpansionDialog(self.view)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             data = dlg.get_expansion_data()
             self._start_ai_expansion(data)
 
     def _start_ai_expansion(self, data: dict):
-        if not self.ai_task_overlay:
-            self.ai_task_overlay = AITaskOverlay(self.view, title="AI 擴寫任務")
-            self.ai_task_overlay.signal_insert_text.connect(self._insert_streamed_text)
-            self.ai_task_overlay.signal_cancel.connect(self._cancel_ai_expansion)
+        try:
+            from views.components.ai_task_overlay import AITaskOverlay
+            if not getattr(self, "ai_task_overlay", None):
+                self.ai_task_overlay = AITaskOverlay(self.view, title="AI 擴寫任務")
+                self.ai_task_overlay.signal_insert_text.connect(self._insert_streamed_text)
+                self.ai_task_overlay.signal_cancel.connect(self._cancel_ai_expansion)
+        except Exception:
+            self.ai_task_overlay = None
         
         preceding = data.get("preceding", "")
         succeeding = data.get("succeeding", "")
@@ -351,31 +385,36 @@ class AIController:
         settings = AIService.load_settings()
         system_prompt = settings.get("prompts", {}).get("continuation", "")
 
-        self.ai_task_overlay.start_task()
-        self.ai_task_overlay.set_status("thinking") # 進入思考狀態
+        if getattr(self, "ai_task_overlay", None):
+            self.ai_task_overlay.start_task()
+            self.ai_task_overlay.set_status("thinking") # 進入思考狀態
         
         # 由於 stream_worker 的 API 我們沒有在 call_api_stream 裡做真正連線前區分「理解」與「思考」，
         # 因此這邊將 UI 第一步視作思考中，直到第一字元傳回。
         
         self.stream_worker = AIStreamWorker(system_prompt, user_content)
-        self.stream_worker.first_token_signal.connect(lambda: self.ai_task_overlay.set_status("working"))
-        self.stream_worker.chunk_received_signal.connect(self.ai_task_overlay.append_chunk)
+        if getattr(self, "ai_task_overlay", None):
+            self.stream_worker.first_token_signal.connect(lambda: self.ai_task_overlay.set_status("working"))
+            self.stream_worker.chunk_received_signal.connect(self.ai_task_overlay.append_chunk)
         self.stream_worker.finished_signal.connect(self._on_expansion_finished)
         self.stream_worker.error_signal.connect(self._on_expansion_error)
         self.stream_worker.start()
 
     def _on_expansion_finished(self, full_text: str):
-        self.ai_task_overlay.finish_task()
+        if getattr(self, "ai_task_overlay", None):
+            self.ai_task_overlay.finish_task()
         if hasattr(self.mc, 'stats') and hasattr(self.mc.stats, 'record_ai_activity'):
             self.mc.stats.record_ai_activity(continuation_count=1, continuation_chars=len(full_text), feature_key="continuation")
             self.mc.stats.update_status_bar()
 
     def _on_expansion_error(self, err_msg: str):
-        self.ai_task_overlay.error_task(err_msg)
+        if getattr(self, "ai_task_overlay", None):
+            self.ai_task_overlay.error_task(err_msg)
 
     def _insert_streamed_text(self, text: str):
         self.insert_text_to_editor(text)
-        self.ai_task_overlay.close()
+        if getattr(self, "ai_task_overlay", None):
+            self.ai_task_overlay.close()
 
     def _cancel_ai_expansion(self):
         """取消正在進行中的 AI 擴寫任務。"""

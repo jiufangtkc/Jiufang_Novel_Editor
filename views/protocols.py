@@ -1,16 +1,10 @@
-﻿from typing import Protocol, Any
+from typing import Protocol, Any
 
 class MainWindowProtocol(Protocol):
     action_adjust_global_font: Any
     action_adjust_global_size: Any
-    action_ai_character: Any
-    action_ai_chat: Any
-    action_ai_continuation: Any
-    action_ai_impression: Any
     action_ai_proofread: Any
     action_ai_settings: Any
-    action_ai_timeline: Any
-    action_ai_world: Any
     action_auto_format: Any
     action_autosave_settings: Any
     action_exit: Any

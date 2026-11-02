@@ -15,9 +15,8 @@ from utils.markdown_utils import markdown_to_html, document_to_markdown
 
 
 class CardDetailTextEdit(QTextEdit):
-    """卡片詳情所見即所得富文本編輯器：支援 Markdown 雙向轉換與 AI 右鍵討論"""
+    """卡片詳情所見即所得富文本編輯器：支援 Markdown 雙向轉換"""
     signal_save_requested = pyqtSignal()
-    signal_ai_chat = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -88,18 +87,6 @@ class CardDetailTextEdit(QTextEdit):
 
     def contextMenuEvent(self, event):
         menu = self.createStandardContextMenu()
-        menu.addSeparator()
-
-        selected_text = self.textCursor().selectedText().strip()
-        has_selection = bool(selected_text)
-        target_text = selected_text if has_selection else self.toPlainText().strip()
-        scope_text = "選取內容" if has_selection else "卡片全文"
-
-        act_chat = QAction(f"💬 與 AI 討論 ({scope_text})...", self)
-        act_chat.setEnabled(bool(target_text))
-        act_chat.triggered.connect(lambda: self.signal_ai_chat.emit(target_text))
-        menu.addAction(act_chat)
-
         menu.exec(event.globalPos())
 
 
@@ -220,7 +207,6 @@ class CardDetailDialog(BaseDialog):
         self.editor.set_markdown(self.card_content)
         self.editor.textChanged.connect(self.update_word_count)
         self.editor.signal_save_requested.connect(self.on_save_clicked)
-        self.editor.signal_ai_chat.connect(self.open_ai_chat)
         self.stack.addWidget(self.editor)
 
         # 2.2 富文本 Markdown 渲染預覽區
@@ -396,9 +382,4 @@ class CardDetailDialog(BaseDialog):
             padding: 3px 8px;
         """)
 
-    def open_ai_chat(self, context_text: str = ""):
-        """開啟 AI 對話視窗並引用卡片文字"""
-        from views.dialogs.ai_chat_dialog import AIChatDialog
-        dlg = AIChatDialog(self, initial_context=context_text)
-        dlg.signal_insert_to_editor.connect(lambda text: self.editor.insertPlainText(text))
-        dlg.exec()
+

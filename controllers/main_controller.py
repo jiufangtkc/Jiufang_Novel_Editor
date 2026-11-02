@@ -349,17 +349,8 @@ class MainController:
         self.view.action_theme_forest.triggered.connect(lambda: self.theme.apply_theme("forest"))
 
         # AI 助手 (AI Assistant)
-        self.view.action_ai_chat.triggered.connect(lambda: self.ai_controller.open_ai_chat_dialog())
-        self.view.action_ai_continuation.triggered.connect(self.ai_controller.trigger_ai_continuation)
-        self.view.action_ai_settings.triggered.connect(self.ai_controller.open_ai_settings_dialog)
-        self.view.action_ai_impression.triggered.connect(lambda: self.ai_controller.trigger_ai_analysis("impression"))
-        self.view.action_ai_character.triggered.connect(lambda: self.ai_controller.trigger_ai_analysis("character"))
-        self.view.action_ai_world.triggered.connect(lambda: self.ai_controller.trigger_ai_analysis("world"))
-        self.view.action_ai_timeline.triggered.connect(lambda: self.ai_controller.trigger_ai_analysis("timeline"))
         self.view.action_ai_proofread.triggered.connect(self.ai_controller.open_ai_proofread_dialog)
-        self.view.editor.signal_ai_analyze.connect(self.ai_controller.handle_editor_ai_analyze)
-        self.view.editor.signal_ai_chat.connect(self.ai_controller.open_ai_chat_dialog)
-        self.view.editor.signal_ai_continuation.connect(self.ai_controller.trigger_ai_continuation)
+        self.view.action_ai_settings.triggered.connect(self.ai_controller.open_ai_settings_dialog)
 
         # UI 縮放 (Scale)
         for val, act in self.view.scale_actions.items():

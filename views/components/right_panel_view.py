@@ -219,7 +219,6 @@ class RightPanelView(QWidget):
         self.card_content_edit.setFont(FontManager.get_font(size=9))
         self.card_content_edit.signal_save_requested.connect(self._on_save_card_clicked)
         self.card_content_edit.textChanged.connect(self._on_save_card_clicked)
-        self.card_content_edit.signal_ai_chat.connect(self._open_ai_chat_for_card)
         cd_layout.addWidget(self.card_content_edit, 1)
 
         self.bottom_stack.addWidget(self.card_detail_panel)
@@ -331,15 +330,6 @@ class RightPanelView(QWidget):
 
 
 
-    def _open_ai_chat_for_card(self, context_text: str):
-        """開啟 AI 對話視窗並引用卡片文字"""
-        try:
-            from views.dialogs.ai_chat_dialog import AIChatDialog
-            dlg = AIChatDialog(self, initial_context=context_text)
-            dlg.signal_insert_to_editor.connect(lambda text: self.card_content_edit.insertPlainText(text))
-            dlg.exec()
-        except Exception:
-            pass
 
     def set_scene_panel_visible(self, visible: bool):
         """控制幕屬性編輯面板的顯示。"""

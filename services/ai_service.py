@@ -658,4 +658,4 @@ class AIService:
 
 
 # 為了向後相容性，在此 re-export 背景執行緒類別
-from services.ai_worker import AIWorker, AIChatWorker, AIContinuationWorker, AIStreamWorker
+from services.ai_worker import AIWorker, AIChatWorker, AIContinuationWorker, AIStreamWorker, AIProofreadWorker
