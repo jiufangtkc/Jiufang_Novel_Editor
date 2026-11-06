@@ -63,19 +63,3 @@ trigger: always_on
   在 GitHub 建立對應標籤的 Release（目前階段標記為 Pre-release），上傳 Setup.exe 與 Zip 檔案。
 - **步驟六：維護交接文件**
   發布完成後，必須更新 `.agents/docs/HANDOVER.md` 記錄發布細節，若有增修測試需同步更新 `.agents/docs/TEST_SUITE.md`。
-
-## 🤖 10B 等級中小模型專屬防卡死守則 (Anti-loop Rules for 10B LLMs)
-
-為了避免 10B 規模的模型在修改程式碼時陷入 tool-call 死循環（例如 `multi_replace_file_content` 失敗後反覆嘗試），請**所有**接手本專案的 Agent 嚴格遵守以下四條鐵律：
-
-1. **防死循環原則 (No Tool-call Loops)**：
-   - 如果使用取代工具 (replace) 修改檔案連續失敗 **2 次**，**必須立即停止嘗試**。
-   - 改為使用 `view_file` 重新讀取該程式碼區塊確認實際行數與內容，或者直接終止工具呼叫並向使用者回報困難。嚴禁無意義地反覆盲猜。
-2. **讀取優先 (Read Before Write)**：
-   - 在修改任何檔案前，強制要求先用 `view_file` 讀取要修改的具體行數範圍。
-   - 絕對不要依賴舊的上下文記憶或憑空捏造的程式碼進行替換。
-3. **小步快跑 (Small Incremental Steps)**：
-   - 每次只處理一個微小的原子任務（例如：只拆分一個函數、只修改一個按鈕顏色）。
-   - 處理完後立刻執行 `pytest tests/` 驗證，不要一次修改超過 50 行程式碼。遇到超過 500 行的檔案（如 `project_controller.py`），應考慮拆分而不是大範圍重寫。
-4. **避免正則與空白地獄 (Avoid Regex/Whitespace Hell)**：
-   - 遇到複雜字串或多行縮排，不要用猜測的空白或正則去匹配。先讀檔抓取精確字串，複製貼上作為 `TargetContent`。

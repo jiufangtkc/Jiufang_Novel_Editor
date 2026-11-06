@@ -1,11 +1,10 @@
 import os
 import sys
-import time
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from services.ai_worker import AIWorker, AIChatWorker, AIStreamWorker, BaseAIWorker
+from services.ai_worker import BaseAIWorker, AIProofreadWorker
 
 
 def test_base_ai_worker_cancel_closes_active_response():
@@ -25,12 +24,12 @@ def test_base_ai_worker_cancel_closes_active_response():
     assert worker._active_response is None
 
 
-def test_ai_worker_stream_cancellation():
-    """測試 AIWorker 在短文串流生成中被取消時不會發射 finished_signal"""
-    worker = AIWorker(
-        task_type="impression",
-        text_content="短篇測試",
-        chunk_threshold=5000
+def test_ai_proofread_worker_stream_cancellation():
+    """測試 AIProofreadWorker 在串流生成中被取消時不會發射 finished_signal"""
+    worker = AIProofreadWorker(
+        text_content="這是一段測試文字。",
+        chapter_name="第一章",
+        node_id="node_1"
     )
 
     with patch("services.ai_worker.AIService.load_settings") as mock_settings, \
@@ -44,70 +43,9 @@ def test_ai_worker_stream_cancellation():
         }
 
         def fake_stream(*args, **kwargs):
-            yield "片段一"
-            # 產生第一個片段後由外界觸發 cancel
+            yield '[{"category": "typo",'
             worker.cancel()
-            yield "片段二"
-
-        mock_stream.side_effect = fake_stream
-
-        finished_signals = []
-        worker.finished_signal.connect(lambda res: finished_signals.append(res))
-
-        worker.run()
-
-        assert worker._is_cancelled is True
-        assert len(finished_signals) == 0
-
-
-def test_ai_chat_worker_cancellation():
-    """測試 AIChatWorker 在多輪對話中被取消時正確停止且不發射 finished_signal"""
-    worker = AIChatWorker(messages=[{"role": "user", "content": "你好"}])
-
-    with patch("services.ai_worker.AIService.load_settings") as mock_settings, \
-         patch("services.ai_worker.AIService.call_api_stream") as mock_stream:
-
-        mock_settings.return_value = {
-            "provider": "LM Studio",
-            "api_urls": {"LM Studio": "http://localhost:1234/v1/chat/completions"},
-            "api_keys": {"LM Studio": ""},
-            "models": {"LM Studio": "test-model"}
-        }
-
-        def fake_stream(*args, **kwargs):
-            yield "你"
-            worker.cancel()
-            yield "好"
-
-        mock_stream.side_effect = fake_stream
-
-        finished_signals = []
-        worker.finished_signal.connect(lambda res: finished_signals.append(res))
-
-        worker.run()
-
-        assert worker._is_cancelled is True
-        assert len(finished_signals) == 0
-
-
-def test_ai_stream_worker_cancellation():
-    """測試 AIStreamWorker 在擴寫流式生成中被取消時不發射 finished_signal"""
-    worker = AIStreamWorker(system_prompt="續寫", user_content="上文")
-
-    with patch("services.ai_worker.AIService.load_settings") as mock_settings, \
-         patch("services.ai_worker.AIService.call_api_stream") as mock_stream:
-
-        mock_settings.return_value = {
-            "provider": "LM Studio",
-            "api_urls": {"LM Studio": "http://localhost:1234/v1/chat/completions"},
-            "api_keys": {"LM Studio": ""},
-            "models": {"LM Studio": "test-model"}
-        }
-
-        def fake_stream(*args, **kwargs):
-            yield "續寫字詞"
-            worker.cancel()
-            yield "多餘字詞"
+            yield '"original_text": "測試"}]'
 
         mock_stream.side_effect = fake_stream
 

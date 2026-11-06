@@ -1,7 +1,7 @@
 # 九方小說編輯器 — 自動測試套件說明書 (Test Suite)
 
-> **最後更新**：2026-11-01  
-> **測試總數**：275 項自動化測試（42 個測試模組）  
+> **最後更新**：2026-11-06  
+> **測試總數**：238 項自動化測試（36 個測試模組）  
 > **重要規則**：任何 Agent 在新增、修改或刪除測試案例時，**必須同步更新本文件**！
 
 ---
@@ -11,7 +11,7 @@
 在 Windows 繁體中文環境下，執行測試請指定 `tests/` 目錄，避免根目錄其他文字檔案干擾 pytest collection：
 
 ```powershell
-# 執行全部 275 項測試
+# 執行全部 238 項測試
 py -m pytest tests/
 
 # 僅檢驗測試收集清單（不實際執行）
@@ -27,12 +27,12 @@ py -m pytest tests/unit/test_dataset_export.py
 
 | 分類領域 | 測試模組檔名 | 測試數 | 核心測試目標 |
 | :--- | :--- | :---: | :--- |
-| **1. AI 輔助與長文本分析** | `integration/test_ai_cancellation.py`<br>`integration/test_ai_character_extraction.py`<br>`integration/test_ai_chat.py`<br>`integration/test_ai_continuation.py`<br>`ui/test_ai_scope_dialog.py`<br>`unit/test_ai_proofread_worker.py`<br>`unit/test_ai_service.py`<br>`unit/test_ai_settings_and_worker.py`<br>`unit/test_hardware_detector.py`<br>`unit/test_token_estimator.py` | 67 | 任務取消主動中斷機制與連線 Socket 立即關閉、結構化角色提取、LaTeX 清理、章節內文提取、AI 對話 Markdown 富文本渲染、串流與工作階段狀態流轉、智慧續寫、Token估算與 Context 防護攔截、動態硬體記憶體感知偵測（NVIDIA VRAM / 系統 RAM）、設定檔 AppData 本機持久化與遷移、懸浮 HUD 圖示按鈕可讀性、AISettingsService 與各 AIWorker 獨立模組隔離測試、Ollama tokenize 端點命中與 fallback、LM Studio context 上限主動撈取與 AISettingsDialog 設定同步、AIScopeDialog 無 Emoji 介面與綠黃紅狀態按鈕禁用防護、Local LLM 本地端點離線即時探測與啟動按鈕防禦禁用、長篇文本單一串流請求無錯誤執行、純本機零延遲 Token 估算與 LM Studio 終端機報錯消除、純本機語意校稿背景推論 Worker（段落切片 Chunking、字元偏移校正、結構化 JSON 容錯解析、忽略規則比對與取消機制） |
-| **2. 編輯器與右側資料卡片** | `integration/test_controllers.py`<br>`ui/test_typewriter_mode.py`<br>`ui/test_right_panel_split.py`<br>`ui/test_card_detail_dialog.py` | 29 | 9 大子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
+| **1. 本機 AI 語意校稿與設定** | `integration/test_ai_cancellation.py`<br>`unit/test_ai_proofread_worker.py`<br>`unit/test_ai_service.py`<br>`unit/test_ai_settings_and_worker.py` | 30 | 任務取消主動中斷機制與連線 Socket 立即關閉、設定檔 AppData 本機持久化與遷移、AISettingsService 與 AIProofreadWorker 獨立模組隔離測試、Ollama tokenize 端點命中與 fallback、LM Studio context 上限主動撈取與 AISettingsDialog 設定同步、本地端點離線即時探測、純本機零延遲 Token 估算、純本機語意校稿背景推論 Worker（段落切片 Chunking、字元偏移校正、結構化 JSON 容錯解析、忽略規則比對與取消機制） |
+| **2. 編輯器與右側資料卡片** | `integration/test_controllers.py`<br>`ui/test_typewriter_mode.py`<br>`ui/test_right_panel_split.py`<br>`ui/test_card_detail_dialog.py` | 29 | 子控制器協同、打字機捲動置中行為與滑鼠文字選取防護、右側雙層上下分離面板、卡片更名即時連動、卡片 Markdown 所見即所得與預覽、純文字無格式貼上 |
 | **3. 章節樹與三層結構（幕）** | `ui/test_context_menus.py`<br>`integration/test_scene.py` | 22 | 節點右鍵操作（排序/更名/複製副本/整卷複製/標記/轉換為卷章幕）、第三層「幕 (Scene)」節點資料結構與 metadata（時間/地點/POV）持久化相容 |
 | **4. 資料庫、備份與路徑移轉** | `unit/test_database.py`<br>`unit/test_daily_progress_sync.py`<br>`unit/test_backup.py`<br>`unit/test_snapshot.py`<br>`integration/test_tree_expansion_persistence.py`<br>`integration/test_storage_path.py`<br>`integration/test_save_rules.py` | 32 | SQLite 存取、當日目標與進度多設備同步 (v10 Migration)、自動備份與還原、多版本快照建立與恢復、樹狀展開狀態持久化、自訂存檔目錄遷移、安靜存檔與書名覆寫規則、Schema v14 游標位置與最後開啟節點持久化與遷移 |
 | **5. 自動存檔與崩潰恢復** | `integration/test_autosave_and_startup.py` | 9 | 啟動導引視窗（新建/開啟/最新）、異常結束崩潰自動恢復（Crash Recovery）、暫存檔配額清理與自動存檔週期 |
-| **6. 審校、統計與寫作日誌** | `integration/test_phase12.py`<br>`ui/test_stats_settings.py`<br>`unit/test_stats_ai_breakdown.py`<br>`unit/test_writing_log_enhancements.py`<br>`unit/test_writing_log_service.py` | 34 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、AI 輔助創作誠信指標細項打點、寫作打卡熱力圖覆蓋修復、各章節字數長條圖提取修復、短時間大量文字貼上與刪除行為即時監控、排除正常打字與輸入法組字誤觸大量刪除、固定時間窗口防無窮累積、背景儀表板非可見時跳過重繪以消除打字卡頓、創作日誌文字與介面全域 UI 縮放反應、全書字數目標進度條、WritingLogService 純邏輯計算與表格文字格式化 |
+| **6. 審校、統計與寫作日誌** | `integration/test_phase12.py`<br>`ui/test_stats_settings.py`<br>`unit/test_stats_ai_breakdown.py`<br>`unit/test_writing_log_enhancements.py`<br>`unit/test_writing_log_service.py` | 34 | 中文小說排版審校（重複詞/高頻虛詞/被動句/公文贅詞）、自訂詞庫與白名單、寫作日誌 AI 介入度追蹤、AI 輔助創作誠信指標細項打點、寫作打卡熱力圖覆蓋修復、各章節字數長條圖提取修復、排除正常打字與輸入法組字誤觸、背景儀表板非可見時跳過重繪以消除打字卡頓、創作日誌文字與介面全域 UI 縮放反應、全書字數目標進度條、WritingLogService 純邏輯計算與表格文字格式化 |
 | **7. 視窗設定、大綱與匯出** | `integration/test_window_settings.py`<br>`ui/test_focus_and_outline.py`<br>`unit/test_markdown_converter.py`<br>`unit/test_export.py`<br>`unit/test_dataset_export.py`<br>`ui/test_search.py` | 37 | 初次啟動縮放導引、1:2:2 版面記憶、選單架構防護、沉浸全螢幕專注模式、大綱即時檢索與樹操作即時同步、全域搜尋取代、多格式匯出 (Docx/EPUB/MD/TXT)、設定資料集匯出精靈勾選過濾與深層卡片動態標題降級排版 |
 | **8. 主題樣式與對話框色彩** | `ui/test_theme_dialogs.py` | 10 | 全 6 種主題之彈出視窗高對比度 Token、按鈕/核取/單選指示器渲染、所有對話框主題色彩套用相容 |
 | **9. 外部文件匯入與樹狀適應** | `unit/test_import_service.py`<br>`integration/test_import_controller.py` | 12 | 中文小說正則切分（卷/章/場景）、Markdown 標題對應、Word 大綱樣式、多編碼自動偵測 (UTF-8/Big5)、單檔不切分、預覽精靈勾選過濾與三種掛載模式 |
@@ -44,79 +44,30 @@ py -m pytest tests/unit/test_dataset_export.py
 
 ## 3. 各測試模組詳細項目清單
 
-### 3.1 AI 輔助與長文本分析（67 項）
+### 3.1 本機 AI 語意校稿與設定（30 項）
 
-#### `integration/test_ai_cancellation.py` (4 項)
+#### `integration/test_ai_cancellation.py` (2 項)
 - `test_base_ai_worker_cancel_closes_active_response`：驗證 `BaseAIWorker` 在呼叫 `cancel()` 時會主動呼叫 response 與底層 raw socket 的 `close()`。
-- `test_ai_worker_stream_cancellation`：驗證 `AIWorker` 在短文串流生成中被取消時正確停止且不發射 `finished_signal`。
-- `test_ai_chat_worker_cancellation`：驗證 `AIChatWorker` 在多輪對話中被取消時正確停止且不發射 `finished_signal`。
-- `test_ai_stream_worker_cancellation`：驗證 `AIStreamWorker` 在擴寫流式生成中被取消時不發射 `finished_signal`。
+- `test_ai_proofread_worker_stream_cancellation`：驗證 `AIProofreadWorker` 在串流生成中被取消時正確停止且不發射 `finished_signal`。
 
-#### `integration/test_ai_character_extraction.py` (6 項)
-- `test_ai_dialogs_scale_and_styles`：測試 `AIScopeDialog` 與 `AICharacterReviewDialog` 支援 scale_factor 縮放與清晰外框。
-- `test_ai_scope_content_extraction_tree`：測試提取多層樹狀目錄（卷-章-幕）內文與字數統計之正確性。
-- `test_fallback_character_parsing`：測試模型未依規定標籤輸出（如純 Markdown 標題）時的 Fallback 容錯解析。
-- `test_latex_and_tag_cleaning`：測試 LaTeX 關係指令與重複標籤的清理與富文本渲染。
-- `test_markdown_highlighter_and_preview`：測試 `MarkdownHighlighter` 與 `CardDetailDialog` 預覽切換。
-- `test_structured_character_parsing_5_elements`：測試結構化標籤格式解析，確認 5 大要素與獨立關係卡解析無誤。
-
-#### `integration/test_ai_chat.py` (6 項)
-- `test_init_with_context`：測試 AI 聊天面板帶有目前章節上下文之初始化狀態。
-- `test_init_without_context`：測試無上下文狀態下的 AI 聊天面板初始化。
-- `test_insert_and_save_card_signals`：測試將 AI 回應插入正文或另存為資料卡片的信號發送。
-- `test_message_formatting_and_history`：測試對話訊息排版格式與歷史對話記錄儲存。
-- `test_markdown_rendering_in_chat`：測試 AI 助理回覆 Markdown 富文本渲染，驗證標題、粗體、清單與關係箭頭正確轉換。
-- `test_streaming_and_stage_status`：測試對話流式輸出 chunks 接收與工作階段（連線 ➔ 思考 ➔ 生成 ➔ 完成）狀態流轉。
-
-#### `integration/test_ai_continuation.py` (3 項)
-- `test_continuation_default_disabled`：驗證智慧續寫功能預設保持停用，避免未授權呼叫。
-- `test_continuation_inserted_at_cursor`：驗證生成續寫文本能精準插入於編輯器游標所在位置。
-- `test_continuation_worker_initialization`：驗證背景續寫非同步 Worker 初始化與參數傳遞。
-
-#### `ui/test_ai_scope_dialog.py` (7 項)
-- `test_scope_dialog_no_emoji`：驗證 `AIScopeDialog` 所有單選選項與按鈕文案均無 Emoji 表情符號。
-- `test_scope_dialog_green_status_enables_start_button`：驗證當預估 Token 處於 GREEN 狀態時，呈現綠燈 `●` 且開始按鈕為啟用狀態。
-- `test_scope_dialog_yellow_status_enables_start_button`：驗證當預估 Token 接近上限處於 YELLOW 狀態時，呈現黃燈 `●` 且開始按鈕允許點擊。
-- `test_scope_dialog_red_status_disables_start_button`：驗證當預估 Token 超出上限處於 RED 狀態時，呈現紅燈 `●` 且開始按鈕被強制禁用。
-- `test_scope_dialog_tree_selection_updates_stats`：驗證自訂勾選模式下全選、全不選與項目勾選能即時連動更新統計與燈號。
-- `test_scope_dialog_empty_content_prevention`：驗證所選範圍無有效文字時顯示警示並禁用開始按鈕。
-- `test_scope_dialog_local_server_offline_disables_start_button`：驗證當 Local LLM 本地伺服器（LM Studio / Ollama）未上線時，範圍對話框精準標記「未連線（服務未啟動）」，顯示「Local LLM 服務未上線」紅燈警示，不顯示誤導之「超過目前 Context 限制」，強制禁用開始按鈕，並支援「重新檢查服務」動態偵測恢復。
-
-#### `unit/test_ai_service.py` (13 項)
-- `test_default_settings_contains_openai_and_features`：驗證預設 `ai_settings.json` 正確包含 OpenAI 介面及各項 AI 功能開關。
+#### `unit/test_ai_service.py` (11 項)
+- `test_default_settings_contains_local_providers`：驗證預設 `ai_settings.json` 正確包含本機 Ollama 與 LM Studio 設定。
 - `test_detect_local_models_empty_or_offline`：驗證本地模型離線或無法連接時的例外捕捉與防禦處理。
 - `test_load_and_save_settings`：驗證 AI 服務設定檔讀取與儲存之完整性。
 - `test_get_settings_file_path_appdata`：驗證 AI 設定檔持久化路徑正確指向 AppData 本機資料夾。
-- `test_floating_hud_buttons_visibility`：驗證懸浮 HUD 右上角收折與關閉按鈕具備專屬 objectName、高對比文字與安全尺寸。
 - `test_count_tokens_ollama_fallback_on_missing_endpoint`：驗證 Ollama tokenize 端點連線異常時靜默 fallback 到本機保守估算值（fast_estimate_tokens），不中斷執行流程。
 - `test_count_tokens_ollama_success`：驗證 Ollama tokenize 端點成功回應時正確解析 `tokens` 列表長度並回傳精確 token 數。
 - `test_count_tokens_lm_studio_no_network`：驗證 LM Studio 直接使用本機零延遲估算，絕不對外發送 `/v1/tokenize` 請求。
 - `test_fetch_context_limit_lm_studio`：驗證向 LM Studio `/api/v0/models` 正確解析 loaded_context_length。
 - `test_fetch_context_limit_offline`：驗證本地端點離線或通訊失敗時安全回傳 None。
 - `test_check_local_server_status_online`：驗證 `AIService.check_local_server_status` 在 LM Studio 或 Ollama 本地伺服器正常上線時回傳 True 與正常狀態描述。
-- `test_check_local_server_status_offline`：驗證 `AIService.check_local_server_status` 在本地伺服器關閉（連線拒絕）或逾時時回傳 False 與「服務未啟動」之清楚說明。
-- `test_check_local_server_status_cloud_always_online`：驗證雲端 Provider（如 OpenAI、Anthropic、Gemini）直接回傳 True，不執行本地探測。
+- `test_check_local_server_status_offline`：驗證 `AIService.check_local_server_status` 在本地伺服器關閉（連線拒絕）或逾時時回傳 False 與「未啟動」之清楚說明。
 
-#### `unit/test_hardware_detector.py` (3 項)
-- `test_get_available_memory_mb_nvidia`：驗證具備 NVIDIA GPU (pynvml) 環境時能正確讀取顯卡可用 VRAM (MB)。
-- `test_get_available_memory_mb_system_ram_uma`：驗證無 NVIDIA 顯卡時能平滑降級使用 psutil 偵測系統可用實體 RAM。
-- `test_get_available_memory_mb_fallback`：驗證套件異常或偵測失敗時能安全退回 4096 MB 保守預設值。
-
-#### `unit/test_ai_settings_and_worker.py` (7 項)
+#### `unit/test_ai_settings_and_worker.py` (4 項)
 - `test_settings_service_load_and_save`：測試 `AISettingsService` 設定檔儲存與讀取正確性。
 - `test_aiservice_delegates_to_settings_service`：測試 `AIService` 對外介面與 `AISettingsService` 委派調用保持一致。
-- `test_worker_initialization`：測試 `AIWorker`、`AIChatWorker`、`AIContinuationWorker` 與 `AIStreamWorker` 初始化與取消中斷狀態管理。
-- `test_workers_run_without_name_error`：測試 `AIChatWorker`、`AIContinuationWorker`、`AIStreamWorker`、`AIWorker` 在 `run()` 中正確透過 `AIService` 代理呼叫 API 且不發生 `NameError`。
+- `test_worker_initialization_and_cancel`：測試 `BaseAIWorker` 與 `AIProofreadWorker` 初始化與取消中斷狀態管理。
 - `test_ai_settings_dialog_context_limit`：測試 `AISettingsDialog` 能夠正確讀取並儲存 Context 上限設定。
-- `test_ai_worker_long_text_single_request`：驗證超過 4000 字長篇小說正文在 `AIWorker` 中一律透過單一串流請求完成，不發生 `ModuleNotFoundError`。
-- `test_ai_controller_starts_ai_worker_directly`：驗證 `AIController.start_ai_analysis` 一律直接實例化 `AIWorker` 並啟動，不依賴 pipeline worker。
-
-#### `unit/test_token_estimator.py` (5 項)
-- `test_estimate_request_green_status`：驗證 Token 估算結果在低於上限 80% 時回傳 GREEN。
-- `test_estimate_request_yellow_status`：驗證 Token 估算結果在介於上限 80% 到 100% 時回傳 YELLOW。
-- `test_estimate_request_red_status`：驗證 Token 估算結果在超出上限時回傳 RED。
-- `test_estimate_request_no_context_limit`：驗證未設定上限或取得失敗時，預設回傳 YELLOW。
-- `test_fast_estimate_tokens`：驗證本地快速估算對空字串、純中文與中英混合文本的即時估算精度。
 
 #### `unit/test_ai_proofread_worker.py` (13 項)
 - `test_worker_initialization`：驗證 `AIProofreadWorker` 屬性、選項與未取消初始狀態。
@@ -135,7 +86,7 @@ py -m pytest tests/unit/test_dataset_export.py
 
 ---
 
-### 3.2 核心控制器與右側資料卡片（30 項）
+### 3.2 核心控制器與右側資料卡片（29 項）
 
 #### `integration/test_controllers.py` (14 項)
 - `test_auto_load_latest_temp_priority_and_fallback`：測試優先自動載入最新暫存檔，若不存在則退回正式存檔。
@@ -145,7 +96,7 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_project_controller_build_and_load`：測試 ProjectController 構建專案資料結構與還原載入。
 - `test_stats_controller_markdown_exclusions`：測試 Markdown 語法符號不計入正文字數之排除邏輯。
 - `test_stats_controller_word_count_and_exclusions`：測試 StatsController 字數統計與排除條件。
-- `test_subcontrollers_initialization`：測試 9 大子控制器（Subcontrollers）實例化並注入 MainController。
+- `test_subcontrollers_initialization`：測試子控制器實例化並注入 MainController。
 - `test_theme_controller_apply_theme`：測試 ThemeController 套用日夜間主題樣式。
 - `test_theme_menu_scaling`：測試 ThemeManager 針對高解析度縮放之 scale_qss 與 QSS 縮放計算。
 - `test_trash_permanent_delete_and_clear`：測試垃圾桶永久刪除單一節點與一鍵清空功能。
@@ -160,7 +111,6 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_delete_editing_card_resets_to_placeholder`：測試當正在編輯的卡片遭刪除時，下方重設為提示頁。
 - `test_initial_state_placeholder`：測試右側下方預設呈現提示導引頁面。
 - `test_markdown_highlighter_and_formatting`：測試卡片編輯區支援富文本所見即所得與工具列格式化。
-
 - `test_save_card_from_panel`：測試在下方欄位修改內容並儲存，資料模型與上方面板節點皆正確同步。
 - `test_scene_panel_switch`：測試切換為「幕」屬性編輯面板 (Index 2)。
 
@@ -185,7 +135,7 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_card_move_up_and_down`：測試卡片節點同層順序上移與下移。
 - `test_card_rename`：測試卡片重新命名。
 - `test_tree_clear_mark`：測試清除目錄樹節點之進度標記色彩。
-- `test_tree_context_menu_convert_options`：測試作品面板右鍵選單包含「🔄 轉換…」母選單與「📁 轉換為卷」、「📄 轉換為章」、「🎬 轉換為幕」子選項，並依據節點目前類型精準啟用/禁用（反灰）。
+- `test_tree_context_menu_convert_options`：測試作品面板右鍵選單包含轉換母選單與子選項，並依據節點目前類型精準啟用/禁用（反灰）。
 - `test_tree_convert_file_to_folder`：測試章節（file）轉換為卷（folder）時，正文安全保留、編輯器主動卸載、字數統計同步自 file_word_stats 移除。
 - `test_tree_convert_folder_to_file`：測試卷（folder）轉換為章節（file）時，補全正文與卡片預設欄位並重新納入字數統計。
 - `test_tree_convert_file_to_scene_and_back`：測試章節（file）與幕（scene）雙向轉換，驗證進度標記保留、幕屬性欄位補全與資料型態切換正確性。
@@ -296,7 +246,7 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_word_count_settings_dialog`：測試計字設定對話框介面呈現與偏好設定讀取。
 
 #### `unit/test_stats_ai_breakdown.py` (3 項)
-- `test_record_ai_activity_with_feature_keys`：驗證 `StatsController.record_ai_activity` 能精準依據各功能標籤（chat、character、proofread、continuation 等）累計細部面向次數至 `ai_details`。
+- `test_record_ai_activity_with_feature_keys`：驗證 `StatsController.record_ai_activity` 能精準依據各功能標籤累計細部面向次數至 `ai_details`。
 - `test_database_save_and_load_ai_details`：驗證 SQLite `DatabaseService.save_project` 與 `load_project` 完整保留並還原 `ai_details` JSON 字典。
 - `test_migration_v10_to_v11`：驗證舊版 v10 資料庫能平滑無損遷移至 v11，自動為 `writing_logs` 補齊 `ai_details` 欄位並更新 `schema_version`。
 
@@ -304,17 +254,17 @@ py -m pytest tests/unit/test_dataset_export.py
 - `test_database_migration_v12_and_roundtrip`：驗證 SQLite schema v12 Migration 為 `writing_logs` 支援 `paste_large_count` 與 `delete_large_count` 欄位相容性，並驗證儲存與載入往返一致性。
 - `test_paste_no_longer_tracked`：驗證大量貼上監控已完全移除，貼上長文字不再寫入或累計大量貼上記錄。
 - `test_delete_no_longer_tracked`：驗證大量刪除監控已完全移除，大範圍刪除字元不再寫入或累計大量刪除記錄。
-- `test_heatmap_dates_include_today`：驗證寫作打卡熱力圖網格計算，以「本週一」為基準向前推 23 週，使當日（如 2026-09-04）及過去 24 週打卡歷史全數納入可見網格並可被 Hover 查詢。
+- `test_heatmap_dates_include_today`：驗證寫作打卡熱力圖網格計算，以「本週一」為基準向前推 23 週，使當日及過去 24 週打卡歷史全數納入可見網格並可被 Hover 查詢。
 - `test_chapter_stats_extraction`：驗證 `WritingLogDashboard._extract_chapter_stats` 能正確識別 `type="file"` 樹節點並提取章節名稱與各章內文字數。
 - `test_ai_ratio_chart_excludes_paste_and_delete`：驗證 AI 介入度分析圖與創作誠信指標卡片中，大量文字貼上與大量文字刪除行為不列入 AI 誠信光譜指標，保持 AI 介入度面向純淨。
-- `test_writing_log_dashboard_ui_scale_response`：驗證創作日誌與寫作儀表板（含標題、按鈕、指標卡片、圖表視圖與日誌表格）隨全局介面縮放比例（如 150%、200%）自適應等比縮放與可捲動性。
+- `test_writing_log_dashboard_ui_scale_response`：驗證創作日誌與寫作儀表板隨全局介面縮放比例自適應等比縮放與可捲動性。
 - `test_typing_ime_and_backspace_no_false_positive_large_delete`：驗證正常打字時輸入法組字替換與連續單字退格不會誤觸或產生任何錯誤記錄。
-- `test_writing_log_dashboard_columns_count`：驗證創作日誌儀表板表格移除大量異動欄位後，維持乾淨的 5 欄設定（日期、當日總時長、手寫字數、AI 續寫字數、AI 輔助與面向）。
+- `test_writing_log_dashboard_columns_count`：驗證創作日誌儀表板表格維持乾淨的 5 欄設定（日期、當日總時長、手寫字數、AI 續寫字數、AI 輔助與面向）。
 - `test_record_text_modification_is_safe_noop`：驗證 `record_text_modification` 已變更為安全相容之 no-op 函式，呼叫時不累計日誌亦不拋出錯誤。
 
 #### `unit/test_writing_log_service.py` (4 項)
 - `test_calculate_dashboard_metrics_empty`：驗證日誌為空時預設指標（100% 手創、零介入）運算正確性。
-- `test_calculate_dashboard_metrics_mixed`：驗證包含手寫、AI 續寫與細部面向互動時，總字數、平均字數、手創比例與輔助定位字串計算無誤。
+- `test_calculate_dashboard_metrics_mixed`：驗證包含手寫與細部面向互動時，總字數、平均字數、手創比例與輔助定位字串計算無誤。
 - `test_prepare_chart_data`：驗證圖表資料（近期 14 日升序切片與全量歷史映射表）整理正確性。
 - `test_format_table_rows`：驗證單日表格記錄格式化、時長換算、標籤拼接與 AI 誠信明細 ToolTip 組裝。
 
@@ -455,11 +405,11 @@ py -m pytest tests/unit/test_dataset_export.py
 ## 4. Agent 測試編寫與維護規範
 
 1. **乾淨隔離原則**：
-   - 涉及檔案或資料庫測試，必須使用 pytest 內建的 `tmp_path` fixture，**嚴禁在專案真實目錄中寫入測試資料**。
+   - 涉及檔案或資料庫測試，必須使用 pytest 內建的 `tmp_path` fixture 或 `tempfile.TemporaryDirectory`，**嚴禁在專案真實目錄中寫入測試資料**。
    - 涉及 PyQt UI 元件時，使用 `qapp` fixture 確保 QApplication 生命週期安全。
 2. **小步驗證**：
-   - 編寫完任何新測試後，立即以 `C:\Python314\python.exe -m pytest tests/<your_test_file>.py` 驗證單一測試。
-   - 確保全部 136+ 項測試全數通過（`0 failures, 0 errors`）。
+   - 編寫完任何新測試後，立即以 `py -m pytest tests/<your_test_file>.py` 驗證單一測試。
+   - 確保全部 238 項測試全數通過（`0 failures, 0 errors`）。
 3. **文件同步維護**：
    - 新增測試函數時，應包含清晰的 docstring 說明其測試邊界。
    - **必須同步更新本文件**，更新測試總數、模組項數與測試項目清單！

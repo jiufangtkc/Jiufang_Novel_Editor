@@ -1,8 +1,8 @@
 # 九方小說編輯器 — 交接文件
 
-> 最後更新：2026-11-02，完成純本機 AI 語意校稿引擎轉向 — UI 介面收斂與多餘入口拆除 (Phase 2)。
+> 最後更新：2026-11-06，完成 Phase 30「純本機 AI 語意校稿引擎與架構減法重構」全數階段（拔除除校稿外所有 AI 功能）及取消 Local LLM 小模型開發規則。
 
-## 0. ⚠️ 專案交接守則 (CRITICAL RULES)
+## 0. 專案交接守則 (CRITICAL RULES)
 
 1. **嚴格的範圍控制**：每次修改聚焦於指派任務檔案，不要發散，不要隨意大範圍破壞架構。
 2. **每次結束必寫交接記錄**：當完成任務，**必須**修改本 HANDOVER.md 的「第 3 節 (目前執行狀態)」，清楚寫下變更內容與下一個 Agent 的指引。
@@ -14,9 +14,9 @@
 
 ## 1. 接手概覽 (Overview)
 
-這是一個基於 Python + PyQt6 的桌面端小說寫作軟體。專案採用嚴格 MVC 架構，並具備 262 項以上的單元與整合測試。
-目前已經完成核心寫作、資料集面板、儲存(SQLite)、多格式匯出、AI 助手與長文分析、數據儀表板、文風檢查等完整功能。
-詳細架構請務必閱讀 `.agents/docs/ARCHITECTURE.md`。歷史修改紀錄請參閱 `CHANGELOG.md`。
+這是一個基於 Python + PyQt6 的桌面端小說寫作軟體。專案採用嚴格 MVC 架構，並具備 238 項單元與整合測試（36 個測試模組）。
+目前已完成核心寫作、資料集面板、儲存(SQLite)、多格式匯出、純本機 AI 語意校稿、數據儀表板、文風檢查等完整功能。
+詳細架構請務必閱讀 `.agents/docs/ARCHITECTURE.md`。歷史修改紀錄請參閱 `.agents/docs/CHANGELOG.md`。
 
 ---
 
@@ -28,112 +28,82 @@
 
 ### 陷阱 2：大量文字刪除/貼上行為監控已全面移除
 
-
 ### 陷阱 3：AI 相關設定路徑與對話視窗非模態
-
 
 ### 陷阱 4：章節樹「幕 (Scene)」節點與「檔案 (File)」節點的內容屬性等價性
 
-
 ### 陷阱 5：ai_worker.py 與 ai_service.py 之解耦與循環引用防護
 
+### 陷阱 6：AI 任務取消與 Socket 連線主動關閉（嚴禁使用 QThread.terminate()）
 
-### 陷阱 6：8GB 顯卡環境下 Local LLM 長文本分析之 Context 預算與實體檢索
+### 陷阱 7：LM Studio 無 /v1/tokenize REST 端點與 UI 執行緒 Blocking I/O 防護
 
-
-### 陷阱 7：AI 任務取消與 Socket 連線主動關閉（嚴禁使用 QThread.terminate()）
-
-
-### 陷阱 8：LM Studio 無 /v1/tokenize REST 端點與 UI 執行緒 Blocking I/O 防護
-
-
-### 陷阱 9：儲存架構已完全廢棄 JSON 格式
+### 陷阱 8：儲存架構已完全廢棄 JSON 格式
 - 專案存檔、另存新檔、Temp_doc/ 自動暫存檔全面採用 SQLite (.db)。
 - JSON 舊檔相容讀取功能已完全移除，如果需要開啟極早期的 JSON 專案檔，將無法直接開啟，且 `services/storage.py` 已被刪除。
 
-### 陷阱 10：AI 請求必須在非同步執行緒
+### 陷阱 9：AI 請求必須在非同步執行緒
 - 絕對不要在 Qt 主執行緒同步呼叫 API，避免介面卡頓。在單元測試中若測試 UI 流程，應 mock worker.start。
 
-### 陷阱 11：API Key 與專案檔案隔離
+### 陷阱 10：設定檔與專案檔案隔離
 - ai_settings.json 與 lint_settings.json 為本機全域設定，不會寫入 SQLite 專案資料庫中。
 
-### 陷阱 12：子控制器之間不得互相 import
+### 陷阱 11：子控制器之間不得互相 import
 - 所有子控制器在 __init__ 接收 main_controller 實例（self.mc），跨控制器操作一律透過 self.mc.xxx 存取，嚴禁子控制器互相 import，防止 Circular Import。
 
-### 陷阱 13：JneProject 資料模型層級
+### 陷阱 12：JneProject 資料模型層級
 - 專案字型、書名、大綱設定皆統一放置於 project.project_info (ProjectInfo dataclass) 中，請勿在 JneProject 頂層新增冗餘 getter/setter 或屬性。
 
-### 陷阱 14：QSS Template 字串格式化大括號轉義
+### 陷阱 13：QSS Template 字串格式化大括號轉義
 - theme_manager.py 的 BASE_THEME_TEMPLATE 會使用 format(**colors)，CSS 選擇器內的普通大括號必須寫為雙大括號 {{ 與 }}，僅有要被代換的變數（如 {status_bar_bg}）保留單大括號。
 
-### 陷阱 15：章節標記色碼統一常數
+### 陷阱 14：章節標記色碼統一常數
 - 章節與幕的進度標記色碼（Draft, 1st Edit, 2nd Edit, Final, Discarded）一律統一引用 models.models.MARK_COLOR_MAP，禁止在 Controller 或 View 中自行硬編碼字典。
 
-### 陷阱 16：開啟新專案不可重設 UI 縮放比例
+### 陷阱 15：開啟新專案不可重設 UI 縮放比例
 - 開啟新專案（_reset_project_state）僅重設當前專案資料與樹狀結構，不得修改全域介面縮放 scale_factor。
 
-### 陷阱 17：存檔與暫存路徑請統一透過 MainController 取得
+### 陷阱 16：存檔與暫存路徑請統一透過 MainController 取得
 - 請統一呼叫 `self.mc.get_story_dir()` 與 `self.mc.get_temp_dir()` 取得路徑，不可硬編碼 `os.path.join(self.mc.app_dir, "story")`，以確保使用者自訂雲端同步路徑時能正確運作。
 
-### 陷阱 18：小說文字儲存與匯出轉換
+### 陷阱 17：小說文字儲存與匯出轉換
 - 編輯器底層以純文字 Markdown 儲存，匯出時必須透過 `MarkdownConverter` 進行轉檔，確保輸出之 Word 文件（.docx）帶有真實樣式 Run、電子書（.epub）具有語意化 HTML 標籤、純文字（.txt）已清洗語法符號。
 
-### 陷阱 19：不要在 apply_theme 中直接呼叫 QApplication.setStyleSheet()
+### 陷阱 18：不要在 apply_theme 中直接呼叫 QApplication.setStyleSheet()
 - 在 PyQt6 / Windows 上，若對全域 `QApplication.instance()` 呼叫 `setStyleSheet`，會導致部分已手動指定字型的 widget（如 `QComboBox`）觸發全域字型 reset（變回 9pt）。
 - 正確做法為在各對話框初始化時使用 `ThemeManager.apply_theme_to_dialog(self, parent)`，既保證完整繼承主題色彩與縮放，又不會污染或重設主視窗的字型。
 
-### 陷阱 20：Windows 剪貼簿單元測試請 Mock，避免 OLE 重試與衝突
+### 陷阱 19：Windows 剪貼簿單元測試請 Mock，避免 OLE 重試與衝突
 - 在單元測試中若需測試複製到剪貼簿功能（如 `copy_card_content`），應使用 `unittest.mock.patch.object(QApplication.clipboard(), "setText")` 驗證傳入參數，嚴禁直接依賴系統全域剪貼簿。在 Windows 平台無頭或背景測試環境中，`OpenClipboard` 易與其他程式（或 COM 歷程記錄）衝突觸發 `0x800401d0`，導致 Qt 不斷 retry 造成數秒卡頓並拋出 `AssertionError`。
 
-### 陷阱 21：外部與本機網路端點測試必須 Mock
-- 在測試 `AIService.detect_local_models` 時，不得直接發送真實 HTTP request 到未開放的本機端點（如 `99999` port），否則在 Windows 系統連線 socket 超時會導致測試每次延遲 2 秒以上，應使用 `unittest.mock.patch("urllib.request.urlopen")` 模擬異常以保持測試純淨與毫秒級快速執行。
+### 陷阱 20：外部與本機網路端點測試必須 Mock
+- 在測試 `AIService.detect_local_models` 時，不得直接發送真實 HTTP request 到未開放的本機端點（如 `99999` port），否則在 Windows 系統連線 socket 超時會導致測試每次延遲 2 秒以上，應使用 `unittest.mock.patch` 模擬異常以保持測試純淨與毫秒級快速執行。
 
-### 陷阱 22：Antigravity Agent 執行測試與背景工作機制
-- 專案全套測試數量達 262 項，完整執行需耗時約 35 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須使用 `manage_task` 追蹤狀態直至 `DONE` 並讀取日誌回報結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
+### 陷阱 21：Antigravity Agent 執行測試與背景工作機制
+- 專案全套測試完整執行需耗時約 30 秒。在 Antigravity 環境中，若使用 `run_command`，一旦執行時間超過 `WaitMsBeforeAsync` 上限（10 秒），指令會自動轉入背景執行緒 (`Background Task`)。此時 Agent 必須等待背景任務完成通知並讀取結果，切勿誤判為測試死鎖或在背景未完成時提前結束回覆。
 
-### 陷阱 23：SQLite Migration v10 -> v11 與 writing_logs.ai_details 序列化
-- 在擴充 `writing_logs` 紀錄 AI 細部功能次數時，採用 JSON 格式儲存於 `ai_details` 欄位（而不是為每個可能新增的 AI 功能增加 SQL 欄位），以維持彈性擴充。
+### 陷阱 22：SQLite Migration v10 -> v11 與 writing_logs.ai_details 序列化
+- 在擴充 `writing_logs` 紀錄 AI 細部功能次數時，採用 JSON 格式儲存於 `ai_details` 欄位，以維持彈性擴充與向下相容。
 - 反序列化時需嚴格防禦：`details_raw` 若為 `None` 或無效字串，應安全回退為空字典 `{}`。
 - 當新增資料庫版本時，既有遷移測試（如 `test_daily_progress_sync.py`）中的 `SELECT MAX(version)` 檢查應斷言等於 `DatabaseService.CURRENT_SCHEMA_VERSION`，避免因版本遞增而造成斷言失敗。
-
-### 陷阱 24：深層資料集卡片匯出排版與標題降級（Depth >= 4）
-
 
 ---
 
 ## 3. 目前執行狀態與下一步指引 (CURRENT STATUS & NEXT STEPS)
 
 - **當前任務狀態**：
-  1. 最佳化計畫 (Phase O-6) View 介面穩定化已完成。
-  2. 最佳化計畫 (Phase O-7) 開發工具鏈導入已完成。
-  3. 已在專案根目錄建立 `pyproject.toml` 與 `.pre-commit-config.yaml`，提供 ruff 設定檔。
-  4. **Phase O-1 至 O-7 全數執行完畢！** 專案已大幅度瘦身並提高型別安全與效能。
-  5. 2026-09-22: 建立 `v0.1.7-beta` 標籤並推送到 GitHub。已撰寫發布說明於 `pre-release/release_notes_v0.1.7-beta.txt`。
-  6. 2026-09-28: 新增記憶專案上次開啟檔案與游標位置的功能 (Schema Version 14)，包含單元與整合測試，測試套件總數增至 262 項，全數綠燈通過。
-  7. 2026-11-01: 完成「純本機 AI 語意校稿引擎與架構減法重構 (Phase 30)」戰略評估與分階段實施規劃。已建立專屬架構指南文件 `.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md`，並同步更新 `ROADMAP.md`。
-  8. **2026-11-01: 完成 Phase 1（核心校稿推論引擎實裝與驗證）**：
-     - 在 `services/ai_worker.py` 實作 `AIProofreadWorker`（繼承 `BaseAIWorker`，具備段落切片 Chunking、字元偏移量搜尋校正、結構化 JSON 輸出 Prompt、容錯解析、Socket 取消中斷機制）。
-     - 在 `services/ai_service.py` re-export `AIProofreadWorker`。
-     - 改寫 `controllers/ai_controller.py` 的 `handle_start_proofread`，移除寫死假資料，非同步啟動 `AIProofreadWorker`，並在 `_on_proofread_finished` 比對 `DatabaseService.load_ignored_rules` 忽略名單過濾後儲存至資料庫。
-     - 新增單元測試 `tests/unit/test_ai_proofread_worker.py`（13 項單元測試），全套測試 275 項 100% 綠燈通過。
-     - 同步更新 `.agents/docs/TEST_SUITE.md`。
-  9. **2026-11-02: 完成 Phase 2（UI 介面收斂與多餘入口拆除）**：
-     - 頂部選單清理 (`views/components/menu_builder.py`)：選單標題移除 Emoji（改為「AI 助手(&A)」），徹底移除 `action_ai_chat`、`action_ai_continuation`、`action_ai_impression`、`action_ai_character`、`action_ai_world`、`action_ai_timeline`，僅保留「AI 校稿(&P)...」與「AI 助手設定(&S)...」。
-     - 視窗協定同步 (`views/protocols.py`)：自 `MainWindowProtocol` 移除上述 6 個廢棄 Action 型別屬性。
-     - 主控制器信號綁定解耦 (`controllers/main_controller.py`)：移除上述 6 個 Action 與編輯器 `signal_ai_analyze`、`signal_ai_chat`、`signal_ai_continuation` 之觸發綁定。
-     - 編輯器右鍵選單收斂 (`views/components/jne_text_edit.py`)：移除「與 AI 討論」、「AI 智慧擴寫」與「AI 結構化分析」子選單，清理相關訊號宣告。
-     - 卡片編輯器右鍵選單收斂 (`views/components/right_panel_card_editor.py`、`views/components/right_panel_view.py`、`views/dialogs/card_detail_dialog.py`、`views/components/base_rich_text_edit.py`)：全面移除右鍵「與 AI 討論」選單項目、`signal_ai_chat` 信號宣告與容器槽函式連接。
-     - AI 設定對話框簡化 (`views/dialogs/ai_settings_dialog.py`)：服務供應商收斂為僅支援本機端點 (`["Ollama", "LM Studio"]`)，移除雲端 API Key 輸入框，移除擴寫安全機制與提示詞自訂分頁，標籤與按鈕全面去除 Emoji。
-     - AI 控制器視窗引用減法整理 (`controllers/ai_controller.py`)：頂部移除 `AIChatDialog`、`AIExpansionDialog` 等 7 個 Dialog/HUD/Overlay import，`__init__` 移除相關成員變數初始化，過渡期方法採延遲載入防護確保不影響現有測試。
-     - 全套 275 項單元與整合測試 100% 綠燈通過，GUI 自動化驗證腳本確認選單渲染俐落正確。
+  1. **2026-11-06：完成規則清理（移除 Local LLM 小模型開發規則）**：
+     - 刪除 `.agents/rules/long-document-analysis.md` 與誤建之 `.agents/rules/.agents`。
+     - 自 `.agents/rules/workspace_rules.md`、`.agents/docs/ARCHITECTURE.md`、`.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md` 移除「10B 等級中小模型防卡死守則」。
+  2. **2026-11-06：完成 Phase 30 階段三與階段四（拔除除了校稿以外的所有 AI 功能，維持僅支援本機）**：
+     - **Controller 層瘦身 (`controllers/ai_controller.py`)**：移除對話、續寫、擴寫、角色抽取與卡片生成等過渡方法，專職處理本機 AI 設定與本機 AI 校稿。
+     - **Service 層清理 (`services/ai_worker.py`, `services/ai_service.py`, `services/ai_settings_service.py`)**：
+       - 移除 `AIWorker`、`AIChatWorker`、`AIContinuationWorker`、`AIStreamWorker`，僅保留 `BaseAIWorker` 與 `AIProofreadWorker`。
+       - 移除雲端特化協定分支（Anthropic / OpenAI 等雲端預設）與角色抽取解析邏輯，統一保留本機 `Ollama` 與 `LM Studio` 端點支援。
+       - 刪除已廢棄的 `services/token_estimator.py`、`services/hardware_detector.py` 與 `resources/prompts/` 下 6 個舊功能提示詞檔案。
+     - **View 層廢棄視窗清理**：刪除 `ai_chat_dialog.py`、`ai_expansion_dialog.py`、`ai_scope_dialog.py`、`ai_preview_dialog.py`、`ai_character_review_dialog.py`、`ai_floating_hud.py`、`ai_task_overlay.py`。
+     - **測試套件重整與文件同步**：刪除對應廢棄功能的 6 個測試模組，更新 `test_ai_cancellation.py`、`test_ai_service.py`、`test_ai_settings_and_worker.py`。全套 36 個測試模組、238 項測試 100% 綠燈通過，並同步更新 `TEST_SUITE.md`、`ROADMAP.md`、`ARCHITECTURE.md`。
 
 - **下一個 Agent 的任務指引**：
-  1. **必讀文件**：請務必詳讀 [`.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md`](file:///d:/OneDrive/JiuFangTKC/655.AI_agent_AntiGravity/Jiufang_Novel_Editor/.agents/docs/LOCAL_AI_PROOFREAD_MIGRATION_PLAN.md)。
-  2. **當前執行起點**：請接續推進 **Phase 3（Controller 與 Service 層深度解耦與死碼清理）**：
-     - `controllers/ai_controller.py` 瘦身：刪除續寫、擴寫、角色抽取、單卡/多卡生成等過渡方法，專職負責本機校稿與本機設定。
-     - `services/ai_service.py` 簡化：移除 Anthropic / Google Gemini 等雲端特化封裝，統一走本機標準 OpenAI 相容介面 (`/v1/chat/completions`)；移除 `TokenEstimator` 依賴。
-     - `services/ai_worker.py` 清理：移除舊版 `AIWorker`、`AIChatWorker`、`AIContinuationWorker`、`AIStreamWorker`。
-     - 統計與日誌相容：確認 `writing_log_service.py` 與 `stats_controller.py` 維持校稿次數記錄且手創比例維持 100%。
-  3. **鐵律遵守**：嚴格遵守小步快跑、防死循環原則，每次修改檔案前必須使用 `view_file` 讀取，測試請使用 `py -m pytest tests/` 確認通過。
-
-
+  1. **Phase 30 全數完成**：目前專案已轉型為純本機 AI 語意校稿引擎，架構與測試均處於乾淨穩定狀態。
+  2. 後續若有新功能需求或版本打包發布，請遵循 `.agents/rules/workspace_rules.md` 之 MVC 分層規範與 Release SOP 執行。
